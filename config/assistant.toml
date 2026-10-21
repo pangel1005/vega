@@ -1,0 +1,6 @@
+# Configuración general del asistente.
+# El nombre se lee de aquí; el código nunca lo escribe fijo.
+
+[assistant]
+name = "Vega"
+language = "es"
