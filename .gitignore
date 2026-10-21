@@ -21,3 +21,10 @@ models/
 .env
 config/token.txt
 *.tsbuildinfo
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties

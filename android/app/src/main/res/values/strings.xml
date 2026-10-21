@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nombre del icono en el teléfono. El nombre del asistente llega del servidor (config/assistant.toml). -->
+    <string name="app_name">Asistente</string>
+</resources>

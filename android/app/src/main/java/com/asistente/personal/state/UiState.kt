@@ -1,0 +1,84 @@
+package com.asistente.personal.state
+
+import com.asistente.personal.net.AssistantState
+import com.asistente.personal.net.LinkStatus
+import com.asistente.personal.net.ServerEvent
+import java.util.Locale
+
+/** Estado de la pantalla a partir de los eventos del servidor (igual que ui/src/chat/reducer.ts). */
+
+enum class Role { USER, ASSISTANT, ERROR, NOTE }
+
+data class Message(
+    val id: Int,
+    val role: Role,
+    val text: String,
+    val streaming: Boolean = false,
+    val meta: String? = null,
+)
+
+data class UiState(
+    val link: LinkStatus = LinkStatus.CONNECTING,
+    val retryInMs: Long? = null,
+    val assistant: String = "",
+    val model: String = "",
+    val state: AssistantState = AssistantState.IDLE,
+    val messages: List<Message> = emptyList(),
+    val nextId: Int = 1,
+    /** Cuenta de trozos recibidos: mueve la boca mientras llega la respuesta. */
+    val tokenPulse: Int = 0,
+)
+
+sealed interface Action {
+    data class Server(val event: ServerEvent) : Action
+    data class Link(val status: LinkStatus, val retryInMs: Long? = null) : Action
+    data class Sent(val text: String) : Action
+    data class LocalError(val text: String) : Action
+}
+
+const val NOT_HEARD = "No te he oído. Prueba a hablar un poco más cerca del micrófono."
+
+private fun seconds(ms: Int) = String.format(Locale.forLanguageTag("es"),"%.2f s", ms / 1000.0)
+
+private fun UiState.push(role: Role, text: String, streaming: Boolean = false, meta: String? = null) =
+    copy(messages = messages + Message(nextId, role, text, streaming, meta), nextId = nextId + 1)
+
+private fun UiState.lastStreaming(): Message? = messages.lastOrNull()?.takeIf { it.streaming }
+
+private fun UiState.replaceLast(m: Message) = copy(messages = messages.dropLast(1) + m)
+
+fun reduce(s: UiState, action: Action): UiState = when (action) {
+    is Action.Link -> {
+        val next = s.copy(link = action.status, retryInMs = action.retryInMs)
+        val open = next.lastStreaming()
+        // Si se corta a mitad de una respuesta, se cierra lo que había llegado.
+        if (action.status == LinkStatus.OPEN || open == null) next else next.replaceLast(open.copy(streaming = false))
+    }
+    is Action.Sent -> s.push(Role.USER, action.text)
+    is Action.LocalError -> s.push(Role.ERROR, action.text)
+    is Action.Server -> when (val e = action.event) {
+        is ServerEvent.Ready -> s.copy(assistant = e.assistant, model = e.model)
+        is ServerEvent.History -> e.messages.fold(s.copy(messages = emptyList())) { acc, m ->
+            when (m.role) {
+                "user" -> acc.push(Role.USER, m.content)
+                "assistant" -> acc.push(Role.ASSISTANT, m.content)
+                else -> acc
+            }
+        }
+        is ServerEvent.State -> s.copy(state = e.state)
+        is ServerEvent.Transcript ->
+            if (e.text.isNotEmpty()) s.push(Role.USER, e.text, meta = "voz · ${seconds(e.elapsedMs)}")
+            else s.push(Role.NOTE, NOT_HEARD)
+        is ServerEvent.Token -> {
+            val open = s.lastStreaming()
+            val next = if (open != null) s.replaceLast(open.copy(text = open.text + e.text))
+            else s.push(Role.ASSISTANT, e.text, streaming = true)
+            next.copy(tokenPulse = s.tokenPulse + 1)
+        }
+        is ServerEvent.Done -> {
+            val open = s.lastStreaming()
+            if (open != null) s.replaceLast(open.copy(text = e.text, streaming = false)) else s.push(Role.ASSISTANT, e.text)
+        }
+        is ServerEvent.Error -> s.push(Role.ERROR, e.message)
+    }
+}

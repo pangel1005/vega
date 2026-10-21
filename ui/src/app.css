@@ -41,8 +41,8 @@
   margin: 0 var(--gutter);
 }
 
-/* PC o tableta en horizontal: rostro a la izquierda, chat a la derecha. */
-@media (min-width: 900px) and (orientation: landscape) {
+/* Horizontal (teléfono apaisado, tableta o PC): rostro a la izquierda, chat a la derecha. */
+@media (min-width: 600px) and (orientation: landscape) {
   .app__layout {
     grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -57,6 +57,24 @@
     margin-left: 0;
   }
   .face {
-    width: min(42vw, 70vh, 520px);
+    width: min(36vw, 52vh, 520px);
+  }
+}
+
+/* Teléfono apaisado: poca altura, cabecera más compacta. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .status {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .status__title {
+    font-size: 1.5rem;
+  }
+  .app__layout {
+    gap: 6px;
+    padding-bottom: 8px;
+  }
+  .mic {
+    padding: 8px 16px;
   }
 }
