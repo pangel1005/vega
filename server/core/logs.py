@@ -1,0 +1,35 @@
+"""Registros en consola y en archivo rotativo (`logs/server.log`)."""
+
+from __future__ import annotations
+
+import logging
+from logging.handlers import RotatingFileHandler
+
+from server.core.config import LoggingSettings
+
+FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
+LOG_FILE = "server.log"
+
+
+def setup_logging(settings: LoggingSettings) -> None:
+    settings.path.mkdir(parents=True, exist_ok=True)
+    formatter = logging.Formatter(FORMAT)
+
+    file_handler = RotatingFileHandler(
+        settings.path / LOG_FILE, maxBytes=1_000_000, backupCount=5, encoding="utf-8"
+    )
+    console = logging.StreamHandler()
+    for handler in (file_handler, console):
+        handler.setFormatter(formatter)
+
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(file_handler)
+    root.addHandler(console)
+    root.setLevel(settings.level)
+
+    # Uvicorn trae sus propios manejadores; los redirigimos a los nuestros.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        lg = logging.getLogger(name)
+        lg.handlers.clear()
+        lg.propagate = True

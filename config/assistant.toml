@@ -4,3 +4,17 @@
 [assistant]
 name = "Vega"
 language = "es"
+
+[server]
+# Solo 127.0.0.1: el teléfono llega por USB con `adb reverse`, nunca por la red Wi-Fi.
+# El código rechaza cualquier otra dirección.
+host = "127.0.0.1"
+port = 8000
+
+[llm]
+url = "http://127.0.0.1:11434"
+model = "qwen3:8b"
+
+[logging]
+level = "INFO"
+dir = "logs"

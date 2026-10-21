@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+ui/dist/
+
+# Datos locales (historial, registros, voces y modelos descargados)
+data/
+logs/
+models/
+*.sqlite
+*.db
+
+# Secretos
+.env
+config/token.txt
