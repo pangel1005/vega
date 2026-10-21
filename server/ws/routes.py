@@ -18,6 +18,7 @@ from server.tools.actions import ActionRunner
 from server.ws.protocol import (
     ActionConfirm,
     ActionRequest,
+    Attention,
     ChatRequest,
     ErrorEvent,
     Hello,
@@ -27,6 +28,7 @@ from server.ws.protocol import (
     Ready,
     Reset,
     ServerEvent,
+    WakeMode,
     client_message,
 )
 
@@ -91,6 +93,7 @@ def register_ws(
             stt=stt,
             max_audio_seconds=settings.speech.max_seconds,
             actions=actions,
+            name=settings.assistant.name,
         )
         try:
             await orchestrator.send_actions()
@@ -122,5 +125,11 @@ def register_ws(
                     await orchestrator.request_action(msg.id)
                 elif isinstance(msg, ActionConfirm):
                     await orchestrator.confirm_action(msg.nonce)
+                elif isinstance(msg, WakeMode):
+                    await orchestrator.set_wake_mode(msg.on)
+                elif isinstance(msg, Attention):
+                    await orchestrator.attention()
         except WebSocketDisconnect:
             log.info("Cliente desconectado")
+        finally:
+            await orchestrator.close()

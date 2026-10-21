@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -49,7 +50,9 @@ fun accentFor(state: AssistantState): Color = when (state) {
  * Rostro del asistente, dibujado por capas para gastar lo mínimo:
  *
  * - Marco hexagonal y marcas: se dibujan una vez (solo cambian con el color).
- * - Anillos: giran con `graphicsLayer` (la GPU rota una capa ya dibujada).
+ * - Anillos: se dibujan una vez en una textura de la GPU (CompositingStrategy.Offscreen)
+ *   y solo se gira esa textura; sin esto, las líneas discontinuas se volvían a trazar en
+ *   cada cuadro (era el mayor gasto del hilo de dibujo).
  * - Ojos: se redibujan solo al cambiar su apertura (parpadeo, estado) o al parpadear en error.
  * - Boca y escáner: se redibujan solo mientras se mueven.
  *
@@ -118,19 +121,28 @@ fun Face(state: AssistantState, pulse: Int, pulseAmount: Float, modifier: Modifi
     Box(modifier.aspectRatio(1f)) {
         // Marcas exteriores: dibujadas una vez, solo giran.
         Box(
-            Modifier.fillMaxSize().graphicsLayer { rotationZ = outer }.drawWithCache {
+            Modifier.fillMaxSize().graphicsLayer {
+                rotationZ = outer
+                compositingStrategy = CompositingStrategy.Offscreen // se dibuja una vez en la GPU; solo gira
+            }.drawWithCache {
                 onDrawBehind { drawTicks(acc) }
             },
         )
         Box(
-            Modifier.fillMaxSize().graphicsLayer { rotationZ = ring }.drawWithCache {
+            Modifier.fillMaxSize().graphicsLayer {
+                rotationZ = ring
+                compositingStrategy = CompositingStrategy.Offscreen // se dibuja una vez en la GPU; solo gira
+            }.drawWithCache {
                 val effect = segments(size)
                 val stroke = Stroke(width = size.minDimension * 0.01f, pathEffect = effect)
                 onDrawBehind { drawCircle(acc.copy(alpha = 0.55f), radius = size.minDimension * 0.427f, style = stroke) }
             },
         )
         Box(
-            Modifier.fillMaxSize().graphicsLayer { rotationZ = ringRev }.drawWithCache {
+            Modifier.fillMaxSize().graphicsLayer {
+                rotationZ = ringRev
+                compositingStrategy = CompositingStrategy.Offscreen // se dibuja una vez en la GPU; solo gira
+            }.drawWithCache {
                 val stroke = Stroke(width = 1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 8f)))
                 onDrawBehind { drawCircle(acc.copy(alpha = 0.6f), radius = size.minDimension * 0.38f, style = stroke) }
             },

@@ -10,6 +10,9 @@ Cliente → servidor:
     {"type": "listen_cancel"}            descarta la grabación
     {"type": "action", "id": "..."}      pulsa un botón del panel
     {"type": "action_confirm", "nonce": "..."}  confirma una acción sensible
+    {"type": "wake_mode", "on": true}    escucha continua: el audio binario llega siempre
+                                         y se atienden las frases que empiezan por el nombre
+    {"type": "attention"}                (tocar el rostro) la próxima frase es una orden
 
 Servidor → cliente:
     {"type": "ready", "assistant": "...", "model": "..."}
@@ -84,8 +87,26 @@ class ActionConfirm(_Msg):
     nonce: str = Field(max_length=64)
 
 
+class WakeMode(_Msg):
+    type: Literal["wake_mode"] = "wake_mode"
+    on: bool
+
+
+class Attention(_Msg):
+    type: Literal["attention"] = "attention"
+
+
 AnyClientMessage = (
-    Hello | ChatRequest | Reset | ListenStart | ListenStop | ListenCancel | ActionRequest | ActionConfirm
+    Hello
+    | ChatRequest
+    | Reset
+    | ListenStart
+    | ListenStop
+    | ListenCancel
+    | ActionRequest
+    | ActionConfirm
+    | WakeMode
+    | Attention
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)

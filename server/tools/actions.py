@@ -23,6 +23,7 @@ from typing import Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from server.core.config import ROOT
+from server.core.text import normalize
 from server.tools.keys import unknown_keys
 
 log = logging.getLogger(__name__)
@@ -55,6 +56,8 @@ class ActionDef(BaseModel):
     arg: str = Field(min_length=1)
     args: list[str] = Field(default_factory=list)
     confirm: bool = False
+    quick: bool = False  # aparece en el panal principal (los demás, en «MÁS»)
+    say: list[str] = Field(default_factory=list)  # frases que lo activan por voz
 
     @model_validator(mode="after")
     def _check_arg(self) -> ActionDef:
@@ -75,6 +78,7 @@ class ActionDef(BaseModel):
             "icon": self.icon,
             "color": self.color,
             "confirm": self.confirm,
+            "quick": self.quick,
         }
 
 
@@ -132,6 +136,18 @@ class ActionRunner:
     @property
     def actions(self) -> list[ActionDef]:
         return list(self._order)
+
+    def match(self, text: str) -> ActionDef | None:
+        """Busca un botón cuya frase aparezca en lo dicho («apaga el pc por favor» → apagar).
+        Si varias encajan, gana la frase más larga (la más específica)."""
+        said = f" {normalize(text)} "
+        best: tuple[int, ActionDef] | None = None
+        for action in self._order:
+            for phrase in action.say:
+                p = normalize(phrase)
+                if p and f" {p} " in said and (best is None or len(p) > best[0]):
+                    best = (len(p), action)
+        return best[1] if best else None
 
     def request(self, action_id: str, client: str = "") -> Outcome:
         action = self._actions.get(action_id)

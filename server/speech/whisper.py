@@ -44,7 +44,12 @@ class WhisperSTT:
         language: str,
         download_root: Path,
         cpu_threads: int = 8,
+        hotwords: str | None = None,
     ) -> None:
+        # Palabras que Whisper debe esperar. OJO: con el nombre del asistente como pista,
+        # Whisper tiende a OMITIRLO al principio de la frase («Vega, ¿…?» → «¿…?»), así que
+        # no se usa para el nombre; la tolerancia está en listener.sounds_like_name.
+        self._hotwords = hotwords
         self._model_name = model
         self._device = device
         self._compute_type = compute_type
@@ -112,6 +117,7 @@ class WhisperSTT:
                 beam_size=1,
                 vad_filter=True,  # Silero VAD: quita los silencios y evita «inventar» texto en ellos
                 condition_on_previous_text=False,
+                hotwords=self._hotwords,
             )
             text = " ".join(s.text.strip() for s in segments).strip()
             elapsed = time.perf_counter() - start

@@ -22,7 +22,13 @@ log = logging.getLogger("server")
 
 def build_stt(settings: Settings) -> WhisperSTT:
     s = settings.speech
-    stt = WhisperSTT(s.stt_model, s.stt_device, s.stt_compute, settings.assistant.language, s.models_path)
+    stt = WhisperSTT(
+        s.stt_model,
+        s.stt_device,
+        s.stt_compute,
+        settings.assistant.language,
+        s.models_path,
+    )
 
     # Se carga en segundo plano: el servidor atiende ya mientras tanto, y la primera
     # frase hablada no tiene que esperar a que el modelo se cargue.

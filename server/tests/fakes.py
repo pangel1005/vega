@@ -11,9 +11,10 @@ from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SttUnavailable, Tr
 class FakeSTT:
     """Reconocedor que devuelve un texto fijo y guarda el audio que recibió."""
 
-    def __init__(self, text: str = "hola Vega", fail: str | None = None) -> None:
+    def __init__(self, text: str = "hola Vega", fail: str | None = None, texts: Sequence[str] = ()) -> None:
         self.text = text
         self.fail = fail
+        self.texts = list(texts)  # si se da, cada llamada «oye» la siguiente frase
         self.received: list[bytes] = []
 
     @property
@@ -27,7 +28,8 @@ class FakeSTT:
         self.received.append(pcm16)
         if self.fail:
             raise SttUnavailable(self.fail)
-        return Transcript(self.text, len(pcm16) / (SAMPLE_RATE * BYTES_PER_SAMPLE), 0.05)
+        text = self.texts.pop(0) if self.texts else self.text
+        return Transcript(text, len(pcm16) / (SAMPLE_RATE * BYTES_PER_SAMPLE), 0.05)
 
 
 class FakeChat:

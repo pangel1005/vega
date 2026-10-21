@@ -80,47 +80,59 @@ fun Modifier.hudFrame(line: Color): Modifier = drawBehind {
 
 private val mono = TextStyle(fontFamily = Nerv.Mono, letterSpacing = 2.sp)
 
+/**
+ * Barra superior discreta: nombre, estado del enlace, micrófono (pulsar = silenciar),
+ * hora, ACTUALIZAR (si hay versión nueva) y ANDROID (volver a HyperOS).
+ */
 @Composable
-fun StatusBar(assistant: String, model: String, link: LinkStatus, retryInMs: Long?, clock: String, onAndroid: () -> Unit, update: (() -> Unit)? = null) {
-    val (jp, es, color) = when (link) {
-        LinkStatus.OPEN -> Triple("接続", "ENLACE ESTABLE", Nerv.Green)
-        LinkStatus.CONNECTING -> Triple("接続中", "CONECTANDO", Nerv.Amber)
-        LinkStatus.RECONNECTING -> Triple("再接続", "RECONECTANDO", Nerv.Amber)
-        LinkStatus.DENIED -> Triple("拒否", "ACCESO DENEGADO", Nerv.Red)
+fun StatusBar(
+    assistant: String,
+    link: LinkStatus,
+    retryInMs: Long?,
+    clock: String,
+    listening: Boolean,
+    micOn: Boolean,
+    onToggleMic: () -> Unit,
+    onAndroid: () -> Unit,
+    update: (() -> Unit)? = null,
+) {
+    val (es, color) = when (link) {
+        LinkStatus.OPEN -> "ENLACE" to Nerv.Green
+        LinkStatus.CONNECTING -> "CONECTANDO" to Nerv.Amber
+        LinkStatus.RECONNECTING -> "RECONECTANDO" to Nerv.Amber
+        LinkStatus.DENIED -> "ACCESO DENEGADO" to Nerv.Red
     }
     val retry = if (link == LinkStatus.RECONNECTING && retryInMs != null) " · ${(retryInMs + 999) / 1000} S" else ""
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.Bottom,
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             assistant.uppercase().ifEmpty { "· · ·" },
-            style = TextStyle(fontFamily = Nerv.Serif, fontSize = 26.sp, color = Nerv.Ink, letterSpacing = 3.sp),
+            style = TextStyle(fontFamily = Nerv.Serif, fontSize = 22.sp, color = Nerv.Ink, letterSpacing = 4.sp),
+        )
+        Spacer(Modifier.size(14.dp))
+        Box(Modifier.size(6.dp).background(color))
+        Spacer(Modifier.size(6.dp))
+        Text("$es$retry", style = mono.copy(fontSize = 10.sp, color = color))
+        Spacer(Modifier.weight(1f))
+        // Micrófono: verde = escucha continua; gris = silenciado (nada sale del teléfono).
+        val micColor = if (listening && micOn) Nerv.Teal else Nerv.Mute
+        NervButton(
+            if (!listening) "● SILENCIADO" else if (micOn) "● ESCUCHANDO" else "● MICRÓFONO…",
+            micColor, enabled = true, onClick = onToggleMic, ghost = true, small = true,
         )
         Spacer(Modifier.size(12.dp))
-        Text(
-            if (model.isNotEmpty()) "MODELO ${model.uppercase()}" else "SISTEMA DE ASISTENCIA",
-            style = mono.copy(fontSize = 10.sp, color = Nerv.Mute),
-            modifier = Modifier.padding(bottom = 4.dp).weight(1f),
-        )
-        Box(Modifier.padding(bottom = 6.dp).size(7.dp).background(color))
-        Spacer(Modifier.size(6.dp))
-        Text(jp, style = TextStyle(fontFamily = Nerv.Jp, fontSize = 12.sp, color = color), modifier = Modifier.padding(bottom = 3.dp))
-        Spacer(Modifier.size(4.dp))
-        Text("$es$retry", style = mono.copy(fontSize = 11.sp, color = color), modifier = Modifier.padding(bottom = 3.dp))
-        Spacer(Modifier.size(14.dp))
-        Text(clock, style = mono.copy(fontSize = 11.sp, color = Nerv.Mute), modifier = Modifier.padding(bottom = 3.dp))
+        Text(clock, style = mono.copy(fontSize = 11.sp, color = Nerv.Mute))
         if (update != null) {
-            Spacer(Modifier.size(14.dp))
+            Spacer(Modifier.size(12.dp))
             NervButton("ACTUALIZAR", Nerv.Amber, enabled = true, onClick = update, small = true)
         }
-        Spacer(Modifier.size(14.dp))
+        Spacer(Modifier.size(12.dp))
         // Salida al Android normal (útil cuando el asistente es la pantalla de inicio).
         NervButton("ANDROID", Nerv.Mute, enabled = true, onClick = onAndroid, ghost = true, small = true)
     }
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(Nerv.Orange.copy(alpha = 0.24f)))
 }
-
 
 @Composable
 fun NervButton(

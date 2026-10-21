@@ -17,7 +17,10 @@ url = "http://127.0.0.1:11434"
 # Alternativa más capaz pero más pesada (~5,2 GB): "qwen3:8b".
 model = "qwen3.5:4b"
 # Tiempo sin uso tras el cual Ollama saca el modelo de la GPU y la deja libre.
-keep_alive = "10m"
+# Con la escucha continua («Vega, …») no se puede precargar mientras hablas, así que se
+# deja más tiempo: si lo usas a menudo responde al instante (~2,9 GB de VRAM ocupados).
+# Si prefieres liberar la GPU antes, baja este valor (la primera respuesta tardará ~5 s).
+keep_alive = "30m"
 # {name} se reemplaza por el nombre del asistente.
 system_prompt = """
 Tu nombre es {name}. Eres un asistente personal de voz que corre en el PC del usuario.

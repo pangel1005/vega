@@ -22,6 +22,8 @@ data class DeckAction(
     val icon: String,
     val color: String,
     val confirm: Boolean,
+    /** Aparece en el panal principal (los demás, en «MÁS»). */
+    val quick: Boolean = false,
 )
 
 sealed interface ServerEvent {
@@ -64,6 +66,7 @@ object Protocol {
                     DeckAction(
                         a.getString("id"), a.getString("label"), a.optString("jp"),
                         a.optString("icon", "app"), a.optString("color", "orange"), a.optBoolean("confirm"),
+                        a.optBoolean("quick"),
                     )
                 })
             }

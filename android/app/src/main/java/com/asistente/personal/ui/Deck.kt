@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,11 +24,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +48,6 @@ import androidx.compose.ui.unit.sp
 import com.asistente.personal.net.DeckAction
 import com.asistente.personal.state.Notice
 import com.asistente.personal.state.PendingConfirm
-import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -65,81 +60,60 @@ fun deckColor(name: String): Color = when (name) {
     else -> Nerv.Orange
 }
 
-/** Panel de botones estilo Stream Deck. */
+/** Hoja «MÁS»: todos los botones en cuadrícula, encima de la pantalla principal. */
 @Composable
 fun Deck(
     actions: List<DeckAction>,
     pending: PendingConfirm?,
-    notice: Notice?,
+    secondsLeft: Int,
     enabled: Boolean,
     onPress: (String) -> Unit,
-    onConfirmExpired: (String) -> Unit,
-    onNoticeExpired: (Int) -> Unit,
+    onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Cuenta atrás de la confirmación; al llegar a 0 el botón vuelve a la normalidad.
-    var secondsLeft by remember { mutableIntStateOf(0) }
-    LaunchedEffect(pending?.nonce) {
-        val p = pending ?: return@LaunchedEffect
-        for (s in p.expiresIn downTo 1) {
-            secondsLeft = s
-            delay(1000)
-        }
-        onConfirmExpired(p.nonce)
-    }
-    LaunchedEffect(notice?.seq) {
-        val n = notice ?: return@LaunchedEffect
-        delay(if (n.ok) 3500 else 6000)
-        onNoticeExpired(n.seq)
-    }
-
-    Column(modifier.hudFrame(Nerv.Orange.copy(alpha = 0.24f))) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier.background(Color(0xF20B0A09)).hudFrame(Nerv.Orange.copy(alpha = 0.24f))) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("PANEL", style = TextStyle(fontFamily = Nerv.Mono, fontSize = 11.sp, letterSpacing = 3.sp, color = Nerv.Mute))
             Box(Modifier.size(8.dp))
             Text("操作盤", style = TextStyle(fontFamily = Nerv.Jp, fontSize = 13.sp, color = Nerv.Orange))
+            Box(Modifier.weight(1f))
+            NervButton("CERRAR", Nerv.Mute, enabled = true, onClick = onClose, ghost = true, small = true)
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (actions.isEmpty()) {
-                Text(
-                    "SIN BOTONES. REVISA config/actions.toml",
-                    style = TextStyle(fontFamily = Nerv.Mono, fontSize = 11.sp, color = Nerv.Dim, textAlign = TextAlign.Center),
-                    modifier = Modifier.align(Alignment.Center),
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 104.dp),
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(actions, key = { it.id }) { a ->
+                DeckTile(
+                    action = a,
+                    confirming = pending?.id == a.id,
+                    secondsLeft = secondsLeft,
+                    enabled = enabled,
+                    onPress = { onPress(a.id) },
                 )
             }
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 92.dp),
-                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(actions, key = { it.id }) { a ->
-                    DeckTile(
-                        action = a,
-                        confirming = pending?.id == a.id,
-                        secondsLeft = secondsLeft,
-                        enabled = enabled,
-                        onPress = { onPress(a.id) },
-                    )
-                }
-            }
-            // Aviso del resultado, abajo, encima de la cuadrícula.
-            // (Nombre completo: dentro de una Column, Kotlin elegiría la variante de ColumnScope.)
-            androidx.compose.animation.AnimatedVisibility(
-                visible = notice != null,
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp),
-            ) {
-                val n = notice ?: return@AnimatedVisibility
-                val c = if (n.ok) Nerv.Green else Nerv.Red
-                Box(
-                    Modifier.fillMaxWidth().background(Color(0xF00B0A09)).border(1.dp, c.copy(alpha = 0.6f))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                ) {
-                    Text(n.text, style = TextStyle(fontFamily = Nerv.Cond, fontSize = 17.sp, color = Nerv.Ink))
-                }
-            }
+        }
+    }
+}
+
+/** Aviso corto del resultado de un botón (abajo, centrado). */
+@Composable
+fun NoticeBar(notice: Notice?, modifier: Modifier = Modifier) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = notice != null,
+        enter = fadeIn() + slideInVertically { it },
+        exit = fadeOut() + slideOutVertically { it },
+        modifier = modifier,
+    ) {
+        val n = notice ?: return@AnimatedVisibility
+        val c = if (n.ok) Nerv.Green else Nerv.Red
+        Box(
+            Modifier.background(Color(0xF00B0A09)).border(1.dp, c.copy(alpha = 0.6f))
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Text(n.text, style = TextStyle(fontFamily = Nerv.Cond, fontSize = 17.sp, color = Nerv.Ink))
         }
     }
 }
@@ -183,7 +157,7 @@ private fun DeckTile(action: DeckAction, confirming: Boolean, secondsLeft: Int, 
             )
         }
         val fg = if (confirming) Color(0xFF0A0A0A) else color
-        Canvas(Modifier.size(20.dp).align(Alignment.TopStart)) { drawIcon(action.icon, fg) }
+        Canvas(Modifier.size(20.dp).align(Alignment.TopStart)) { drawDeckIcon(action.icon, fg) }
         Column(Modifier.align(Alignment.BottomStart)) {
             if (confirming) {
                 Text(
@@ -205,7 +179,7 @@ private fun DeckTile(action: DeckAction, confirming: Boolean, secondsLeft: Int, 
 }
 
 /** Iconos dibujados con trazos (sin imágenes): ligeros y en el color del botón. */
-private fun DrawScope.drawIcon(name: String, c: Color) {
+fun DrawScope.drawDeckIcon(name: String, c: Color) {
     val w = size.width
     val s = Stroke(width = w * 0.09f, cap = StrokeCap.Round)
     val mid = Offset(w / 2, w / 2)
@@ -255,6 +229,7 @@ private fun DrawScope.drawIcon(name: String, c: Color) {
             drawArc(c, 0f, 180f, false, Offset(w * 0.2f, w * 0.26f), Size(w * 0.6f, w * 0.48f), style = s)
             line(0.5f, 0.74f, 0.5f, 0.92f)
         }
+        "more" -> for (dx in listOf(0.2f, 0.5f, 0.8f)) drawCircle(c, w * 0.09f, Offset(dx * w, 0.5f * w))
         else -> { // app: hexágono NERV
             val p = Path()
             for (i in 0 until 6) {
