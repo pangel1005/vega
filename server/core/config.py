@@ -63,11 +63,21 @@ class LoggingSettings(_Section):
         return self.dir if self.dir.is_absolute() else ROOT / self.dir
 
 
+class MemorySettings(_Section):
+    file: Path = Path("data/history.sqlite")
+
+    @property
+    def path(self) -> Path:
+        """Archivo de historial; si es relativo, se toma desde la raíz del proyecto."""
+        return self.file if self.file.is_absolute() else ROOT / self.file
+
+
 class Settings(_Section):
     assistant: AssistantSettings
     server: ServerSettings = ServerSettings()
     llm: LlmSettings
     logging: LoggingSettings = LoggingSettings()
+    memory: MemorySettings = MemorySettings()
 
     @property
     def system_prompt(self) -> str:

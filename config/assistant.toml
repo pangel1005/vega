@@ -26,6 +26,10 @@ No uses listas, tablas, emojis ni formato Markdown: tus respuestas se leerán en
 Si no sabes algo, dilo con sinceridad.
 """
 
+[memory]
+# Historial de conversaciones (SQLite). Fuera de git.
+file = "data/history.sqlite"
+
 [logging]
 level = "INFO"
 dir = "logs"

@@ -38,7 +38,9 @@ def main() -> int:
         while True:
             event = json.loads(ws.recv())
             kind = event["type"]
-            if kind == "state":
+            if kind == "history":
+                print(f"[historial recuperado: {len(event['messages'])} mensajes]")
+            elif kind == "state":
                 print(f"\n[estado: {event['state']}]", flush=True)
                 if event["state"] in ("idle", "error"):
                     break

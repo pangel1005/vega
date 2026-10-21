@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from server.app import LlmStatus, create_app
 from server.core.config import AssistantSettings, LlmSettings, Settings
+from server.memory.store import ConversationStore
 
 SETTINGS = Settings(
     assistant=AssistantSettings(name="Prueba"),
@@ -13,7 +14,9 @@ def client_with(status: LlmStatus) -> TestClient:
     async def probe() -> LlmStatus:
         return status
 
-    return TestClient(create_app(SETTINGS, token="x" * 32, llm_probe=probe))
+    return TestClient(
+        create_app(SETTINGS, token="x" * 32, llm_probe=probe, store=ConversationStore(":memory:"))
+    )
 
 
 def test_health_ok_when_ollama_answers() -> None:

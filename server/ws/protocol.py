@@ -3,9 +3,11 @@
 Cliente → servidor:
     {"type": "hello", "token": "..."}   primer mensaje obligatorio
     {"type": "chat", "text": "..."}
+    {"type": "reset"}                    empieza una conversación nueva
 
 Servidor → cliente:
     {"type": "ready", "assistant": "...", "model": "..."}
+    {"type": "history", "messages": [{"role": "user|assistant", "content": "..."}]}
     {"type": "state", "state": "idle|listening|thinking|speaking|acting|error"}
     {"type": "token", "text": "..."}     trozo de la respuesta, en cuanto llega
     {"type": "done", "text": "..."}      respuesta completa
@@ -46,8 +48,12 @@ class ChatRequest(_Msg):
     text: str = Field(min_length=1, max_length=4000)
 
 
-ClientMessage = Annotated[Hello | ChatRequest, Field(discriminator="type")]
-client_message: TypeAdapter[Hello | ChatRequest] = TypeAdapter(ClientMessage)
+class Reset(_Msg):
+    type: Literal["reset"] = "reset"
+
+
+ClientMessage = Annotated[Hello | ChatRequest | Reset, Field(discriminator="type")]
+client_message: TypeAdapter[Hello | ChatRequest | Reset] = TypeAdapter(ClientMessage)
 
 
 # --- Servidor → cliente ---
@@ -57,6 +63,16 @@ class Ready(_Msg):
     type: Literal["ready"] = "ready"
     assistant: str
     model: str
+
+
+class HistoryItem(_Msg):
+    role: Literal["user", "assistant", "system"]
+    content: str
+
+
+class HistoryEvent(_Msg):
+    type: Literal["history"] = "history"
+    messages: list[HistoryItem]
 
 
 class StateEvent(_Msg):
@@ -79,4 +95,4 @@ class ErrorEvent(_Msg):
     message: str
 
 
-ServerEvent = Ready | StateEvent | TokenEvent | DoneEvent | ErrorEvent
+ServerEvent = Ready | HistoryEvent | StateEvent | TokenEvent | DoneEvent | ErrorEvent

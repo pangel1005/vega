@@ -12,7 +12,8 @@ from pydantic import ValidationError
 from server.core.config import Settings
 from server.core.orchestrator import Orchestrator
 from server.llm.base import ChatModel
-from server.ws.protocol import ChatRequest, ErrorEvent, Hello, Ready, ServerEvent, client_message
+from server.memory.store import ConversationStore
+from server.ws.protocol import ChatRequest, ErrorEvent, Hello, Ready, Reset, ServerEvent, client_message
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +29,9 @@ def allowed_origins(settings: Settings) -> set[str]:
     return {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in ports}
 
 
-def register_ws(app: FastAPI, settings: Settings, model: ChatModel, token: str) -> None:
+def register_ws(
+    app: FastAPI, settings: Settings, model: ChatModel, store: ConversationStore, token: str
+) -> None:
     origins = allowed_origins(settings)
 
     @app.websocket("/ws")
@@ -59,8 +62,9 @@ def register_ws(app: FastAPI, settings: Settings, model: ChatModel, token: str) 
 
         log.info("Cliente conectado (%s)", origin or "sin origen")
         await emit(Ready(assistant=settings.assistant.name, model=model.name))
-        orchestrator = Orchestrator(model, settings.system_prompt, emit)
+        orchestrator = Orchestrator(model, settings.system_prompt, store, emit)
         try:
+            await orchestrator.send_history()
             while True:
                 raw = await websocket.receive_text()
                 try:
@@ -70,5 +74,7 @@ def register_ws(app: FastAPI, settings: Settings, model: ChatModel, token: str) 
                     continue
                 if isinstance(msg, ChatRequest):
                     await orchestrator.handle_text(msg.text)
+                elif isinstance(msg, Reset):
+                    await orchestrator.reset()
         except WebSocketDisconnect:
             log.info("Cliente desconectado")
