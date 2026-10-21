@@ -1,8 +1,10 @@
-"""Cliente de consola para probar el WebSocket `/ws` (prueba de aceptación del paso 2).
+"""Cliente de consola para probar el WebSocket `/ws`.
 
     uv run python scripts/ws_chat.py "¿Qué puedes hacer?"
+    uv run python scripts/ws_chat.py --wav frase.wav      (WAV PCM16 mono 16 kHz)
 
-Imprime cada trozo de la respuesta según llega y mide la primera palabra.
+Imprime cada trozo de la respuesta según llega y mide los tiempos. Con --wav
+envía el audio igual que la interfaz (bloques de 100 ms) y mide la transcripción.
 """
 
 from __future__ import annotations
@@ -10,15 +12,33 @@ from __future__ import annotations
 import json
 import sys
 import time
+import wave
+from pathlib import Path
 
-from websockets.sync.client import connect
+from websockets.sync.client import ClientConnection, connect
 
 from server.core.config import load_settings
 from server.core.token import TOKEN_FILE
 
+CHUNK_BYTES = 3200  # 100 ms de PCM16 a 16 kHz
+
+
+def send_wav(ws: ClientConnection, path: Path) -> None:
+    with wave.open(str(path)) as w:
+        if (w.getframerate(), w.getsampwidth(), w.getnchannels()) != (16000, 2, 1):
+            raise SystemExit("El WAV debe ser PCM16 mono a 16 kHz")
+        pcm = w.readframes(w.getnframes())
+    ws.send(json.dumps({"type": "listen_start"}))
+    # A velocidad real (100 ms por bloque), como cuando alguien habla por el micrófono.
+    for i in range(0, len(pcm), CHUNK_BYTES):
+        ws.send(pcm[i : i + CHUNK_BYTES])
+        time.sleep(0.1)
+
 
 def main() -> int:
-    question = " ".join(sys.argv[1:]) or "Hola, ¿quién eres?"
+    args = sys.argv[1:]
+    wav = Path(args[1]) if args[:1] == ["--wav"] and len(args) > 1 else None
+    question = None if wav else (" ".join(args) or "Hola, ¿quién eres?")
     settings = load_settings()
     token = TOKEN_FILE.read_text(encoding="utf-8").strip()
     url = f"ws://{settings.server.host}:{settings.server.port}/ws"
@@ -30,16 +50,30 @@ def main() -> int:
             print(f"Rechazado: {ready}")
             return 1
         print(f"Conectado con {ready['assistant']} (modelo {ready['model']})")
-        print(f"> {question}")
 
-        start = time.perf_counter()
+        if wav:
+            print(f"> [audio] {wav.name}")
+            send_wav(ws, wav)
+            start = time.perf_counter()  # desde que se suelta el botón
+            ws.send(json.dumps({"type": "listen_stop"}))
+        else:
+            print(f"> {question}")
+            start = time.perf_counter()
+            ws.send(json.dumps({"type": "chat", "text": question}))
+
         first: float | None = None
-        ws.send(json.dumps({"type": "chat", "text": question}))
+        heard: float | None = None
         while True:
             event = json.loads(ws.recv())
             kind = event["type"]
             if kind == "history":
                 print(f"[historial recuperado: {len(event['messages'])} mensajes]")
+            elif kind == "transcript":
+                heard = time.perf_counter() - start
+                print(
+                    f"[transcripción: «{event['text']}» · {event['audio_seconds']} s de audio,"
+                    f" Whisper {event['elapsed_ms']} ms, recibida a los {heard:.2f} s]"
+                )
             elif kind == "state":
                 print(f"\n[estado: {event['state']}]", flush=True)
                 if event["state"] in ("idle", "error"):

@@ -23,7 +23,7 @@ export interface SocketLike {
   onmessage: ((ev: MessageEvent) => void) | null;
   onclose: ((ev: CloseEvent) => void) | null;
   onerror: ((ev: Event) => void) | null;
-  send(data: string): void;
+  send(data: string | ArrayBuffer): void;
   close(code?: number): void;
 }
 
@@ -69,6 +69,13 @@ export class AssistantSocket {
   send(message: ClientMessage): boolean {
     if (!this.ws || this.ws.readyState !== OPEN) return false;
     this.ws.send(JSON.stringify(message));
+    return true;
+  }
+
+  /** Envía audio (PCM16) como mensaje binario. */
+  sendAudio(pcm: ArrayBuffer): boolean {
+    if (!this.ws || this.ws.readyState !== OPEN) return false;
+    this.ws.send(pcm);
     return true;
   }
 

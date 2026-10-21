@@ -45,7 +45,14 @@ export function ChatPanel({ assistant, messages, canSend, busy, onSend, onReset 
         {messages.map((m) => (
           <article key={m.id} className={`msg msg--${m.role}`}>
             <span className="msg__who mono">
-              {m.role === "user" ? "Tú" : m.role === "error" ? "非常事態 · Error" : assistant || "Asistente"}
+              {m.role === "user"
+                ? "Tú"
+                : m.role === "error"
+                  ? "非常事態 · Error"
+                  : m.role === "note"
+                    ? "Aviso"
+                    : assistant || "Asistente"}
+              {m.meta && <span className="msg__meta"> · {m.meta}</span>}
             </span>
             <p className="msg__text">
               {m.text}

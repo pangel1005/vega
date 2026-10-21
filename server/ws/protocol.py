@@ -4,11 +4,16 @@ Cliente → servidor:
     {"type": "hello", "token": "..."}   primer mensaje obligatorio
     {"type": "chat", "text": "..."}
     {"type": "reset"}                    empieza una conversación nueva
+    {"type": "listen_start"}             empieza a grabar; luego llegan mensajes BINARIOS
+                                         con audio PCM16 mono a 16 kHz
+    {"type": "listen_stop"}              fin de la grabación: transcribir y responder
+    {"type": "listen_cancel"}            descarta la grabación
 
 Servidor → cliente:
     {"type": "ready", "assistant": "...", "model": "..."}
     {"type": "history", "messages": [{"role": "user|assistant", "content": "..."}]}
     {"type": "state", "state": "idle|listening|thinking|speaking|acting|error"}
+    {"type": "transcript", "text": "...", "audio_seconds": 3.9, "elapsed_ms": 180}
     {"type": "token", "text": "..."}     trozo de la respuesta, en cuanto llega
     {"type": "done", "text": "..."}      respuesta completa
     {"type": "error", "message": "..."}  texto pensado para mostrarse al usuario
@@ -52,8 +57,21 @@ class Reset(_Msg):
     type: Literal["reset"] = "reset"
 
 
-ClientMessage = Annotated[Hello | ChatRequest | Reset, Field(discriminator="type")]
-client_message: TypeAdapter[Hello | ChatRequest | Reset] = TypeAdapter(ClientMessage)
+class ListenStart(_Msg):
+    type: Literal["listen_start"] = "listen_start"
+
+
+class ListenStop(_Msg):
+    type: Literal["listen_stop"] = "listen_stop"
+
+
+class ListenCancel(_Msg):
+    type: Literal["listen_cancel"] = "listen_cancel"
+
+
+AnyClientMessage = Hello | ChatRequest | Reset | ListenStart | ListenStop | ListenCancel
+ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
+client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
 
 
 # --- Servidor → cliente ---
@@ -80,6 +98,13 @@ class StateEvent(_Msg):
     state: State
 
 
+class TranscriptEvent(_Msg):
+    type: Literal["transcript"] = "transcript"
+    text: str
+    audio_seconds: float
+    elapsed_ms: int
+
+
 class TokenEvent(_Msg):
     type: Literal["token"] = "token"
     text: str
@@ -95,4 +120,4 @@ class ErrorEvent(_Msg):
     message: str
 
 
-ServerEvent = Ready | HistoryEvent | StateEvent | TokenEvent | DoneEvent | ErrorEvent
+ServerEvent = Ready | HistoryEvent | StateEvent | TranscriptEvent | TokenEvent | DoneEvent | ErrorEvent

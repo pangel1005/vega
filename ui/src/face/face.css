@@ -2,8 +2,9 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: min(78vw, 46vh, 420px);
+  width: min(72vw, 36vh, 420px);
   aspect-ratio: 1;
+  margin-bottom: 2rem; /* espacio para la etiqueta del estado */
 }
 
 /* Anillo de sincronía (portafolio: .ring) */
@@ -84,7 +85,7 @@
 
 .face__label {
   position: absolute;
-  bottom: -4%;
+  bottom: -2.2rem;
   display: flex;
   align-items: baseline;
   gap: 0.6em;

@@ -61,6 +61,15 @@
   border-left-color: var(--red);
   background: color-mix(in srgb, var(--red) 10%, var(--bg2));
 }
+.msg--note {
+  align-self: center;
+  border-left-color: var(--amber);
+  color: var(--mute);
+  font-size: 15px;
+}
+.msg__meta {
+  color: var(--dim);
+}
 .msg__who {
   display: block;
   font-size: 10px;

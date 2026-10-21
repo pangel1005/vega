@@ -33,6 +33,16 @@ class OllamaChat:
     def name(self) -> str:
         return self._model
 
+    async def preload(self) -> None:
+        # Una petición sin texto solo carga el modelo en la GPU (o renueva su keep_alive).
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT, transport=self._transport) as client:
+                await client.post(
+                    f"{self._url}/api/generate", json={"model": self._model, "keep_alive": self._keep_alive}
+                )
+        except httpx.HTTPError as exc:
+            log.debug("No se pudo precargar el modelo: %s", exc)
+
     async def stream(self, messages: Sequence[ChatMessage]) -> AsyncIterator[str]:
         payload = {
             "model": self._model,

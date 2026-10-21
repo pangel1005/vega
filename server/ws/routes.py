@@ -13,7 +13,19 @@ from server.core.config import Settings
 from server.core.orchestrator import Orchestrator
 from server.llm.base import ChatModel
 from server.memory.store import ConversationStore
-from server.ws.protocol import ChatRequest, ErrorEvent, Hello, Ready, Reset, ServerEvent, client_message
+from server.speech.base import SpeechToText
+from server.ws.protocol import (
+    ChatRequest,
+    ErrorEvent,
+    Hello,
+    ListenCancel,
+    ListenStart,
+    ListenStop,
+    Ready,
+    Reset,
+    ServerEvent,
+    client_message,
+)
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +42,12 @@ def allowed_origins(settings: Settings) -> set[str]:
 
 
 def register_ws(
-    app: FastAPI, settings: Settings, model: ChatModel, store: ConversationStore, token: str
+    app: FastAPI,
+    settings: Settings,
+    model: ChatModel,
+    store: ConversationStore,
+    token: str,
+    stt: SpeechToText | None = None,
 ) -> None:
     origins = allowed_origins(settings)
 
@@ -52,7 +69,7 @@ def register_ws(
             hello = client_message.validate_json(raw)
             if not isinstance(hello, Hello) or not secrets.compare_digest(hello.token, token):
                 raise ValueError("token incorrecto")
-        except (TimeoutError, ValidationError, ValueError):
+        except (TimeoutError, ValidationError, ValueError, KeyError):  # KeyError: llegó binario
             log.warning("WebSocket rechazado: falta el token o es incorrecto")
             await emit(ErrorEvent(message="Acceso denegado: token incorrecto."))
             await websocket.close(code=CLOSE_UNAUTHORIZED)
@@ -62,13 +79,21 @@ def register_ws(
 
         log.info("Cliente conectado (%s)", origin or "sin origen")
         await emit(Ready(assistant=settings.assistant.name, model=model.name))
-        orchestrator = Orchestrator(model, settings.system_prompt, store, emit)
+        orchestrator = Orchestrator(
+            model, settings.system_prompt, store, emit, stt=stt, max_audio_seconds=settings.speech.max_seconds
+        )
         try:
             await orchestrator.send_history()
             while True:
-                raw = await websocket.receive_text()
+                message = await websocket.receive()
+                if message["type"] == "websocket.disconnect":
+                    raise WebSocketDisconnect(message.get("code", 1000))
+                # Los mensajes binarios son audio del micrófono.
+                if (chunk := message.get("bytes")) is not None:
+                    orchestrator.add_audio(chunk)
+                    continue
                 try:
-                    msg = client_message.validate_json(raw)
+                    msg = client_message.validate_json(message.get("text") or "")
                 except ValidationError:
                     await emit(ErrorEvent(message="Mensaje no válido."))
                     continue
@@ -76,5 +101,11 @@ def register_ws(
                     await orchestrator.handle_text(msg.text)
                 elif isinstance(msg, Reset):
                     await orchestrator.reset()
+                elif isinstance(msg, ListenStart):
+                    await orchestrator.start_listening()
+                elif isinstance(msg, ListenStop):
+                    await orchestrator.stop_listening()
+                elif isinstance(msg, ListenCancel):
+                    await orchestrator.cancel_listening()
         except WebSocketDisconnect:
             log.info("Cliente desconectado")

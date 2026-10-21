@@ -17,6 +17,7 @@ from collections.abc import Awaitable, Callable
 
 from server.llm.base import ChatMessage, ChatModel, LlmUnavailable
 from server.memory.store import ConversationStore
+from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
 from server.ws.protocol import (
     DoneEvent,
     ErrorEvent,
@@ -26,6 +27,7 @@ from server.ws.protocol import (
     State,
     StateEvent,
     TokenEvent,
+    TranscriptEvent,
 )
 
 log = logging.getLogger(__name__)
@@ -37,11 +39,23 @@ MAX_HISTORY = 20
 
 
 class Orchestrator:
-    def __init__(self, model: ChatModel, system_prompt: str, store: ConversationStore, emit: Emit) -> None:
+    def __init__(
+        self,
+        model: ChatModel,
+        system_prompt: str,
+        store: ConversationStore,
+        emit: Emit,
+        stt: SpeechToText | None = None,
+        max_audio_seconds: int = 30,
+    ) -> None:
         self._model = model
         self._system = ChatMessage("system", system_prompt)
         self._store = store
         self._emit = emit
+        self._stt = stt
+        self._max_audio_bytes = max_audio_seconds * SAMPLE_RATE * BYTES_PER_SAMPLE
+        self._audio: bytearray | None = None  # None = no se está grabando
+        self._preload: asyncio.Task[None] | None = None
         self._state = State.IDLE
 
     @property
@@ -63,6 +77,56 @@ class Orchestrator:
         await asyncio.to_thread(self._store.new_conversation)
         await self._emit(HistoryEvent(messages=[]))
         await self._set_state(State.IDLE)
+
+    # --- Voz ---
+
+    async def start_listening(self) -> None:
+        if self._stt is None:
+            await self._emit(ErrorEvent(message="El reconocimiento de voz no está disponible."))
+            return
+        self._audio = bytearray()
+        # Mientras el usuario habla, se va cargando el modelo de lenguaje si estaba descargado
+        # de la GPU: así la respuesta no espera a la carga al terminar la transcripción.
+        self._preload = asyncio.create_task(self._model.preload())
+        await self._set_state(State.LISTENING)
+
+    def add_audio(self, chunk: bytes) -> None:
+        """Añade audio recibido. Se ignora si no se está grabando o si ya se llegó al máximo."""
+        if self._audio is None or len(chunk) % BYTES_PER_SAMPLE:
+            return
+        room = self._max_audio_bytes - len(self._audio)
+        if room > 0:
+            self._audio += chunk[:room]
+
+    async def cancel_listening(self) -> None:
+        self._audio = None
+        await self._set_state(State.IDLE)
+
+    async def stop_listening(self) -> None:
+        """Transcribe lo grabado y, si se entendió algo, responde como a un mensaje escrito."""
+        audio, self._audio = self._audio, None
+        if audio is None or self._stt is None:
+            return
+        await self._set_state(State.THINKING)
+        try:
+            result = await asyncio.to_thread(self._stt.transcribe, bytes(audio))
+        except SttUnavailable as exc:
+            await self._emit(ErrorEvent(message=str(exc)))
+            await self._set_state(State.ERROR)
+            return
+        await self._emit(
+            TranscriptEvent(
+                text=result.text,
+                audio_seconds=round(result.audio_seconds, 2),
+                elapsed_ms=round(result.elapsed_seconds * 1000),
+            )
+        )
+        if not result.text:
+            await self._set_state(State.IDLE)
+            return
+        await self.handle_text(result.text)
+
+    # --- Texto ---
 
     async def handle_text(self, text: str) -> None:
         question = ChatMessage("user", text)

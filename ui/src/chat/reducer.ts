@@ -8,10 +8,13 @@ import type { AssistantState, ServerEvent } from "../net/protocol";
 
 export interface Message {
   id: number;
-  role: "user" | "assistant" | "error";
+  /** note: aviso suave del sistema (p. ej. «no te he oído»). */
+  role: "user" | "assistant" | "error" | "note";
   text: string;
   /** true mientras la respuesta todavía está llegando. */
   streaming?: boolean;
+  /** Dato extra que se muestra junto al autor (p. ej. «voz · 0,18 s»). */
+  meta?: string;
 }
 
 export interface UiState {
@@ -29,7 +32,14 @@ export interface UiState {
 export type UiAction =
   | { kind: "server"; event: ServerEvent }
   | { kind: "link"; status: LinkStatus; retryInMs?: number }
-  | { kind: "sent"; text: string };
+  | { kind: "sent"; text: string }
+  | { kind: "local_error"; text: string };
+
+export const NOT_HEARD = "No te he oído. Prueba a hablar un poco más cerca del micrófono.";
+
+function seconds(ms: number): string {
+  return `${(ms / 1000).toFixed(2).replace(".", ",")} s`;
+}
 
 export const initialState: UiState = {
   link: "connecting",
@@ -42,8 +52,8 @@ export const initialState: UiState = {
   tokenPulse: 0,
 };
 
-function push(s: UiState, role: Message["role"], text: string, streaming = false): UiState {
-  const msg: Message = streaming ? { id: s.nextId, role, text, streaming } : { id: s.nextId, role, text };
+function push(s: UiState, role: Message["role"], text: string, extra: Partial<Message> = {}): UiState {
+  const msg: Message = { id: s.nextId, role, text, ...extra };
   return { ...s, messages: [...s.messages, msg], nextId: s.nextId + 1 };
 }
 
@@ -66,6 +76,9 @@ export function reducer(s: UiState, action: UiAction): UiState {
   if (action.kind === "sent") {
     return push(s, "user", action.text);
   }
+  if (action.kind === "local_error") {
+    return push(s, "error", action.text);
+  }
 
   const e = action.event;
   switch (e.type) {
@@ -80,9 +93,15 @@ export function reducer(s: UiState, action: UiAction): UiState {
     }
     case "state":
       return { ...s, state: e.state };
+    case "transcript":
+      return e.text
+        ? push(s, "user", e.text, { meta: `voz · ${seconds(e.elapsed_ms)}` })
+        : push(s, "note", NOT_HEARD);
     case "token": {
       const open = lastStreaming(s);
-      const next = open ? replaceLast(s, { ...open, text: open.text + e.text }) : push(s, "assistant", e.text, true);
+      const next = open
+        ? replaceLast(s, { ...open, text: open.text + e.text })
+        : push(s, "assistant", e.text, { streaming: true });
       return { ...next, tokenPulse: s.tokenPulse + 1 };
     }
     case "done": {

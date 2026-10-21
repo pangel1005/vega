@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ServerEvent } from "../net/protocol";
-import { initialState, reducer, type UiAction, type UiState } from "./reducer";
+import { initialState, NOT_HEARD, reducer, type UiAction, type UiState } from "./reducer";
 
 const server = (event: ServerEvent): UiAction => ({ kind: "server", event });
 const run = (actions: UiAction[], start: UiState = initialState) => actions.reduce(reducer, start);
@@ -49,6 +49,21 @@ describe("reducer", () => {
     expect(s.messages.at(-1)?.streaming).toBeFalsy();
     expect(s.link).toBe("reconnecting");
     expect(s.retryInMs).toBe(500);
+  });
+
+  it("muestra lo que se dijo por voz con su tiempo de transcripción", () => {
+    const s = reducer(initialState, server({ type: "transcript", text: "hola", audio_seconds: 1.2, elapsed_ms: 180 }));
+    expect(s.messages).toEqual([{ id: 1, role: "user", text: "hola", meta: "voz · 0,18 s" }]);
+  });
+
+  it("avisa si no se oyó nada", () => {
+    const s = reducer(initialState, server({ type: "transcript", text: "", audio_seconds: 1, elapsed_ms: 90 }));
+    expect(s.messages).toEqual([{ id: 1, role: "note", text: NOT_HEARD }]);
+  });
+
+  it("muestra errores locales (micrófono)", () => {
+    const s = reducer(initialState, { kind: "local_error", text: "Sin permiso" });
+    expect(s.messages).toEqual([{ id: 1, role: "error", text: "Sin permiso" }]);
   });
 
   it("guarda nombre y modelo al recibir ready", () => {

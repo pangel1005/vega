@@ -16,6 +16,7 @@ from server.core.config import Settings
 from server.llm.base import ChatModel
 from server.llm.ollama import OllamaChat
 from server.memory.store import ConversationStore
+from server.speech.base import SpeechToText
 from server.web import UI_DIST, register_ui
 from server.ws.routes import register_ws
 
@@ -55,7 +56,9 @@ def create_app(
     chat_model: ChatModel | None = None,
     store: ConversationStore | None = None,
     ui_dist: Path = UI_DIST,
+    stt: SpeechToText | None = None,
 ) -> FastAPI:
+    """Crea la aplicación. Sin `stt`, el asistente funciona solo por texto."""
     probe = llm_probe or ollama_probe(settings.llm.url)
     model = chat_model or OllamaChat(settings.llm.url, settings.llm.model, settings.llm.keep_alive)
     history = store or ConversationStore(settings.memory.path)
@@ -65,7 +68,7 @@ def create_app(
     # Solo se atienden peticiones dirigidas a 127.0.0.1/localhost. Esto frena el
     # «DNS rebinding»: una web maliciosa que apunta su dominio a 127.0.0.1 para leer el token.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(TRUSTED_HOSTS))
-    register_ws(app, settings, model, history, token)
+    register_ws(app, settings, model, history, token, stt)
     register_ui(app, token, ui_dist)
 
     @app.get("/health")
@@ -78,6 +81,7 @@ def create_app(
             "assistant": settings.assistant.name,
             "version": __version__,
             "llm": {"model": settings.llm.model, "reachable": llm.reachable, "detail": llm.detail},
+            "stt": stt.name if stt else None,
         }
 
     log.info(

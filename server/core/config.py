@@ -63,6 +63,18 @@ class LoggingSettings(_Section):
         return self.dir if self.dir.is_absolute() else ROOT / self.dir
 
 
+class SpeechSettings(_Section):
+    stt_model: str = "small"
+    stt_device: Literal["cuda", "cpu"] = "cuda"
+    stt_compute: str = "int8_float16"
+    max_seconds: int = Field(default=30, ge=1, le=120)
+    models_dir: Path = Path("models/whisper")
+
+    @property
+    def models_path(self) -> Path:
+        return self.models_dir if self.models_dir.is_absolute() else ROOT / self.models_dir
+
+
 class MemorySettings(_Section):
     file: Path = Path("data/history.sqlite")
 
@@ -78,6 +90,7 @@ class Settings(_Section):
     llm: LlmSettings
     logging: LoggingSettings = LoggingSettings()
     memory: MemorySettings = MemorySettings()
+    speech: SpeechSettings = SpeechSettings()
 
     @property
     def system_prompt(self) -> str:

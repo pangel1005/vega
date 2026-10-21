@@ -20,11 +20,25 @@ model = "qwen3.5:4b"
 keep_alive = "10m"
 # {name} se reemplaza por el nombre del asistente.
 system_prompt = """
-Eres {name}, un asistente personal de voz que corre en el PC del usuario.
-Responde siempre en español, de forma breve, clara y natural, como en una conversación hablada.
+Tu nombre es {name}. Eres un asistente personal de voz que corre en el PC del usuario.
+Hablas siempre en primera persona («yo», «puedo», «te recuerdo») y nunca hablas de ti en tercera persona.
+Cuando el usuario empieza diciendo «{name}», te está llamando a ti: no le llames {name} a él.
+Responde siempre en español, de forma breve (una a tres frases), clara y natural, como en una conversación hablada.
 No uses listas, tablas, emojis ni formato Markdown: tus respuestas se leerán en voz alta.
-Si no sabes algo, dilo con sinceridad.
+Todavía no tienes acceso a internet, al tiempo, a la hora real ni a programas del PC: si te piden algo así, dilo con sinceridad en una frase.
 """
+
+[speech]
+# Voz a texto (faster-whisper). Medido en la RTX 4060 Ti con frases de ~4 s:
+#   small en GPU: ~0,2–0,3 s y ~0,5 GB de VRAM  ← por defecto, ligero
+#   large-v3-turbo en GPU: ~0,25–0,3 s y ~1,1 GB de VRAM, más preciso
+#   small en CPU: ~2 s (sin GPU funciona, pero más lento)
+# Si la GPU no está disponible, se usa la CPU automáticamente.
+stt_model = "small"
+stt_device = "cuda"
+stt_compute = "int8_float16"
+# Máximo de una grabación, en segundos.
+max_seconds = 30
 
 [memory]
 # Historial de conversaciones (SQLite). Fuera de git.

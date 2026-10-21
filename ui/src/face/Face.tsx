@@ -10,8 +10,10 @@ const PROFILE = Array.from({ length: BARS }, (_, i) => 1 - Math.abs(i - (BARS - 
 
 interface FaceProps {
   state: AssistantState;
-  /** Aumenta con cada trozo de respuesta recibido. */
+  /** Aumenta con cada trozo de respuesta recibido o cada bloque de micrófono. */
   pulse: number;
+  /** Cuánto se mueve la boca con cada pulso (0–1). */
+  pulseAmount?: number;
 }
 
 /**
@@ -22,14 +24,14 @@ interface FaceProps {
  * PROTOTIPO: la boca reacciona a la llegada de palabras; en el paso 7 seguirá
  * la amplitud real del audio.
  */
-export function Face({ state, pulse }: FaceProps) {
+export function Face({ state, pulse, pulseAmount = 0.55 }: FaceProps) {
   const barsRef = useRef<(SVGRectElement | null)[]>([]);
   const level = useRef(0);
   const raf = useRef(0);
 
   useEffect(() => {
     if (pulse === 0) return;
-    level.current = Math.min(1, level.current + 0.55);
+    level.current = Math.min(1, level.current + pulseAmount);
     // El bucle solo corre mientras la boca se mueve; en reposo no gasta nada.
     if (raf.current) return;
     const tick = (now: number) => {
@@ -45,7 +47,7 @@ export function Face({ state, pulse }: FaceProps) {
       raf.current = done ? 0 : requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
-  }, [pulse]);
+  }, [pulse, pulseAmount]);
 
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 

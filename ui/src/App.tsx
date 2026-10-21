@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
+import { MicButton } from "./audio/MicButton";
+import { useVoice } from "./audio/useVoice";
 import { ChatPanel } from "./chat/ChatPanel";
 import { initialState, reducer } from "./chat/reducer";
 import { Face } from "./face/Face";
@@ -36,10 +38,26 @@ export function App() {
     socket.current?.send({ type: "reset" });
   }, []);
 
+  // El volumen del micrófono mueve la boca mientras se escucha.
+  const [mic, setMic] = useState({ pulse: 0, amount: 0 });
+  const onLevel = useCallback((level: number) => {
+    setMic((m) => ({ pulse: m.pulse + 1, amount: Math.min(1, level * 4) }));
+  }, []);
+  const onVoiceError = useCallback((text: string) => dispatch({ kind: "local_error", text }), []);
+  const voice = useVoice({ socket, onLevel, onError: onVoiceError });
+
   const canSend = ui.link === "open";
   const busy = ui.state === "thinking" || ui.state === "speaking";
+  const listening = voice.status !== "off";
+
+  // Si se corta la conexión a mitad de una grabación, se descarta.
+  const { cancel } = voice;
+  useEffect(() => {
+    if (!canSend) cancel();
+  }, [canSend, cancel]);
+
   // Sin conexión, el rostro muestra error aunque el último estado recibido fuera otro.
-  const faceState = ui.link === "denied" ? "error" : ui.state;
+  const faceState = ui.link === "denied" ? "error" : listening ? "listening" : ui.state;
 
   return (
     <div className="app" data-state={faceState}>
@@ -47,7 +65,18 @@ export function App() {
       <div className="app__layout">
         <StatusBar assistant={ui.assistant} model={ui.model} link={ui.link} retryInMs={ui.retryInMs} />
         <main className="app__stage frame">
-          <Face state={faceState} pulse={ui.tokenPulse} />
+          <Face
+            state={faceState}
+            pulse={listening ? mic.pulse : ui.tokenPulse}
+            {...(listening ? { pulseAmount: mic.amount } : {})}
+          />
+          <MicButton
+            status={voice.status}
+            disabled={!canSend || busy}
+            onStart={() => void voice.start()}
+            onStop={voice.stop}
+            onCancel={voice.cancel}
+          />
           {ui.link === "denied" && (
             <p className="app__denied mono">Token incorrecto: recarga la página desde el servidor.</p>
           )}

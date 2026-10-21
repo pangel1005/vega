@@ -30,3 +30,7 @@ class ChatModel(Protocol):
     def stream(self, messages: Sequence[ChatMessage]) -> AsyncIterator[str]:
         """Devuelve la respuesta en trozos a medida que el modelo los genera."""
         ...
+
+    async def preload(self) -> None:
+        """Carga el modelo en memoria por adelantado (p. ej. mientras el usuario habla). Nunca falla."""
+        ...

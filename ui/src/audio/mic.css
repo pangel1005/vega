@@ -1,0 +1,56 @@
+.mic {
+  --cut: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: min(100%, 320px);
+  padding: 14px 22px;
+  border: 0;
+  background: color-mix(in srgb, var(--acc) 12%, #0b0a09);
+  color: var(--acc);
+  box-shadow: inset 0 0 0 1px var(--line);
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  cursor: pointer;
+  touch-action: none; /* mantener pulsado sin que el navegador haga scroll o zoom */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: transform 0.15s var(--ease), background 0.2s;
+}
+.mic:active {
+  transform: scale(0.97);
+}
+.mic:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.mic--recording,
+.mic--starting {
+  background: var(--acc);
+  color: #0a0a0a;
+}
+.mic--recording .mic__jp {
+  animation: blink 0.5s steps(2) infinite;
+}
+
+.mic__icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  fill: currentColor;
+  stroke: currentColor;
+}
+.mic__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.05;
+}
+.mic__jp {
+  font-size: 1.3rem;
+}
+.mic__label {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+}
