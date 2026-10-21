@@ -24,11 +24,13 @@ async def _probe() -> LlmStatus:
 
 def make_client(model: FakeChat, store: ConversationStore | None = None) -> TestClient:
     store = store or ConversationStore(":memory:")
-    return TestClient(create_app(SETTINGS, token=TOKEN, llm_probe=_probe, chat_model=model, store=store))
+    app = create_app(SETTINGS, token=TOKEN, llm_probe=_probe, chat_model=model, store=store)
+    return TestClient(app, base_url="http://127.0.0.1:8000")
 
 
 def connect(client: TestClient, **kwargs: Any) -> Any:
-    return client.websocket_connect("/ws", **kwargs)
+    # URL completa: el servidor solo acepta el host 127.0.0.1/localhost.
+    return client.websocket_connect("ws://127.0.0.1:8000/ws", **kwargs)
 
 
 def login(ws: WebSocketTestSession) -> list[dict[str, Any]]:

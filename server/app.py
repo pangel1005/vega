@@ -5,18 +5,23 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from server import __version__
 from server.core.config import Settings
 from server.llm.base import ChatModel
 from server.llm.ollama import OllamaChat
 from server.memory.store import ConversationStore
+from server.web import UI_DIST, register_ui
 from server.ws.routes import register_ws
 
 log = logging.getLogger(__name__)
+
+TRUSTED_HOSTS = ("127.0.0.1", "localhost")
 
 
 @dataclass(frozen=True)
@@ -49,13 +54,19 @@ def create_app(
     llm_probe: LlmProbe | None = None,
     chat_model: ChatModel | None = None,
     store: ConversationStore | None = None,
+    ui_dist: Path = UI_DIST,
 ) -> FastAPI:
     probe = llm_probe or ollama_probe(settings.llm.url)
     model = chat_model or OllamaChat(settings.llm.url, settings.llm.model, settings.llm.keep_alive)
     history = store or ConversationStore(settings.memory.path)
-    app = FastAPI(title=settings.assistant.name, version=__version__)
+    # Sin páginas de documentación automática: menos superficie expuesta.
+    app = FastAPI(title=settings.assistant.name, version=__version__, docs_url=None, redoc_url=None)
     app.state.settings = settings
+    # Solo se atienden peticiones dirigidas a 127.0.0.1/localhost. Esto frena el
+    # «DNS rebinding»: una web maliciosa que apunta su dominio a 127.0.0.1 para leer el token.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(TRUSTED_HOSTS))
     register_ws(app, settings, model, history, token)
+    register_ui(app, token, ui_dist)
 
     @app.get("/health")
     async def health() -> dict[str, object]:

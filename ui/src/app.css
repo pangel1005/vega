@@ -1,0 +1,57 @@
+.app {
+  height: 100%;
+  position: relative;
+}
+
+/* Móvil (vertical): cabecera, rostro y chat apilados. */
+.app__layout {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 10px;
+  padding: env(safe-area-inset-top) 0 calc(var(--gutter) + env(safe-area-inset-bottom));
+}
+
+.app__stage {
+  margin: 0 var(--gutter);
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  --c: var(--line);
+}
+
+.app__denied {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--red);
+}
+
+.app__layout > .chat {
+  margin: 0 var(--gutter);
+}
+
+/* PC o tableta en horizontal: rostro a la izquierda, chat a la derecha. */
+@media (min-width: 900px) and (orientation: landscape) {
+  .app__layout {
+    grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .app__layout > .status {
+    grid-column: 1 / -1;
+  }
+  .app__stage {
+    margin-right: 0;
+  }
+  .app__layout > .chat {
+    margin-left: 0;
+  }
+  .face {
+    width: min(42vw, 70vh, 520px);
+  }
+}
