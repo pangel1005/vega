@@ -49,6 +49,8 @@ class ServerSettings(_Section):
 class LlmSettings(_Section):
     url: str = "http://127.0.0.1:11434"
     model: str = Field(min_length=1)
+    keep_alive: str = Field(default="10m", pattern=r"^\d+[smh]$")
+    system_prompt: str = "Eres {name}, un asistente personal. Responde en español, breve y claro."
 
 
 class LoggingSettings(_Section):
@@ -67,14 +69,18 @@ class Settings(_Section):
     llm: LlmSettings
     logging: LoggingSettings = LoggingSettings()
 
+    @property
+    def system_prompt(self) -> str:
+        return self.llm.system_prompt.strip().replace("{name}", self.assistant.name)
+
 
 def load_settings(path: Path | None = None) -> Settings:
     """Lee la configuración de `path`, de la variable ASISTENTE_CONFIG o del archivo por defecto."""
     if path is None:
         path = Path(os.environ.get(CONFIG_ENV_VAR, DEFAULT_CONFIG))
     try:
-        with path.open("rb") as fh:
-            data = tomllib.load(fh)
+        # utf-8-sig: algunos editores de Windows guardan el archivo con BOM y tomllib no lo acepta.
+        data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError as exc:
         raise ConfigError(f"No encuentro el archivo de configuración: {path}") from exc
     except tomllib.TOMLDecodeError as exc:

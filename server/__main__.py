@@ -9,6 +9,7 @@ import uvicorn
 from server.app import create_app
 from server.core.config import ConfigError, load_settings
 from server.core.logs import setup_logging
+from server.core.token import load_or_create_token
 
 
 def main() -> int:
@@ -19,7 +20,7 @@ def main() -> int:
         return 2
     setup_logging(settings.logging)
     uvicorn.run(
-        create_app(settings),
+        create_app(settings, token=load_or_create_token()),
         host=settings.server.host,
         port=settings.server.port,
         log_config=None,

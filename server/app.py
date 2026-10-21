@@ -11,6 +11,9 @@ from fastapi import FastAPI
 
 from server import __version__
 from server.core.config import Settings
+from server.llm.base import ChatModel
+from server.llm.ollama import OllamaChat
+from server.ws.routes import register_ws
 
 log = logging.getLogger(__name__)
 
@@ -39,10 +42,17 @@ def ollama_probe(url: str) -> LlmProbe:
     return probe
 
 
-def create_app(settings: Settings, llm_probe: LlmProbe | None = None) -> FastAPI:
+def create_app(
+    settings: Settings,
+    token: str,
+    llm_probe: LlmProbe | None = None,
+    chat_model: ChatModel | None = None,
+) -> FastAPI:
     probe = llm_probe or ollama_probe(settings.llm.url)
+    model = chat_model or OllamaChat(settings.llm.url, settings.llm.model, settings.llm.keep_alive)
     app = FastAPI(title=settings.assistant.name, version=__version__)
     app.state.settings = settings
+    register_ws(app, settings, model, token)
 
     @app.get("/health")
     async def health() -> dict[str, object]:

@@ -48,6 +48,12 @@ def test_unknown_keys_are_rejected(tmp_path: Path) -> None:
         load_settings(write(tmp_path, VALID.replace("name", "nmae")))
 
 
+def test_accepts_utf8_with_bom(tmp_path: Path) -> None:
+    path = tmp_path / "assistant.toml"
+    path.write_text(VALID, encoding="utf-8-sig")
+    assert load_settings(path).assistant.name == "Orión"
+
+
 def test_env_var_selects_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ASISTENTE_CONFIG", str(write(tmp_path, VALID)))
     assert load_settings().assistant.name == "Orión"

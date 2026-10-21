@@ -13,7 +13,18 @@ port = 8000
 
 [llm]
 url = "http://127.0.0.1:11434"
-model = "qwen3:8b"
+# Modelo pequeño a propósito: ~2,9 GB de memoria de vídeo, para no acaparar la GPU.
+# Alternativa más capaz pero más pesada (~5,2 GB): "qwen3:8b".
+model = "qwen3.5:4b"
+# Tiempo sin uso tras el cual Ollama saca el modelo de la GPU y la deja libre.
+keep_alive = "10m"
+# {name} se reemplaza por el nombre del asistente.
+system_prompt = """
+Eres {name}, un asistente personal de voz que corre en el PC del usuario.
+Responde siempre en español, de forma breve, clara y natural, como en una conversación hablada.
+No uses listas, tablas, emojis ni formato Markdown: tus respuestas se leerán en voz alta.
+Si no sabes algo, dilo con sinceridad.
+"""
 
 [logging]
 level = "INFO"

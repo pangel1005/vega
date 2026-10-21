@@ -131,7 +131,36 @@ Un paso a la vez; cada uno con su prueba de aceptación.
 | El cable USB se desconecta | Vigilante `adb track-devices` + reconexión con espera creciente en la interfaz |
 | Calidad de voz en español | Probar voces Piper es_ES y es_MX y elegir la que mejor suene |
 
-## 7. Reglas de trabajo
+## 7. Ajustes del usuario (21-10-2026, durante los pasos 0–2)
+
+- **Pequeño y ligero, sin acaparar la GPU.** Modelo por defecto `qwen3.5:4b`
+  (~2,9 GB de VRAM en vez de 5,2 GB) y `keep_alive = "10m"`: tras 10 minutos sin
+  uso, Ollama libera la GPU. Medido: Windows y los programas abiertos ya ocupan
+  ~2,1 GB de los 8 GB.
+- **Botones en el teléfono**: abrir apps, apagar el PC y grabar (pantalla o
+  audio). Entran en la fase 4 con el sistema de permisos: apagar y grabar siempre
+  piden confirmación en pantalla.
+- **Interfaz fluida con la estética del portafolio NERV**
+  (`C:\Users\pange\Downloads\portafolio-nerv`): naranja `#ff7a18` sobre negro
+  `#060606`, rejilla de hexágonos en canvas, líneas de escáner, franjas de peligro,
+  paneles MAGI con esquinas cortadas, Barlow Condensed + Share Tech Mono + Noto
+  Sans JP, parpadeos con `steps(2)`. Solo se animan `transform`, `opacity` y
+  `clip-path`, y se respeta `prefers-reduced-motion`.
+- **Visión a largo plazo: que mucha gente pueda tener su asistente** en equipos
+  modestos (Android, Raspberry Pi, incluso Arduino). Lo que implica:
+  - El «cerebro» (modelo, voz) y el «cuerpo» (pantalla, micrófono, botones) ya
+    están separados por el WebSocket; un cuerpo puede ser un teléfono, una
+    Raspberry o un Arduino.
+  - Un **Arduino no puede ejecutar un modelo de lenguaje** (tiene kilobytes de
+    memoria). Sí puede ser un cuerpo: botones, luces o un servo, conectado por USB
+    serie a un equipo que haga de cerebro.
+  - Una **Raspberry Pi 5 (8 GB)** puede ser el cerebro con modelos muy pequeños en
+    CPU (más lento) o ser solo un cuerpo que hable con un PC.
+  - Por eso se mantienen las interfaces intercambiables (`ChatModel`,
+    `SpeechToText`, `TextToSpeech`) y, más adelante, se añadirán **perfiles** en la
+    configuración (PC con GPU, ligero solo CPU, Raspberry) en lugar de valores fijos.
+
+## 8. Reglas de trabajo
 
 - Componentes pequeños y verificables.
 - Nada simulado presentado como si funcionara.
