@@ -48,7 +48,6 @@ import com.asistente.personal.ui.Text
 import com.asistente.personal.ui.VoiceStatus
 import com.asistente.personal.ui.accentFor
 import com.asistente.personal.ui.hudFrame
-import com.asistente.personal.ui.scanlines
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -71,6 +70,8 @@ class MainActivity : ComponentActivity() {
         }
         // Es el «cuerpo» del asistente conectado al PC: la pantalla no se apaga mientras está abierta.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // El fondo lo pinta la app (imagen opaca): sin el fondo de la ventana, una pasada menos por cuadro.
+        window.setBackgroundDrawable(null)
         preferFastestRefreshRate()
 
         controller = AssistantController(applicationContext)
@@ -159,8 +160,9 @@ private fun AssistantScreen(c: AssistantController, startVoice: () -> Unit, open
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Nerv.Bg)) {
-        HexBackground(accent, fast = state == AssistantState.THINKING)
+    Box(Modifier.fillMaxSize()) {
+        // Color final del estado (no el animado): la imagen de fondo solo se repinta una vez por cambio.
+        HexBackground(accentFor(state), fast = state == AssistantState.THINKING)
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             StatusBar(
                 ui.assistant, ui.model, ui.link, ui.retryInMs, clock, openAndroid,
@@ -214,7 +216,6 @@ private fun AssistantScreen(c: AssistantController, startVoice: () -> Unit, open
                 )
             }
         }
-        Box(Modifier.fillMaxSize().scanlines())
     }
 }
 

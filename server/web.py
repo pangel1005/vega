@@ -16,7 +16,8 @@ from server.core.config import ROOT
 log = logging.getLogger(__name__)
 
 UI_DIST = ROOT / "ui" / "dist"
-APK_DIR = ROOT / "android" / "app" / "build" / "outputs" / "apk" / "debug"
+# Versión optimizada (release) de la app: la que se instala y actualiza en el teléfono.
+APK_DIR = ROOT / "android" / "app" / "build" / "outputs" / "apk" / "release"
 TOKEN_PLACEHOLDER = "__ASSISTANT_TOKEN__"
 # Archivos sueltos de ui/public que se sirven en la raíz.
 ROOT_FILES = ("manifest.webmanifest", "icon.svg")

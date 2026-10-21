@@ -1,11 +1,14 @@
 ﻿# Compila la app Android, la instala en el teléfono por USB y le entrega el token.
 #
-#   powershell -ExecutionPolicy Bypass -File scripts\android-install.ps1 [-Release]
+#   powershell -ExecutionPolicy Bypass -File scripts\android-install.ps1 [-DebugBuild]
+#
+# Por defecto compila la versión optimizada (release). Sin SIM, Xiaomi no deja instalar
+# por USB: en ese caso basta con compilar y pulsar ACTUALIZAR en la app.
 #
 # Requisitos (una sola vez): JDK 21 en ~\.jdks, Android SDK en ~\Android\Sdk y, en el
 # teléfono Xiaomi, «Depuración USB» e «Instalar vía USB» activados.
 
-param([switch]$Release)
+param([switch]$DebugBuild)
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -24,7 +27,7 @@ $tokenFile = Join-Path $root 'config\token.txt'
 if (-not (Test-Path $tokenFile)) { throw 'Falta config\token.txt: arranca el servidor una vez para crearlo.' }
 $token = (Get-Content $tokenFile -Raw).Trim()
 
-$variant = if ($Release) { 'Release' } else { 'Debug' }
+$variant = if ($DebugBuild) { 'Debug' } else { 'Release' }
 Write-Host "Compilando ($variant)..."
 Push-Location (Join-Path $root 'android')
 try {

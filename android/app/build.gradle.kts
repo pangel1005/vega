@@ -17,9 +17,15 @@ android {
     }
 
     buildTypes {
+        // La versión optimizada es la de uso diario: la de depuración es varias veces más lenta
+        // con Compose (sin R8 y con comprobaciones extra).
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            // Misma firma que la de depuración: así se actualiza encima sin desinstalar.
+            // PROTOTIPO: para repartirla a otras personas habría que crear una clave propia.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

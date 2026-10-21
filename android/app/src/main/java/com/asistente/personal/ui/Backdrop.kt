@@ -46,9 +46,10 @@ private fun hexAt(path: Path, x: Float, y: Float, r: Float) {
 }
 
 /**
- * Fondo de hexágonos (como el portafolio NERV). La rejilla se construye una sola vez
- * por tamaño (`drawWithCache`) y vive en su propia capa; encima, unas pocas celdas
- * laten a ~30 FPS, que es de sobra para un fondo y ahorra batería.
+ * Fondo de hexágonos (como el portafolio NERV). Fondo, rejilla, líneas de escáner y
+ * viñeta se pintan una sola vez en una imagen opaca (se repinta solo si cambia el
+ * tamaño o el color del estado; por eso recibe el color final, no el animado). Encima,
+ * unas pocas celdas laten a ~30 FPS, que es de sobra para un fondo y ahorra batería.
  */
 @Composable
 fun HexBackground(accent: Color, fast: Boolean, modifier: Modifier = Modifier) {
@@ -96,8 +97,22 @@ fun HexBackground(accent: Color, fast: Boolean, modifier: Modifier = Modifier) {
                     }
                     row++
                 }
-                // Se pinta una vez en una imagen; cada cuadro solo la copia (muy barato para la GPU).
-                val grid = renderToBitmap(this) { drawPath(path, accent.copy(alpha = 0.07f), style = Stroke(1f)) }
+                // Fondo negro + rejilla + líneas de escáner + viñeta en UNA imagen opaca: cada
+                // cuadro la pantalla se pinta una sola vez de fondo (antes eran cuatro).
+                val vignette = Brush.radialGradient(
+                    0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f),
+                    center = Offset(size.width / 2, size.height / 2), radius = size.maxDimension * 0.6f,
+                )
+                val grid = renderToBitmap(this) {
+                    drawRect(Nerv.Bg)
+                    drawPath(path, accent.copy(alpha = 0.07f), style = Stroke(1f))
+                    var y = 0f
+                    while (y < size.height) {
+                        drawLine(Color.Black.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), 1f)
+                        y += 3f
+                    }
+                    drawRect(vignette)
+                }
                 onDrawBehind { drawImage(grid) }
             },
         )
@@ -115,25 +130,6 @@ fun HexBackground(accent: Color, fast: Boolean, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Capa de líneas de escáner y viñeta, para poner encima de todo. Vive en su propia
- * imagen y solo se pinta de nuevo si cambia el tamaño de la pantalla.
- */
-fun Modifier.scanlines(): Modifier = this.graphicsLayer().drawWithCache {
-    val vignette = Brush.radialGradient(
-        0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f),
-        center = Offset(size.width / 2, size.height / 2), radius = size.maxDimension * 0.6f,
-    )
-    val overlay = renderToBitmap(this) {
-        var y = 0f
-        while (y < size.height) {
-            drawLine(Color.Black.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), 1f)
-            y += 3f
-        }
-        drawRect(vignette)
-    }
-    onDrawBehind { drawImage(overlay) }
-}
 
 /** Dibuja una sola vez en una imagen del tamaño de la capa. */
 private fun renderToBitmap(scope: CacheDrawScope, block: DrawScope.() -> Unit): ImageBitmap {
