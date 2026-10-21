@@ -21,7 +21,12 @@ import urllib.request
 import urllib.response
 
 OLLAMA_URL = "http://127.0.0.1:11434"
-PROMPT = "Preséntate en dos frases cortas y dime qué hora del día prefieres para trabajar."
+# Una pregunta distinta por medición: si se repitiera, Ollama reutilizaría el cálculo
+# anterior y el tiempo «en caliente» saldría engañosamente bajo.
+PROMPTS = {
+    "en frío": "Preséntate en dos frases cortas y dime qué hora del día prefieres para trabajar.",
+    "en caliente": "Dame un consejo breve para concentrarme mejor por la tarde.",
+}
 SYSTEM = "Eres un asistente de voz. Responde siempre en español, de forma breve y natural."
 # Palabras muy frecuentes en español: si no aparece ninguna, la respuesta no está en español.
 SPANISH_MARKERS = {" el ", " la ", " de ", " que ", " y ", " en ", " para ", " es "}
@@ -60,14 +65,15 @@ def check(model: str) -> bool:
     with _post_stream("/api/generate", {"model": model, "keep_alive": 0}) as r:
         r.read()
 
-    for run in ("en frío", "en caliente"):
+    answers = []
+    for run, prompt in PROMPTS.items():
         start = time.perf_counter()
         first: float | None = None
         text = []
         final: dict = {}
         payload = {
             "model": model,
-            "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": PROMPT}],
+            "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
             "think": False,
             "stream": True,
         }
@@ -84,8 +90,8 @@ def check(model: str) -> bool:
         answer = "".join(text).strip()
         tps = final.get("eval_count", 0) / (final.get("eval_duration", 1) / 1e9)
         print(f"[{run}] primera palabra: {first:.2f} s | total: {total:.2f} s | {tps:.0f} tokens/s")
-
-    print(f"Respuesta: {answer}")
+        print(f"  Respuesta: {answer}")
+        answers.append(answer)
 
     loaded = [m for m in _get("/api/ps").get("models", []) if m["name"] == model]
     if loaded:
@@ -98,8 +104,7 @@ def check(model: str) -> bool:
     if used is not None:
         print(f"VRAM ocupada en total (nvidia-smi): {used / 1024:.1f} GB")
 
-    padded = f" {answer.lower()} "
-    ok = bool(answer) and any(w in padded for w in SPANISH_MARKERS)
+    ok = all(a and any(w in f" {a.lower()} " for w in SPANISH_MARKERS) for a in answers)
     print("RESULTADO:", "OK, responde en español" if ok else "FALLO: la respuesta no parece español")
     return ok
 
