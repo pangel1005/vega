@@ -14,7 +14,10 @@ from server.core.orchestrator import Orchestrator
 from server.llm.base import ChatModel
 from server.memory.store import ConversationStore
 from server.speech.base import SpeechToText
+from server.tools.actions import ActionRunner
 from server.ws.protocol import (
+    ActionConfirm,
+    ActionRequest,
     ChatRequest,
     ErrorEvent,
     Hello,
@@ -48,6 +51,7 @@ def register_ws(
     store: ConversationStore,
     token: str,
     stt: SpeechToText | None = None,
+    actions: ActionRunner | None = None,
 ) -> None:
     origins = allowed_origins(settings)
 
@@ -80,9 +84,16 @@ def register_ws(
         log.info("Cliente conectado (%s)", origin or "sin origen")
         await emit(Ready(assistant=settings.assistant.name, model=model.name))
         orchestrator = Orchestrator(
-            model, settings.system_prompt, store, emit, stt=stt, max_audio_seconds=settings.speech.max_seconds
+            model,
+            settings.system_prompt,
+            store,
+            emit,
+            stt=stt,
+            max_audio_seconds=settings.speech.max_seconds,
+            actions=actions,
         )
         try:
+            await orchestrator.send_actions()
             await orchestrator.send_history()
             while True:
                 message = await websocket.receive()
@@ -107,5 +118,9 @@ def register_ws(
                     await orchestrator.stop_listening()
                 elif isinstance(msg, ListenCancel):
                     await orchestrator.cancel_listening()
+                elif isinstance(msg, ActionRequest):
+                    await orchestrator.request_action(msg.id)
+                elif isinstance(msg, ActionConfirm):
+                    await orchestrator.confirm_action(msg.nonce)
         except WebSocketDisconnect:
             log.info("Cliente desconectado")

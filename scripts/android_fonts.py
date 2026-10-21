@@ -22,7 +22,8 @@ FONTS = {
     "barlow_condensed_regular": FONTSOURCE / "barlow-condensed/files/barlow-condensed-latin-400-normal.woff2",
     "barlow_condensed_bold": FONTSOURCE / "barlow-condensed/files/barlow-condensed-latin-700-normal.woff2",
     "share_tech_mono": FONTSOURCE / "share-tech-mono/files/share-tech-mono-latin-400-normal.woff2",
-    "shippori_mincho_extrabold": FONTSOURCE / "shippori-mincho-b1/files/shippori-mincho-b1-latin-800-normal.woff2",
+    "shippori_mincho_extrabold": FONTSOURCE
+    / "shippori-mincho-b1/files/shippori-mincho-b1-latin-800-normal.woff2",
     "noto_sans_jp_black": ROOT / "ui/src/styles/fonts/noto-sans-jp-subset-900.woff2",
 }
 

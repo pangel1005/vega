@@ -1,0 +1,154 @@
+# Botones del panel (estilo Stream Deck).
+#
+# SEGURIDAD: solo se puede ejecutar lo que está en este archivo. El servidor lo
+# comprueba siempre en el código; ni el teléfono ni el modelo pueden pedir otra cosa.
+#
+# Campos:
+#   id       identificador único (letras minúsculas, números y guiones)
+#   label    texto del botón          jp    texto japonés decorativo (opcional)
+#   icon     power, restart, sleep, lock, cancel, record, mic, volume-up,
+#            volume-down, mute, play, next, prev, app, screenshot
+#   color    orange, red, amber, green, teal (opcional)
+#   confirm  true = pide una segunda pulsación en 10 s antes de ejecutarse
+#   kind     power  → arg: shutdown | restart | sleep | lock | cancel
+#            keys   → arg: combinación, p. ej. "win+alt+r" o "volume_up"
+#            launch → arg: ruta del programa; args: lista de argumentos (opcional)
+#
+# Para quitar un botón, bórralo. Para añadir una app, copia un bloque «launch».
+
+# --- PC ---
+
+[[action]]
+id = "apagar"
+label = "Apagar PC"
+jp = "停止"
+icon = "power"
+color = "red"
+kind = "power"
+arg = "shutdown"
+confirm = true
+
+[[action]]
+id = "reiniciar"
+label = "Reiniciar"
+jp = "再起動"
+icon = "restart"
+color = "amber"
+kind = "power"
+arg = "restart"
+confirm = true
+
+[[action]]
+id = "cancelar-apagado"
+label = "Cancelar apagado"
+jp = "中止"
+icon = "cancel"
+color = "green"
+kind = "power"
+arg = "cancel"
+
+[[action]]
+id = "suspender"
+label = "Suspender"
+jp = "休止"
+icon = "sleep"
+kind = "power"
+arg = "sleep"
+confirm = true
+
+[[action]]
+id = "bloquear"
+label = "Bloquear"
+jp = "施錠"
+icon = "lock"
+kind = "power"
+arg = "lock"
+
+# --- Grabación y sonido ---
+
+[[action]]
+id = "grabar"
+label = "Grabar"
+jp = "録画"
+icon = "record"
+color = "red"
+kind = "keys"
+arg = "win+alt+r"   # Xbox Game Bar: empieza o termina de grabar el juego/app activo
+
+[[action]]
+id = "captura"
+label = "Captura"
+jp = "撮影"
+icon = "screenshot"
+kind = "keys"
+arg = "win+print_screen"
+
+[[action]]
+id = "silenciar"
+label = "Silenciar"
+jp = "消音"
+icon = "mute"
+kind = "keys"
+arg = "volume_mute"
+
+[[action]]
+id = "volumen-menos"
+label = "Volumen −"
+icon = "volume-down"
+kind = "keys"
+arg = "volume_down"
+
+[[action]]
+id = "volumen-mas"
+label = "Volumen +"
+icon = "volume-up"
+kind = "keys"
+arg = "volume_up"
+
+[[action]]
+id = "play-pausa"
+label = "Play / Pausa"
+jp = "再生"
+icon = "play"
+kind = "keys"
+arg = "media_play_pause"
+
+[[action]]
+id = "siguiente"
+label = "Siguiente"
+icon = "next"
+kind = "keys"
+arg = "media_next_track"
+
+# --- Apps ---
+
+[[action]]
+id = "discord"
+label = "Discord"
+icon = "app"
+kind = "launch"
+arg = "%LOCALAPPDATA%\\Discord\\Update.exe"
+args = ["--processStart", "Discord.exe"]
+
+[[action]]
+id = "spotify"
+label = "Spotify"
+icon = "app"
+color = "green"
+kind = "launch"
+arg = "%APPDATA%\\Spotify\\Spotify.exe"
+
+[[action]]
+id = "steam"
+label = "Steam"
+icon = "app"
+kind = "launch"
+arg = "C:\\Program Files (x86)\\Steam\\steam.exe"
+
+[[action]]
+id = "opera"
+label = "Opera GX"
+icon = "app"
+color = "red"
+kind = "launch"
+arg = "%LOCALAPPDATA%\\Programs\\Opera GX\\opera.exe"

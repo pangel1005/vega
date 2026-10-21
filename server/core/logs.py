@@ -9,6 +9,7 @@ from server.core.config import LoggingSettings
 
 FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
 LOG_FILE = "server.log"
+AUDIT_FILE = "audit.log"
 
 
 def setup_logging(settings: LoggingSettings) -> None:
@@ -27,6 +28,16 @@ def setup_logging(settings: LoggingSettings) -> None:
     root.addHandler(file_handler)
     root.addHandler(console)
     root.setLevel(settings.level)
+
+    # Auditoría de acciones del panel: archivo propio (además del registro general).
+    audit_handler = RotatingFileHandler(
+        settings.path / AUDIT_FILE, maxBytes=1_000_000, backupCount=10, encoding="utf-8"
+    )
+    audit_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    audit = logging.getLogger("audit")
+    audit.handlers.clear()
+    audit.addHandler(audit_handler)
+    audit.setLevel(logging.INFO)
 
     # Uvicorn trae sus propios manejadores; los redirigimos a los nuestros.
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):

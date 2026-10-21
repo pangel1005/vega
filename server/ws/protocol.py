@@ -8,10 +8,15 @@ Cliente → servidor:
                                          con audio PCM16 mono a 16 kHz
     {"type": "listen_stop"}              fin de la grabación: transcribir y responder
     {"type": "listen_cancel"}            descarta la grabación
+    {"type": "action", "id": "..."}      pulsa un botón del panel
+    {"type": "action_confirm", "nonce": "..."}  confirma una acción sensible
 
 Servidor → cliente:
     {"type": "ready", "assistant": "...", "model": "..."}
     {"type": "history", "messages": [{"role": "user|assistant", "content": "..."}]}
+    {"type": "actions", "items": [{"id", "label", "jp", "icon", "color", "confirm"}]}
+    {"type": "confirm", "nonce": "...", "id": "...", "message": "...", "expires_in": 10}
+    {"type": "action_result", "id": "...", "ok": true, "message": "..."}
     {"type": "state", "state": "idle|listening|thinking|speaking|acting|error"}
     {"type": "transcript", "text": "...", "audio_seconds": 3.9, "elapsed_ms": 180}
     {"type": "token", "text": "..."}     trozo de la respuesta, en cuanto llega
@@ -69,7 +74,19 @@ class ListenCancel(_Msg):
     type: Literal["listen_cancel"] = "listen_cancel"
 
 
-AnyClientMessage = Hello | ChatRequest | Reset | ListenStart | ListenStop | ListenCancel
+class ActionRequest(_Msg):
+    type: Literal["action"] = "action"
+    id: str = Field(max_length=40)
+
+
+class ActionConfirm(_Msg):
+    type: Literal["action_confirm"] = "action_confirm"
+    nonce: str = Field(max_length=64)
+
+
+AnyClientMessage = (
+    Hello | ChatRequest | Reset | ListenStart | ListenStop | ListenCancel | ActionRequest | ActionConfirm
+)
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
 
@@ -120,4 +137,35 @@ class ErrorEvent(_Msg):
     message: str
 
 
-ServerEvent = Ready | HistoryEvent | StateEvent | TranscriptEvent | TokenEvent | DoneEvent | ErrorEvent
+class ActionsEvent(_Msg):
+    type: Literal["actions"] = "actions"
+    items: list[dict[str, object]]
+
+
+class ConfirmEvent(_Msg):
+    type: Literal["confirm"] = "confirm"
+    nonce: str
+    id: str
+    message: str
+    expires_in: int
+
+
+class ActionResultEvent(_Msg):
+    type: Literal["action_result"] = "action_result"
+    id: str
+    ok: bool
+    message: str
+
+
+ServerEvent = (
+    Ready
+    | HistoryEvent
+    | StateEvent
+    | TranscriptEvent
+    | TokenEvent
+    | DoneEvent
+    | ErrorEvent
+    | ActionsEvent
+    | ConfirmEvent
+    | ActionResultEvent
+)

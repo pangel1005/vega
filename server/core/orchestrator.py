@@ -18,7 +18,11 @@ from collections.abc import Awaitable, Callable
 from server.llm.base import ChatMessage, ChatModel, LlmUnavailable
 from server.memory.store import ConversationStore
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
+from server.tools.actions import CONFIRM_SECONDS, ActionRunner, Outcome
 from server.ws.protocol import (
+    ActionResultEvent,
+    ActionsEvent,
+    ConfirmEvent,
     DoneEvent,
     ErrorEvent,
     HistoryEvent,
@@ -47,7 +51,9 @@ class Orchestrator:
         emit: Emit,
         stt: SpeechToText | None = None,
         max_audio_seconds: int = 30,
+        actions: ActionRunner | None = None,
     ) -> None:
+        self._actions = actions
         self._model = model
         self._system = ChatMessage("system", system_prompt)
         self._store = store
@@ -125,6 +131,40 @@ class Orchestrator:
             await self._set_state(State.IDLE)
             return
         await self.handle_text(result.text)
+
+    # --- Botones del panel ---
+
+    async def send_actions(self) -> None:
+        if self._actions is not None:
+            await self._emit(ActionsEvent(items=[a.public() for a in self._actions.actions]))
+
+    async def request_action(self, action_id: str) -> None:
+        if self._actions is not None:
+            await self._handle_outcome(
+                await asyncio.to_thread(self._actions.request, action_id, "ws"), action_id
+            )
+
+    async def confirm_action(self, nonce: str) -> None:
+        if self._actions is not None:
+            await self._handle_outcome(await asyncio.to_thread(self._actions.confirm, nonce, "ws"), "")
+
+    async def _handle_outcome(self, outcome: Outcome, requested_id: str) -> None:
+        action_id = outcome.action.id if outcome.action else requested_id
+        if outcome.kind == "ignored":
+            return
+        if outcome.kind == "confirm" and outcome.nonce:
+            await self._emit(
+                ConfirmEvent(
+                    nonce=outcome.nonce,
+                    id=action_id,
+                    message=outcome.message,
+                    expires_in=int(CONFIRM_SECONDS),
+                )
+            )
+            return
+        await self._set_state(State.ACTING)
+        await self._emit(ActionResultEvent(id=action_id, ok=outcome.kind == "done", message=outcome.message))
+        await self._set_state(State.IDLE)
 
     # --- Texto ---
 

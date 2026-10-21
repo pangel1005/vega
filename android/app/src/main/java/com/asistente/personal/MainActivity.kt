@@ -17,20 +17,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,7 +36,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.asistente.personal.net.AssistantState
 import com.asistente.personal.net.LinkStatus
-import com.asistente.personal.ui.ChatPanel
+import com.asistente.personal.state.Message
+import com.asistente.personal.state.Role
+import com.asistente.personal.ui.Deck
 import com.asistente.personal.ui.Face
 import com.asistente.personal.ui.HexBackground
 import com.asistente.personal.ui.MicButton
@@ -76,12 +74,15 @@ class MainActivity : ComponentActivity() {
 
         controller = AssistantController(applicationContext)
         takeToken(intent)
-        setContent { AssistantScreen(controller, ::startVoice) }
+        setContent { AssistantScreen(controller, ::startVoice, ::openAndroid) }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (takeToken(intent)) controller.restart()
+        // Solo en la versión de depuración: permite probar desde el PC con
+        // `adb shell am start … --es test_message "texto"` (Xiaomi sin SIM no deja simular toques).
+        if (BuildConfig.DEBUG) intent.getStringExtra("test_message")?.let(controller::send)
     }
 
     override fun onStart() {
@@ -101,6 +102,20 @@ class MainActivity : ComponentActivity() {
         return true
     }
 
+    /** Abre la pantalla de inicio normal del teléfono (HyperOS), aunque el asistente sea el inicio. */
+    private fun openAndroid() {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val other = packageManager.queryIntentActivities(home, PackageManager.MATCH_ALL)
+            .map { it.activityInfo }
+            .filter { it.packageName != packageName && it.packageName != "com.android.settings" }
+            .let { list -> list.firstOrNull { it.packageName == "com.miui.home" } ?: list.firstOrNull() }
+        if (other != null) {
+            startActivity(Intent(home).setClassName(other.packageName, other.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } else {
+            startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
     private fun startVoice() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             controller.startVoice()
@@ -111,7 +126,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AssistantScreen(c: AssistantController, startVoice: () -> Unit) {
+private fun AssistantScreen(c: AssistantController, startVoice: () -> Unit, openAndroid: () -> Unit) {
     val ui = c.ui
     val listening = c.voice != VoiceStatus.OFF
     val state = when {
@@ -132,25 +147,32 @@ private fun AssistantScreen(c: AssistantController, startVoice: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(Nerv.Bg)) {
         HexBackground(accent, fast = state == AssistantState.THINKING)
-        Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
-            StatusBar(ui.assistant, ui.model, ui.link, ui.retryInMs, clock)
-            // Horizontal: rostro y botón a la izquierda, conversación a la derecha.
+        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            StatusBar(
+                ui.assistant, ui.model, ui.link, ui.retryInMs, clock, openAndroid,
+                update = if (c.updateAvailable) c::update else null,
+            )
+            // Horizontal: voz a la izquierda (rostro, subtítulos, hablar), panel de botones a la derecha.
             Row(
                 Modifier.fillMaxSize().padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Column(
-                    Modifier.fillMaxHeight().weight(0.42f).hudFrame(accent.copy(alpha = 0.24f)).padding(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceEvenly,
+                    Modifier.fillMaxHeight().weight(0.44f).hudFrame(accent.copy(alpha = 0.24f)).padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Face(
-                        state = state,
-                        pulse = if (listening) c.micPulse else ui.tokenPulse,
-                        pulseAmount = if (listening) c.micAmount else 0.55f,
-                        modifier = Modifier.weight(1f, fill = false).widthIn(max = 320.dp),
-                    )
-                    StateLabel(state)
+                    Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Face(
+                            state = state,
+                            pulse = if (listening) c.micPulse else ui.tokenPulse,
+                            pulseAmount = if (listening) c.micAmount else 0.55f,
+                            modifier = Modifier.fillMaxHeight(),
+                        )
+                        Column(Modifier.padding(start = 10.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StateLabel(state)
+                            Subtitles(ui.messages, ui.assistant, accent)
+                        }
+                    }
                     MicButton(
                         status = c.voice,
                         enabled = canSend && !busy,
@@ -158,28 +180,52 @@ private fun AssistantScreen(c: AssistantController, startVoice: () -> Unit) {
                         onStart = startVoice,
                         onStop = c::stopVoice,
                         onCancel = c::cancelVoice,
-                        modifier = Modifier.widthIn(max = 320.dp).padding(top = 8.dp),
                     )
                     if (ui.link == LinkStatus.DENIED || !c.hasToken) {
                         Text(
-                            "SIN TOKEN VÁLIDO: INSTALA CON scripts/android-install.ps1",
+                            "SIN TOKEN VÁLIDO: ÁBRELA DESDE EL PC CON scripts/android-install.ps1",
                             style = TextStyle(fontFamily = Nerv.Mono, fontSize = 10.sp, color = Nerv.Red),
                         )
                     }
                 }
-                ChatPanel(
-                    assistant = ui.assistant,
-                    messages = ui.messages,
-                    canSend = canSend,
-                    busy = busy,
-                    accent = accent,
-                    onSend = c::send,
-                    onReset = c::reset,
-                    modifier = Modifier.fillMaxHeight().weight(0.58f),
+                Deck(
+                    actions = ui.actions,
+                    pending = ui.pending,
+                    notice = ui.notice,
+                    enabled = canSend,
+                    onPress = c::press,
+                    onConfirmExpired = c::confirmExpired,
+                    onNoticeExpired = c::noticeExpired,
+                    modifier = Modifier.fillMaxHeight().weight(0.56f),
                 )
             }
         }
         Box(Modifier.fillMaxSize().scanlines())
+    }
+}
+
+/** Lo último que dijiste y lo último que respondió el asistente, como subtítulos. */
+@Composable
+private fun Subtitles(messages: List<Message>, assistant: String, accent: Color) {
+    val lastUser = messages.lastOrNull { it.role == Role.USER }
+    val lastReply = messages.lastOrNull { it.role == Role.ASSISTANT || it.role == Role.ERROR || it.role == Role.NOTE }
+    val small = TextStyle(fontFamily = Nerv.Mono, fontSize = 10.sp, letterSpacing = 2.sp, color = Nerv.Mute)
+    if (lastUser == null && lastReply == null) {
+        Text("PULSA 通話 Y HABLA", style = small)
+        return
+    }
+    lastUser?.let {
+        Text("TÚ" + (it.meta?.let { m -> " · $m" } ?: ""), style = small)
+        Text(it.text, maxLines = 2, style = TextStyle(fontFamily = Nerv.Cond, fontSize = 16.sp, color = Nerv.Mute))
+    }
+    lastReply?.let {
+        val who = if (it.role == Role.ASSISTANT) assistant.uppercase().ifEmpty { "ASISTENTE" } else "AVISO"
+        Text(who, style = small.copy(color = if (it.role == Role.ERROR) Nerv.Red else accent))
+        Text(
+            it.text + if (it.streaming) " ▌" else "",
+            maxLines = 4,
+            style = TextStyle(fontFamily = Nerv.Cond, fontSize = 18.sp, lineHeight = 21.sp, color = Nerv.Ink),
+        )
     }
 }
 

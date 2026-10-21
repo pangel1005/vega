@@ -11,7 +11,8 @@ android {
         applicationId = "com.asistente.personal"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        // Minutos desde 2026-01-01: cada compilación es «más nueva» y la app puede actualizarse sola.
+        versionCode = ((System.currentTimeMillis() - 1_767_225_600_000L) / 60_000).toInt()
         versionName = "0.1.0"
     }
 
@@ -24,6 +25,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

@@ -14,6 +14,16 @@ enum class AssistantState(val wire: String) {
 
 data class HistoryItem(val role: String, val content: String)
 
+/** Botón del panel tal como lo describe el servidor (config/actions.toml). */
+data class DeckAction(
+    val id: String,
+    val label: String,
+    val jp: String,
+    val icon: String,
+    val color: String,
+    val confirm: Boolean,
+)
+
 sealed interface ServerEvent {
     data class Ready(val assistant: String, val model: String) : ServerEvent
     data class History(val messages: List<HistoryItem>) : ServerEvent
@@ -22,6 +32,9 @@ sealed interface ServerEvent {
     data class Token(val text: String) : ServerEvent
     data class Done(val text: String) : ServerEvent
     data class Error(val message: String) : ServerEvent
+    data class Actions(val items: List<DeckAction>) : ServerEvent
+    data class Confirm(val nonce: String, val id: String, val message: String, val expiresIn: Int) : ServerEvent
+    data class ActionResult(val id: String, val ok: Boolean, val message: String) : ServerEvent
 }
 
 object Protocol {
@@ -44,6 +57,20 @@ object Protocol {
             "token" -> ServerEvent.Token(o.getString("text"))
             "done" -> ServerEvent.Done(o.getString("text"))
             "error" -> ServerEvent.Error(o.getString("message"))
+            "actions" -> {
+                val arr = o.getJSONArray("items")
+                ServerEvent.Actions(List(arr.length()) { i ->
+                    val a = arr.getJSONObject(i)
+                    DeckAction(
+                        a.getString("id"), a.getString("label"), a.optString("jp"),
+                        a.optString("icon", "app"), a.optString("color", "orange"), a.optBoolean("confirm"),
+                    )
+                })
+            }
+            "confirm" -> ServerEvent.Confirm(
+                o.getString("nonce"), o.getString("id"), o.getString("message"), o.getInt("expires_in"),
+            )
+            "action_result" -> ServerEvent.ActionResult(o.getString("id"), o.getBoolean("ok"), o.getString("message"))
             else -> null
         }
     } catch (_: Exception) {
@@ -53,4 +80,6 @@ object Protocol {
     fun hello(token: String): String = JSONObject().put("type", "hello").put("token", token).toString()
     fun chat(text: String): String = JSONObject().put("type", "chat").put("text", text).toString()
     fun simple(type: String): String = JSONObject().put("type", type).toString()
+    fun action(id: String): String = JSONObject().put("type", "action").put("id", id).toString()
+    fun confirm(nonce: String): String = JSONObject().put("type", "action_confirm").put("nonce", nonce).toString()
 }

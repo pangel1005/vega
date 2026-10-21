@@ -4,9 +4,10 @@ La interfaz solo muestra unas pocas palabras en japonés (待機, 審議中, 非
 La fuente completa pesa más de 1 MB; recortada queda en unos pocos KB, lo que
 ayuda a que la página cargue rápido en equipos modestos.
 
-Hay que volver a ejecutarlo si se añade texto japonés nuevo a `ui/src`:
+Hay que volver a ejecutarlo si se añade texto japonés nuevo (web, app o botones),
+y después `scripts/android_fonts.py` para la app:
 
-    uv run python scripts/subset_jp_font.py
+    uv run python scripts/subset_jp_font.py && uv run python scripts/android_fonts.py
 """
 
 from __future__ import annotations
@@ -24,9 +25,18 @@ OUTPUT = ROOT / "ui" / "src" / "styles" / "fonts" / "noto-sans-jp-subset-900.wof
 CJK = re.compile(r"[　-ヿ一-鿿＀-￯]")
 
 
+def sources() -> list[Path]:
+    """Todo lo que puede mostrar texto japonés: web, app Android y los botones configurados."""
+    return [
+        *(ROOT / "ui" / "src").rglob("*.ts*"),
+        *(ROOT / "android" / "app" / "src" / "main").rglob("*.kt"),
+        *(ROOT / "config").glob("*.toml"),
+    ]
+
+
 def used_characters() -> str:
     chars: set[str] = set()
-    for path in (ROOT / "ui" / "src").rglob("*.ts*"):
+    for path in sources():
         chars.update(CJK.findall(path.read_text(encoding="utf-8")))
     return "".join(sorted(chars))
 

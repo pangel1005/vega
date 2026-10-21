@@ -11,7 +11,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.CacheDrawScope
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas as BitmapCanvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -88,7 +94,9 @@ fun HexBackground(accent: Color, fast: Boolean, modifier: Modifier = Modifier) {
                     }
                     row++
                 }
-                onDrawBehind { drawPath(path, accent.copy(alpha = 0.07f), style = Stroke(1f)) }
+                // Se pinta una vez en una imagen; cada cuadro solo la copia (muy barato para la GPU).
+                val grid = renderToBitmap(this) { drawPath(path, accent.copy(alpha = 0.07f), style = Stroke(1f)) }
+                onDrawBehind { drawImage(grid) }
             },
         )
         Canvas(Modifier.fillMaxSize()) {
@@ -105,14 +113,14 @@ fun HexBackground(accent: Color, fast: Boolean, modifier: Modifier = Modifier) {
 
 /**
  * Capa de líneas de escáner y viñeta, para poner encima de todo. Vive en su propia
- * capa y solo se dibuja de nuevo si cambia el tamaño de la pantalla.
+ * imagen y solo se pinta de nuevo si cambia el tamaño de la pantalla.
  */
 fun Modifier.scanlines(): Modifier = this.graphicsLayer().drawWithCache {
     val vignette = Brush.radialGradient(
         0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f),
         center = Offset(size.width / 2, size.height / 2), radius = size.maxDimension * 0.6f,
     )
-    onDrawBehind {
+    val overlay = renderToBitmap(this) {
         var y = 0f
         while (y < size.height) {
             drawLine(Color.Black.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), 1f)
@@ -120,4 +128,14 @@ fun Modifier.scanlines(): Modifier = this.graphicsLayer().drawWithCache {
         }
         drawRect(vignette)
     }
+    onDrawBehind { drawImage(overlay) }
+}
+
+/** Dibuja una sola vez en una imagen del tamaño de la capa. */
+private fun renderToBitmap(scope: CacheDrawScope, block: DrawScope.() -> Unit): ImageBitmap {
+    val w = scope.size.width.toInt().coerceAtLeast(1)
+    val h = scope.size.height.toInt().coerceAtLeast(1)
+    val bitmap = ImageBitmap(w, h)
+    CanvasDrawScope().draw(scope, scope.layoutDirection, BitmapCanvas(bitmap), Size(w.toFloat(), h.toFloat()), block)
+    return bitmap
 }

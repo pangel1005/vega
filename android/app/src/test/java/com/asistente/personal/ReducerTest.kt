@@ -1,6 +1,9 @@
 package com.asistente.personal
 
 import com.asistente.personal.net.AssistantState
+import com.asistente.personal.net.DeckAction
+import com.asistente.personal.state.PendingConfirm
+import org.junit.Assert.assertNull
 import com.asistente.personal.net.HistoryItem
 import com.asistente.personal.net.LinkStatus
 import com.asistente.personal.net.ServerEvent
@@ -46,6 +49,24 @@ class ReducerTest {
     @Test fun `avisa si no se oyó nada`() {
         val s = run(server(ServerEvent.Transcript("", 1.0, 90)))
         assertEquals(Message(1, Role.NOTE, NOT_HEARD), s.messages.single())
+    }
+
+    @Test fun `el panel guarda la confirmación pendiente y la limpia con el resultado`() {
+        val s = run(
+            server(ServerEvent.Actions(listOf(DeckAction("apagar", "Apagar PC", "停止", "power", "red", true)))),
+            server(ServerEvent.Confirm("n1", "apagar", "¿Seguro?", 10)),
+        )
+        assertEquals(PendingConfirm("apagar", "n1", "¿Seguro?", 10), s.pending)
+        val done = reduce(s, server(ServerEvent.ActionResult("apagar", true, "Se apagará en 15 s.")))
+        assertNull(done.pending)
+        assertEquals("Se apagará en 15 s.", done.notice?.text)
+        assertNull(reduce(done, Action.NoticeExpired(done.notice!!.seq)).notice)
+    }
+
+    @Test fun `la confirmación caduca solo si es la misma`() {
+        val s = run(server(ServerEvent.Confirm("n1", "apagar", "¿Seguro?", 10)))
+        assertEquals(s, reduce(s, Action.ConfirmExpired("otra")))
+        assertNull(reduce(s, Action.ConfirmExpired("n1")).pending)
     }
 
     @Test fun `cierra la respuesta a medias si se corta la conexión`() {

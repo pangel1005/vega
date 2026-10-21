@@ -42,6 +42,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,7 +81,7 @@ fun Modifier.hudFrame(line: Color): Modifier = drawBehind {
 private val mono = TextStyle(fontFamily = Nerv.Mono, letterSpacing = 2.sp)
 
 @Composable
-fun StatusBar(assistant: String, model: String, link: LinkStatus, retryInMs: Long?, clock: String) {
+fun StatusBar(assistant: String, model: String, link: LinkStatus, retryInMs: Long?, clock: String, onAndroid: () -> Unit, update: (() -> Unit)? = null) {
     val (jp, es, color) = when (link) {
         LinkStatus.OPEN -> Triple("接続", "ENLACE ESTABLE", Nerv.Green)
         LinkStatus.CONNECTING -> Triple("接続中", "CONECTANDO", Nerv.Amber)
@@ -109,128 +110,17 @@ fun StatusBar(assistant: String, model: String, link: LinkStatus, retryInMs: Lon
         Text("$es$retry", style = mono.copy(fontSize = 11.sp, color = color), modifier = Modifier.padding(bottom = 3.dp))
         Spacer(Modifier.size(14.dp))
         Text(clock, style = mono.copy(fontSize = 11.sp, color = Nerv.Mute), modifier = Modifier.padding(bottom = 3.dp))
+        if (update != null) {
+            Spacer(Modifier.size(14.dp))
+            NervButton("ACTUALIZAR", Nerv.Amber, enabled = true, onClick = update, small = true)
+        }
+        Spacer(Modifier.size(14.dp))
+        // Salida al Android normal (útil cuando el asistente es la pantalla de inicio).
+        NervButton("ANDROID", Nerv.Mute, enabled = true, onClick = onAndroid, ghost = true, small = true)
     }
     Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(Nerv.Orange.copy(alpha = 0.24f)))
 }
 
-@Composable
-fun ChatPanel(
-    assistant: String,
-    messages: List<Message>,
-    canSend: Boolean,
-    busy: Boolean,
-    accent: Color,
-    onSend: (String) -> Unit,
-    onReset: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val list = rememberLazyListState()
-    LaunchedEffect(messages.size, messages.lastOrNull()?.text?.length) {
-        if (messages.isNotEmpty()) list.scrollToItem(messages.lastIndex, Int.MAX_VALUE / 2)
-    }
-    var text by remember { mutableStateOf("") }
-    val line = accent.copy(alpha = 0.24f)
-    val submit = {
-        val clean = text.trim()
-        if (clean.isNotEmpty() && canSend && !busy) {
-            onSend(clean)
-            text = ""
-        }
-    }
-
-    Column(modifier.background(Nerv.Bg3.copy(alpha = 0.82f)).border(1.dp, Nerv.Ink.copy(alpha = 0.1f)).hudFrame(line)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("REGISTRO", style = mono.copy(fontSize = 11.sp, color = Nerv.Mute))
-            Spacer(Modifier.size(8.dp))
-            Text("交信記録", style = TextStyle(fontFamily = Nerv.Jp, fontSize = 13.sp, color = accent))
-            Spacer(Modifier.weight(1f))
-            NervButton("NUEVA", accent, ghost = true, enabled = canSend && !busy, onClick = onReset, small = true)
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(line))
-        LazyColumn(
-            state = list,
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item { Spacer(Modifier.size(4.dp)) }
-            if (messages.isEmpty()) {
-                item {
-                    Text(
-                        "SIN MENSAJES. HABLA O ESCRIBE PARA EMPEZAR.",
-                        style = mono.copy(fontSize = 11.sp, color = Nerv.Dim, textAlign = TextAlign.Center),
-                        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-                    )
-                }
-            }
-            items(messages, key = { it.id }) { MessageRow(it, assistant, accent) }
-            item { Spacer(Modifier.size(4.dp)) }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(line))
-        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it.take(4000) },
-                singleLine = true,
-                textStyle = TextStyle(fontFamily = Nerv.Cond, fontSize = 17.sp, color = Nerv.Ink),
-                cursorBrush = SolidColor(accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { submit() }),
-                modifier = Modifier.weight(1f).background(Color(0xFF0B0A09)).border(1.dp, Nerv.Ink.copy(alpha = 0.1f))
-                    .padding(horizontal = 10.dp, vertical = 9.dp),
-                decorationBox = { inner ->
-                    if (text.isEmpty()) {
-                        Text(
-                            if (canSend) "Escribe a ${assistant.ifEmpty { "tu asistente" }}…" else "Sin conexión…",
-                            style = TextStyle(fontFamily = Nerv.Cond, fontSize = 17.sp, color = Nerv.Dim),
-                        )
-                    }
-                    inner()
-                },
-            )
-            Spacer(Modifier.size(8.dp))
-            NervButton("ENVIAR", accent, enabled = canSend && !busy && text.isNotBlank(), onClick = submit)
-        }
-    }
-}
-
-@Composable
-private fun MessageRow(m: Message, assistant: String, accent: Color) {
-    val who = when (m.role) {
-        Role.USER -> "TÚ"
-        Role.ERROR -> "非常事態 · ERROR"
-        Role.NOTE -> "AVISO"
-        Role.ASSISTANT -> assistant.uppercase().ifEmpty { "ASISTENTE" }
-    } + (m.meta?.let { " · $it" } ?: "")
-    val bar = when (m.role) {
-        Role.USER -> Nerv.Mute
-        Role.ERROR -> Nerv.Red
-        Role.NOTE -> Nerv.Amber
-        Role.ASSISTANT -> accent
-    }
-    val user = m.role == Role.USER
-    Box(Modifier.fillMaxWidth(), contentAlignment = if (user) Alignment.CenterEnd else Alignment.CenterStart) {
-        Column(
-            Modifier.widthIn(max = 520.dp)
-                .background(if (m.role == Role.ERROR) Nerv.Red.copy(alpha = 0.1f) else Nerv.Bg2)
-                .drawBehind {
-                    val x = if (user) size.width - 1.dp.toPx() else 1.dp.toPx()
-                    drawLine(bar, Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
-                }
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            horizontalAlignment = if (user) Alignment.End else Alignment.Start,
-        ) {
-            Text(who, style = mono.copy(fontSize = 10.sp, color = if (m.role == Role.ERROR) Nerv.Red else Nerv.Mute))
-            Text(
-                m.text + if (m.streaming) " ▌" else "",
-                style = TextStyle(
-                    fontFamily = Nerv.Cond, fontSize = 18.sp, lineHeight = 22.sp,
-                    color = if (m.role == Role.NOTE) Nerv.Mute else Nerv.Ink,
-                    textAlign = if (user) TextAlign.End else TextAlign.Start,
-                ),
-            )
-        }
-    }
-}
 
 @Composable
 fun NervButton(
@@ -260,9 +150,9 @@ fun NervButton(
     }
 }
 
-/** Texto simple sin Material (más ligero). */
+/** Texto simple sin Material (más ligero). Recorta con «…» si no cabe. */
 @Composable
-fun Text(text: String, style: TextStyle, modifier: Modifier = Modifier) {
-    androidx.compose.foundation.text.BasicText(text, modifier, style)
+fun Text(text: String, style: TextStyle, modifier: Modifier = Modifier, maxLines: Int = Int.MAX_VALUE, overflow: TextOverflow = TextOverflow.Ellipsis) {
+    androidx.compose.foundation.text.BasicText(text, modifier, style, overflow = overflow, maxLines = maxLines)
 }
 

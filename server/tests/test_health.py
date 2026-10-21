@@ -69,5 +69,25 @@ def test_missing_ui_explains_how_to_build() -> None:
     assert "npm run build" in resp.text
 
 
+def test_app_update_endpoints(tmp_path: Path) -> None:
+    from fastapi import FastAPI
+
+    from server.web import register_app_updates
+
+    app = FastAPI()
+    register_app_updates(app, tmp_path)
+    client = TestClient(app)
+    assert client.get("/app/version").json() == {"version_code": 0, "version_name": ""}
+    assert client.get("/app/latest.apk").status_code == 404
+
+    (tmp_path / "output-metadata.json").write_text(
+        '{"elements": [{"versionCode": 42, "versionName": "0.1.0"}]}', encoding="utf-8"
+    )
+    (tmp_path / "app-debug.apk").write_bytes(b"PK")
+    assert client.get("/app/version").json() == {"version_code": 42, "version_name": "0.1.0"}
+    resp = client.get("/app/latest.apk")
+    assert resp.content == b"PK" and resp.headers["content-type"] == "application/vnd.android.package-archive"
+
+
 def test_no_auto_docs() -> None:
     assert client_with().get("/docs").status_code == 404

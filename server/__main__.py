@@ -14,6 +14,8 @@ from server.core.logs import setup_logging
 from server.core.token import load_or_create_token
 from server.speech.base import SttUnavailable
 from server.speech.whisper import WhisperSTT
+from server.tools.actions import ActionConfigError, ActionRunner, load_actions
+from server.tools.windows import WindowsExecutor
 
 log = logging.getLogger("server")
 
@@ -41,8 +43,14 @@ def main() -> int:
         print(f"Error de configuración: {exc}", file=sys.stderr)
         return 2
     setup_logging(settings.logging)
+    try:
+        actions = ActionRunner(load_actions(), WindowsExecutor())
+    except ActionConfigError as exc:
+        print(f"Error en los botones: {exc}", file=sys.stderr)
+        return 2
+    log.info("Panel con %d botones", len(actions.actions))
     uvicorn.run(
-        create_app(settings, token=load_or_create_token(), stt=build_stt(settings)),
+        create_app(settings, token=load_or_create_token(), stt=build_stt(settings), actions=actions),
         host=settings.server.host,
         port=settings.server.port,
         log_config=None,

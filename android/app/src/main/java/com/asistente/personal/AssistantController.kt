@@ -14,6 +14,7 @@ import com.asistente.personal.state.Action
 import com.asistente.personal.state.UiState
 import com.asistente.personal.state.reduce
 import com.asistente.personal.ui.VoiceStatus
+import kotlinx.coroutines.launch
 import kotlin.math.min
 
 /** Servidor del PC, al que se llega por el cable USB gracias a `adb reverse tcp:8000 tcp:8000`. */
@@ -38,6 +39,12 @@ class AssistantController(context: Context) {
         private set
     var micAmount by mutableFloatStateOf(0f)
         private set
+    /** Hay una versión más nueva de la app en el PC. */
+    var updateAvailable by mutableStateOf(false)
+        private set
+
+    private val updater = Updater(context)
+    private val scope = kotlinx.coroutines.MainScope()
 
     val hasToken: Boolean get() = !prefs.getString(KEY_TOKEN, null).isNullOrBlank()
 
@@ -48,6 +55,7 @@ class AssistantController(context: Context) {
         onStatus = { status, retry ->
             dispatch(Action.Link(status, retry))
             if (status != LinkStatus.OPEN) cancelVoice()
+            if (status == LinkStatus.OPEN) scope.launch { updateAvailable = updater.newerVersion() != null }
         },
     )
 
@@ -90,6 +98,24 @@ class AssistantController(context: Context) {
     fun reset() {
         socket.send(Protocol.simple("reset"))
     }
+
+    /**
+     * Pulsa un botón del panel. Si ese botón está esperando confirmación, esta
+     * pulsación es la confirmación (el servidor exige el código de un solo uso).
+     */
+    fun press(id: String) {
+        val pending = ui.pending
+        if (pending != null && pending.id == id) socket.send(Protocol.confirm(pending.nonce))
+        else socket.send(Protocol.action(id))
+    }
+
+    fun update() {
+        scope.launch { updater.downloadAndInstall()?.let { dispatch(Action.LocalError(it)) } }
+    }
+
+    fun confirmExpired(nonce: String) = dispatch(Action.ConfirmExpired(nonce))
+
+    fun noticeExpired(seq: Int) = dispatch(Action.NoticeExpired(seq))
 
     /** Requiere el permiso de micrófono ya concedido. */
     fun startVoice() {

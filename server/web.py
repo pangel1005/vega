@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import json
 import logging
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from server.core.config import ROOT
 log = logging.getLogger(__name__)
 
 UI_DIST = ROOT / "ui" / "dist"
+APK_DIR = ROOT / "android" / "app" / "build" / "outputs" / "apk" / "debug"
 TOKEN_PLACEHOLDER = "__ASSISTANT_TOKEN__"
 # Archivos sueltos de ui/public que se sirven en la raíz.
 ROOT_FILES = ("manifest.webmanifest", "icon.svg")
@@ -44,6 +46,31 @@ def register_ui(app: FastAPI, token: str, dist: Path = UI_DIST) -> None:
 
     for name in ROOT_FILES:
         _serve_file(app, dist / name, f"/{name}")
+
+    register_app_updates(app)
+
+
+def register_app_updates(app: FastAPI, apk_dir: Path = APK_DIR) -> None:
+    """La app Android pregunta aquí si hay versión nueva y la descarga (actualización con un toque)."""
+
+    @app.get("/app/version", include_in_schema=False)
+    async def version() -> dict[str, object]:
+        meta = apk_dir / "output-metadata.json"
+        try:
+            element = json.loads(meta.read_text(encoding="utf-8"))["elements"][0]
+            return {
+                "version_code": int(element["versionCode"]),
+                "version_name": element.get("versionName", ""),
+            }
+        except (OSError, ValueError, KeyError, IndexError):
+            return {"version_code": 0, "version_name": ""}
+
+    @app.get("/app/latest.apk", include_in_schema=False)
+    async def apk() -> Response:
+        files = sorted(apk_dir.glob("*.apk"))
+        if not files:
+            return Response(status_code=404)
+        return FileResponse(files[0], media_type="application/vnd.android.package-archive")
 
 
 def _serve_file(app: FastAPI, path: Path, route: str) -> None:

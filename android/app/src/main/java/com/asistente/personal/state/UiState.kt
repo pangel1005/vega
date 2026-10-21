@@ -1,6 +1,7 @@
 package com.asistente.personal.state
 
 import com.asistente.personal.net.AssistantState
+import com.asistente.personal.net.DeckAction
 import com.asistente.personal.net.LinkStatus
 import com.asistente.personal.net.ServerEvent
 import java.util.Locale
@@ -17,7 +18,16 @@ data class Message(
     val meta: String? = null,
 )
 
+/** Acción sensible esperando la segunda pulsación. */
+data class PendingConfirm(val id: String, val nonce: String, val message: String, val expiresIn: Int)
+
+/** Aviso corto tras pulsar un botón (p. ej. «El PC se apagará en 15 s…»). */
+data class Notice(val seq: Int, val text: String, val ok: Boolean)
+
 data class UiState(
+    val actions: List<DeckAction> = emptyList(),
+    val pending: PendingConfirm? = null,
+    val notice: Notice? = null,
     val link: LinkStatus = LinkStatus.CONNECTING,
     val retryInMs: Long? = null,
     val assistant: String = "",
@@ -34,7 +44,11 @@ sealed interface Action {
     data class Link(val status: LinkStatus, val retryInMs: Long? = null) : Action
     data class Sent(val text: String) : Action
     data class LocalError(val text: String) : Action
+    data class ConfirmExpired(val nonce: String) : Action
+    data class NoticeExpired(val seq: Int) : Action
 }
+
+private fun UiState.notify(text: String, ok: Boolean) = copy(notice = Notice((notice?.seq ?: 0) + 1, text, ok))
 
 const val NOT_HEARD = "No te he oído. Prueba a hablar un poco más cerca del micrófono."
 
@@ -55,7 +69,9 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         if (action.status == LinkStatus.OPEN || open == null) next else next.replaceLast(open.copy(streaming = false))
     }
     is Action.Sent -> s.push(Role.USER, action.text)
-    is Action.LocalError -> s.push(Role.ERROR, action.text)
+    is Action.LocalError -> s.push(Role.ERROR, action.text).notify(action.text, ok = false)
+    is Action.ConfirmExpired -> if (s.pending?.nonce == action.nonce) s.copy(pending = null) else s
+    is Action.NoticeExpired -> if (s.notice?.seq == action.seq) s.copy(notice = null) else s
     is Action.Server -> when (val e = action.event) {
         is ServerEvent.Ready -> s.copy(assistant = e.assistant, model = e.model)
         is ServerEvent.History -> e.messages.fold(s.copy(messages = emptyList())) { acc, m ->
@@ -79,6 +95,9 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
             val open = s.lastStreaming()
             if (open != null) s.replaceLast(open.copy(text = e.text, streaming = false)) else s.push(Role.ASSISTANT, e.text)
         }
-        is ServerEvent.Error -> s.push(Role.ERROR, e.message)
+        is ServerEvent.Error -> s.push(Role.ERROR, e.message).notify(e.message, ok = false)
+        is ServerEvent.Actions -> s.copy(actions = e.items)
+        is ServerEvent.Confirm -> s.copy(pending = PendingConfirm(e.id, e.nonce, e.message, e.expiresIn))
+        is ServerEvent.ActionResult -> s.copy(pending = null).notify(e.message, e.ok)
     }
 }
