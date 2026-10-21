@@ -45,6 +45,12 @@ stt_compute = "int8_float16"
 # Máximo de una grabación, en segundos.
 max_seconds = 30
 
+# Texto a voz (Piper, en la CPU: no usa la GPU). Voces en models/piper.
+# Medido en este PC: ~28 veces más rápido que el tiempo real (Daniela: ~6 veces).
+# La voz se puede cambiar desde la app; la elegida se guarda en data/prefs.json.
+tts_enabled = true
+tts_voice = "es_MX-claude-high"
+
 [memory]
 # Historial de conversaciones (SQLite). Fuera de git.
 file = "data/history.sqlite"

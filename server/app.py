@@ -17,6 +17,7 @@ from server.llm.base import ChatModel
 from server.llm.ollama import OllamaChat
 from server.memory.store import ConversationStore
 from server.speech.base import SpeechToText
+from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner
 from server.web import UI_DIST, register_ui
 from server.ws.routes import register_ws
@@ -59,6 +60,7 @@ def create_app(
     ui_dist: Path = UI_DIST,
     stt: SpeechToText | None = None,
     actions: ActionRunner | None = None,
+    tts: TextToSpeech | None = None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
@@ -70,7 +72,7 @@ def create_app(
     # Solo se atienden peticiones dirigidas a 127.0.0.1/localhost. Esto frena el
     # «DNS rebinding»: una web maliciosa que apunta su dominio a 127.0.0.1 para leer el token.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(TRUSTED_HOSTS))
-    register_ws(app, settings, model, history, token, stt, actions)
+    register_ws(app, settings, model, history, token, stt, actions, tts)
     register_ui(app, token, ui_dist)
 
     @app.get("/health")
@@ -84,6 +86,7 @@ def create_app(
             "version": __version__,
             "llm": {"model": settings.llm.model, "reachable": llm.reachable, "detail": llm.detail},
             "stt": stt.name if stt else None,
+            "tts": tts.voice if tts else None,
         }
 
     log.info(

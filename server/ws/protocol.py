@@ -13,6 +13,7 @@ Cliente → servidor:
     {"type": "wake_mode", "on": true}    escucha continua: el audio binario llega siempre
                                          y se atienden las frases que empiezan por el nombre
     {"type": "attention"}                (tocar el rostro) la próxima frase es una orden
+    {"type": "set_voice", "voice": "..."}  cambia la voz (y la presenta)
 
 Servidor → cliente:
     {"type": "ready", "assistant": "...", "model": "..."}
@@ -20,6 +21,10 @@ Servidor → cliente:
     {"type": "actions", "items": [{"id", "label", "jp", "icon", "color", "confirm"}]}
     {"type": "confirm", "nonce": "...", "id": "...", "message": "...", "expires_in": 10}
     {"type": "action_result", "id": "...", "ok": true, "message": "..."}
+    {"type": "voices", "items": [{"id", "label"}], "current": "..."}
+    {"type": "audio", "seq": 1, "rate": 22050, "text": "..."}  seguido de un mensaje
+                                         BINARIO con la voz de esa frase (PCM16 mono)
+    {"type": "audio_end"}                no hay más voz para esta respuesta
     {"type": "state", "state": "idle|listening|thinking|speaking|acting|error"}
     {"type": "transcript", "text": "...", "audio_seconds": 3.9, "elapsed_ms": 180}
     {"type": "token", "text": "..."}     trozo de la respuesta, en cuanto llega
@@ -96,6 +101,11 @@ class Attention(_Msg):
     type: Literal["attention"] = "attention"
 
 
+class SetVoice(_Msg):
+    type: Literal["set_voice"] = "set_voice"
+    voice: str = Field(max_length=80)
+
+
 AnyClientMessage = (
     Hello
     | ChatRequest
@@ -107,6 +117,7 @@ AnyClientMessage = (
     | ActionConfirm
     | WakeMode
     | Attention
+    | SetVoice
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
@@ -178,6 +189,23 @@ class ActionResultEvent(_Msg):
     message: str
 
 
+class VoicesEvent(_Msg):
+    type: Literal["voices"] = "voices"
+    items: list[dict[str, str]]
+    current: str
+
+
+class AudioEvent(_Msg):
+    type: Literal["audio"] = "audio"
+    seq: int
+    rate: int
+    text: str
+
+
+class AudioEnd(_Msg):
+    type: Literal["audio_end"] = "audio_end"
+
+
 ServerEvent = (
     Ready
     | HistoryEvent
@@ -189,4 +217,7 @@ ServerEvent = (
     | ActionsEvent
     | ConfirmEvent
     | ActionResultEvent
+    | VoicesEvent
+    | AudioEvent
+    | AudioEnd
 )

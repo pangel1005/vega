@@ -24,6 +24,9 @@ from server.llm.base import ChatMessage, ChatModel, LlmUnavailable
 from server.memory.store import ConversationStore
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
 from server.speech.listener import SpeechSegmenter, parse_wake, yes_or_no
+from server.speech.sentences import SentenceSplitter, clean_for_speech
+from server.speech.speaker import EmitAudio, Speaker
+from server.speech.tts import TextToSpeech, TtsUnavailable
 from server.tools.actions import CONFIRM_SECONDS, ActionRunner, Outcome
 from server.ws.protocol import (
     ActionResultEvent,
@@ -38,6 +41,7 @@ from server.ws.protocol import (
     StateEvent,
     TokenEvent,
     TranscriptEvent,
+    VoicesEvent,
 )
 
 log = logging.getLogger(__name__)
@@ -62,8 +66,12 @@ class Orchestrator:
         actions: ActionRunner | None = None,
         name: str = "",
         now_context: Callable[[], str] = time_context,
+        tts: TextToSpeech | None = None,
+        emit_audio: EmitAudio | None = None,
     ) -> None:
         self._now_context = now_context
+        self._tts = tts
+        self._emit_audio = emit_audio
         self._actions = actions
         self._name = name
         # Escucha continua
@@ -232,6 +240,7 @@ class Orchestrator:
                     await self.confirm_action(nonce, client="voz")
                 else:
                     await self._emit(ActionResultEvent(id="", ok=True, message="Cancelado."))
+                    await self.speak("Cancelado.")
                 return
 
         if now < self._followup_until:
@@ -284,14 +293,16 @@ class Orchestrator:
         if self._actions is None:
             return None
         outcome = await asyncio.to_thread(self._actions.request, action_id, client)
-        return await self._handle_outcome(outcome, action_id)
+        # Si la orden fue por voz, el resultado también se dice en voz alta.
+        return await self._handle_outcome(outcome, action_id, spoken=client == "voz")
 
     async def confirm_action(self, nonce: str, client: str = "toque") -> None:
         if self._actions is not None:
             self._voice_confirm = None
-            await self._handle_outcome(await asyncio.to_thread(self._actions.confirm, nonce, client), "")
+            outcome = await asyncio.to_thread(self._actions.confirm, nonce, client)
+            await self._handle_outcome(outcome, "", spoken=client == "voz")
 
-    async def _handle_outcome(self, outcome: Outcome, requested_id: str) -> str | None:
+    async def _handle_outcome(self, outcome: Outcome, requested_id: str, spoken: bool = False) -> str | None:
         action_id = outcome.action.id if outcome.action else requested_id
         if outcome.kind == "ignored":
             return None
@@ -305,11 +316,46 @@ class Orchestrator:
                 )
             )
             await self._set_state(State.IDLE)
+            if spoken:
+                await self.speak(outcome.message.replace("Pulsa de nuevo", "Di sí"))
             return outcome.nonce
         await self._set_state(State.ACTING)
         await self._emit(ActionResultEvent(id=action_id, ok=outcome.kind == "done", message=outcome.message))
+        if spoken:
+            await self.speak(outcome.message)
         await self._set_state(State.IDLE)
         return None
+
+    # --- Voz de respuesta (texto a voz) ---
+
+    def _speaker(self) -> Speaker | None:
+        if self._tts is None or self._emit_audio is None:
+            return None
+        return Speaker(self._tts, self._emit, self._emit_audio)
+
+    async def speak(self, text: str) -> None:
+        """Dice un texto suelto (resultado de una orden de voz, presentación de una voz…)."""
+        speaker = self._speaker()
+        if speaker is None:
+            return
+        speaker.say(clean_for_speech(text))
+        await speaker.finish()
+
+    async def send_voices(self) -> None:
+        if self._tts is not None:
+            items = [{"id": v.id, "label": v.label} for v in self._tts.voices()]
+            await self._emit(VoicesEvent(items=items, current=self._tts.voice))
+
+    async def set_voice(self, voice_id: str) -> None:
+        if self._tts is None:
+            return
+        try:
+            await asyncio.to_thread(self._tts.set_voice, voice_id)
+        except TtsUnavailable as exc:
+            await self._emit(ErrorEvent(message=str(exc)))
+            return
+        await self.send_voices()
+        await self.speak(f"Hola, esta es mi nueva voz. Soy {self._name or 'tu asistente'}.")
 
     # --- Texto ---
 
@@ -325,6 +371,9 @@ class Orchestrator:
         start = time.perf_counter()
         first_token: float | None = None
         parts: list[str] = []
+        # Cada frase completa se convierte en voz mientras el modelo sigue escribiendo.
+        speaker = self._speaker()
+        splitter = SentenceSplitter()
         try:
             async for piece in self._model.stream(context):
                 if first_token is None:
@@ -332,13 +381,21 @@ class Orchestrator:
                     await self._set_state(State.SPEAKING)
                 parts.append(piece)
                 await self._emit(TokenEvent(text=piece))
+                if speaker is not None:
+                    for sentence in splitter.feed(piece):
+                        speaker.say(sentence)
         except LlmUnavailable as exc:
             log.warning("El modelo no respondió: %s", exc)
+            if speaker is not None:
+                speaker.cancel()
             await self._emit(ErrorEvent(message=str(exc)))
             await self._set_state(State.ERROR)
             return
 
         reply = "".join(parts).strip()
+        if speaker is not None:
+            for sentence in splitter.flush():
+                speaker.say(sentence)
         # Pregunta y respuesta se guardan juntas: una pregunta sin respuesta no entra al historial.
         await asyncio.to_thread(
             self._store.add_messages, conversation, [question, ChatMessage("assistant", reply)]
@@ -351,4 +408,8 @@ class Orchestrator:
             len(reply),
         )
         await self._emit(DoneEvent(text=reply))
+        if speaker is not None:
+            await speaker.finish()
+            if speaker.first_audio_after is not None:
+                log.info("Voz: primera frase enviada a los %.2f s de la pregunta", speaker.first_audio_after)
         await self._set_state(State.IDLE)

@@ -9,10 +9,11 @@ import threading
 import uvicorn
 
 from server.app import create_app
-from server.core.config import ConfigError, Settings, load_settings
+from server.core.config import ROOT, ConfigError, Settings, load_settings
 from server.core.logs import setup_logging
 from server.core.token import load_or_create_token
 from server.speech.base import SttUnavailable
+from server.speech.tts import PiperTTS, TtsUnavailable
 from server.speech.whisper import WhisperSTT
 from server.tools.actions import ActionConfigError, ActionRunner, load_actions
 from server.tools.windows import WindowsExecutor
@@ -42,6 +43,25 @@ def build_stt(settings: Settings) -> WhisperSTT:
     return stt
 
 
+def build_tts(settings: Settings) -> PiperTTS | None:
+    s = settings.speech
+    if not s.tts_enabled:
+        return None
+    tts = PiperTTS(s.voices_path, s.tts_voice, ROOT / "data" / "prefs.json")
+    if not tts.voices():
+        log.warning("No hay voces en %s: el asistente responderá solo por escrito", s.voices_path)
+        return None
+
+    def warm() -> None:
+        try:
+            tts.warmup()
+        except TtsUnavailable as exc:
+            log.error("%s", exc)
+
+    threading.Thread(target=warm, name="tts-warmup", daemon=True).start()
+    return tts
+
+
 def main() -> int:
     try:
         settings = load_settings()
@@ -56,7 +76,10 @@ def main() -> int:
         return 2
     log.info("Panel con %d botones", len(actions.actions))
     uvicorn.run(
-        create_app(settings, token=load_or_create_token(), stt=build_stt(settings), actions=actions),
+        create_app(settings, token=load_or_create_token(), stt=build_stt(settings),
+            actions=actions,
+            tts=build_tts(settings),
+        ),
         host=settings.server.host,
         port=settings.server.port,
         log_config=None,

@@ -14,6 +14,7 @@ from server.core.orchestrator import Orchestrator
 from server.llm.base import ChatModel
 from server.memory.store import ConversationStore
 from server.speech.base import SpeechToText
+from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner
 from server.ws.protocol import (
     ActionConfirm,
@@ -28,6 +29,7 @@ from server.ws.protocol import (
     Ready,
     Reset,
     ServerEvent,
+    SetVoice,
     WakeMode,
     client_message,
 )
@@ -54,6 +56,7 @@ def register_ws(
     token: str,
     stt: SpeechToText | None = None,
     actions: ActionRunner | None = None,
+    tts: TextToSpeech | None = None,
 ) -> None:
     origins = allowed_origins(settings)
 
@@ -69,6 +72,9 @@ def register_ws(
 
         async def emit(event: ServerEvent) -> None:
             await websocket.send_text(event.model_dump_json())
+
+        async def emit_audio(pcm: bytes) -> None:
+            await websocket.send_bytes(pcm)
 
         try:
             raw = await asyncio.wait_for(websocket.receive_text(), HELLO_TIMEOUT_S)
@@ -94,9 +100,12 @@ def register_ws(
             max_audio_seconds=settings.speech.max_seconds,
             actions=actions,
             name=settings.assistant.name,
+            tts=tts,
+            emit_audio=emit_audio,
         )
         try:
             await orchestrator.send_actions()
+            await orchestrator.send_voices()
             await orchestrator.send_history()
             while True:
                 message = await websocket.receive()
@@ -129,6 +138,8 @@ def register_ws(
                     await orchestrator.set_wake_mode(msg.on)
                 elif isinstance(msg, Attention):
                     await orchestrator.attention()
+                elif isinstance(msg, SetVoice):
+                    await orchestrator.set_voice(msg.voice)
         except WebSocketDisconnect:
             log.info("Cliente desconectado")
         finally:

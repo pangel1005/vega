@@ -69,10 +69,17 @@ class SpeechSettings(_Section):
     stt_compute: str = "int8_float16"
     max_seconds: int = Field(default=30, ge=1, le=120)
     models_dir: Path = Path("models/whisper")
+    tts_enabled: bool = True
+    tts_voice: str = "es_MX-claude-high"
+    voices_dir: Path = Path("models/piper")
 
     @property
     def models_path(self) -> Path:
         return self.models_dir if self.models_dir.is_absolute() else ROOT / self.models_dir
+
+    @property
+    def voices_path(self) -> Path:
+        return self.voices_dir if self.voices_dir.is_absolute() else ROOT / self.voices_dir
 
 
 class MemorySettings(_Section):
