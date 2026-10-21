@@ -20,3 +20,4 @@ models/
 # Secretos
 .env
 config/token.txt
+*.tsbuildinfo
