@@ -2,7 +2,7 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: min(72vw, 36vh, 420px);
+  width: min(64vw, 30vh, 420px);
   aspect-ratio: 1;
   margin-bottom: 2rem; /* espacio para la etiqueta del estado */
 }

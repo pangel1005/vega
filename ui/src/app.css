@@ -9,7 +9,9 @@
   z-index: 1;
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) minmax(0, 0.9fr);
+  /* El rostro y el botón ocupan lo que necesitan; el chat se queda con el resto
+     (así el botón de hablar nunca queda tapado en pantallas bajas). */
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 10px;
   padding: env(safe-area-inset-top) 0 calc(var(--gutter) + env(safe-area-inset-bottom));
 }
@@ -19,10 +21,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-evenly;
+  justify-content: center;
   gap: 8px;
-  padding: 8px 12px 14px;
-  min-height: 0;
+  padding: 10px 12px 14px;
   --c: var(--line);
 }
 
