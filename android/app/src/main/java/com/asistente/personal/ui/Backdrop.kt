@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.delay
 import kotlin.math.PI
@@ -54,6 +55,7 @@ fun HexBackground(accent: Color, fast: Boolean, modifier: Modifier = Modifier) {
     var t by remember { mutableFloatStateOf(0f) }
     val cells = remember { mutableListOf<Offset>() }
     val pulses = remember { Array(PULSES) { floatArrayOf(Random.nextFloat(), 0f) } } // [fase, celda]
+    val unitHex = remember { Path().also { hexAt(it, 0f, 0f, R - 3) } }
 
     LaunchedEffect(fast) {
         var last = 0L
@@ -104,8 +106,10 @@ fun HexBackground(accent: Color, fast: Boolean, modifier: Modifier = Modifier) {
             if (t < 0f) return@Canvas
             for (p in pulses) {
                 val cell = cells.getOrNull(p[1].toInt()) ?: continue
-                val path = Path().also { hexAt(it, cell.x, cell.y, R - 3) }
-                drawPath(path, accent.copy(alpha = sin(p[0] * PI.toFloat()) * 0.16f))
+                // Una sola figura (centrada en 0,0) que se desplaza a cada celda: sin crear objetos por cuadro.
+                translate(cell.x, cell.y) {
+                    drawPath(unitHex, accent.copy(alpha = sin(p[0] * PI.toFloat()) * 0.16f))
+                }
             }
         }
     }

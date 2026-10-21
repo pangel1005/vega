@@ -1,6 +1,7 @@
 package com.asistente.personal.ui
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -107,7 +108,7 @@ fun Deck(
                 )
             }
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 104.dp),
+                columns = GridCells.Adaptive(minSize = 92.dp),
                 modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -148,16 +149,21 @@ private fun DeckTile(action: DeckAction, confirming: Boolean, secondsLeft: Int, 
     val haptics = LocalHapticFeedback.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    // Rebote suave al pulsar (muelle), como una tecla física.
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = 0.45f, stiffness = 900f),
+        label = "pulsar",
+    )
     val color = if (confirming) Nerv.Red else deckColor(action.color)
     val shape = remember { Chamfer(10.dp) }
 
     Box(
         Modifier
-            .height(78.dp)
+            .height(66.dp)
             .graphicsLayer {
-                val s = if (pressed) 0.94f else 1f
-                scaleX = s
-                scaleY = s
+                scaleX = scale
+                scaleY = scale
                 alpha = if (enabled) 1f else 0.35f
             }
             .clip(shape)
@@ -177,7 +183,7 @@ private fun DeckTile(action: DeckAction, confirming: Boolean, secondsLeft: Int, 
             )
         }
         val fg = if (confirming) Color(0xFF0A0A0A) else color
-        Canvas(Modifier.size(24.dp).align(Alignment.TopStart)) { drawIcon(action.icon, fg) }
+        Canvas(Modifier.size(20.dp).align(Alignment.TopStart)) { drawIcon(action.icon, fg) }
         Column(Modifier.align(Alignment.BottomStart)) {
             if (confirming) {
                 Text(
@@ -190,7 +196,7 @@ private fun DeckTile(action: DeckAction, confirming: Boolean, secondsLeft: Int, 
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = TextStyle(
-                    fontFamily = Nerv.Cond, fontWeight = FontWeight.Bold, fontSize = 15.sp, letterSpacing = 1.sp,
+                    fontFamily = Nerv.Cond, fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 1.sp,
                     color = if (confirming) fg else Nerv.Ink,
                 ),
             )

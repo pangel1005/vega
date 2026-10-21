@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
         }
         // Es el «cuerpo» del asistente conectado al PC: la pantalla no se apaga mientras está abierta.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        preferFastestRefreshRate()
 
         controller = AssistantController(applicationContext)
         takeToken(intent)
@@ -94,6 +95,19 @@ class MainActivity : ComponentActivity() {
         // En segundo plano no se mantiene la conexión ni el micrófono.
         controller.stop()
         super.onStop()
+    }
+
+    /**
+     * Pide el modo de pantalla más rápido (120 Hz en el Redmi 15C) para que las animaciones
+     * vayan más suaves. El teléfono está enchufado al PC, así que el gasto extra no importa.
+     */
+    private fun preferFastestRefreshRate() {
+        val display = display ?: return
+        val current = display.mode
+        val fastest = display.supportedModes
+            .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
+            .maxByOrNull { it.refreshRate } ?: return
+        window.attributes = window.attributes.apply { preferredDisplayModeId = fastest.modeId }
     }
 
     private fun takeToken(intent: Intent?): Boolean {
@@ -242,6 +256,6 @@ private fun StateLabel(state: AssistantState) {
     val color = accentFor(state)
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(jp, style = TextStyle(fontFamily = Nerv.Jp, fontSize = 22.sp, color = color))
-        Text(es, style = TextStyle(fontFamily = Nerv.Mono, fontSize = 11.sp, letterSpacing = 3.sp, color = Nerv.Mute))
+        Text(es, maxLines = 1, style = TextStyle(fontFamily = Nerv.Mono, fontSize = 10.sp, letterSpacing = 2.sp, color = Nerv.Mute))
     }
 }
