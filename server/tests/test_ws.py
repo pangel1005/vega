@@ -73,7 +73,7 @@ def test_chat_streams_tokens_and_states() -> None:
         {"type": "done", "text": "Hola, ¿qué tal?"},
     ]
     sent = model.calls[0]
-    assert sent[0].role == "system" and sent[0].content == "Eres Prueba."
+    assert sent[0].role == "system" and sent[0].content.startswith("Eres Prueba.\nFecha y hora actuales")
     assert sent[-1].content == "hola"
 
 

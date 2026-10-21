@@ -19,6 +19,7 @@ import time
 from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any
 
+from server.core.clock import time_context
 from server.llm.base import ChatMessage, ChatModel, LlmUnavailable
 from server.memory.store import ConversationStore
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
@@ -60,7 +61,9 @@ class Orchestrator:
         max_audio_seconds: int = 30,
         actions: ActionRunner | None = None,
         name: str = "",
+        now_context: Callable[[], str] = time_context,
     ) -> None:
+        self._now_context = now_context
         self._actions = actions
         self._name = name
         # Escucha continua
@@ -314,7 +317,9 @@ class Orchestrator:
         question = ChatMessage("user", text)
         conversation = await asyncio.to_thread(self._store.latest_conversation)
         previous = await asyncio.to_thread(self._store.recent, conversation, MAX_HISTORY)
-        context = [self._system, *(m.as_chat() for m in previous), question]
+        # El modelo no tiene reloj: en cada pregunta se le da la fecha y hora del PC.
+        system = ChatMessage("system", self._system.content + "\n" + self._now_context())
+        context = [system, *(m.as_chat() for m in previous), question]
         await self._set_state(State.THINKING)
 
         start = time.perf_counter()
