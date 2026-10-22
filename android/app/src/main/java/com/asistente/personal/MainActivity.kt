@@ -155,7 +155,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit) {
     val ui = c.ui
-    val state = if (ui.link == LinkStatus.DENIED) AssistantState.ERROR else ui.state
+    // Mientras suena su voz, el rostro está «hablando» aunque el servidor ya terminara de enviarla.
+    val state = when {
+        ui.link == LinkStatus.DENIED -> AssistantState.ERROR
+        c.speaking -> AssistantState.SPEAKING
+        else -> ui.state
+    }
     val canAct = ui.link == LinkStatus.OPEN
     var showMore by remember { mutableStateOf(false) }
     BackHandler(enabled = showMore) { showMore = false }
@@ -208,10 +213,19 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
+                    // La boca sigue: la voz de Vega al hablar, tu voz al escucharte, o las palabras al escribir.
                     Face(
                         state = state,
-                        pulse = if (state == AssistantState.LISTENING) c.micPulse else ui.tokenPulse,
-                        pulseAmount = if (state == AssistantState.LISTENING) c.micAmount else 0.55f,
+                        pulse = when {
+                            c.speaking -> c.voicePulse
+                            state == AssistantState.LISTENING -> c.micPulse
+                            else -> ui.tokenPulse
+                        },
+                        pulseAmount = when {
+                            c.speaking -> c.voiceAmount
+                            state == AssistantState.LISTENING -> c.micAmount
+                            else -> 0.55f
+                        },
                         modifier = Modifier.weight(1f, fill = false)
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                 c.attention()
@@ -244,6 +258,8 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit) {
                 enabled = canAct,
                 onPress = c::press,
                 onClose = { showMore = false },
+                voiceLabel = ui.voices.firstOrNull { it.id == ui.voice }?.label,
+                onNextVoice = c::nextVoice,
                 modifier = Modifier.fillMaxSize().safeDrawingPadding(),
             )
         }

@@ -26,6 +26,8 @@ data class DeckAction(
     val quick: Boolean = false,
 )
 
+data class Voice(val id: String, val label: String)
+
 sealed interface ServerEvent {
     data class Ready(val assistant: String, val model: String) : ServerEvent
     data class History(val messages: List<HistoryItem>) : ServerEvent
@@ -37,6 +39,10 @@ sealed interface ServerEvent {
     data class Actions(val items: List<DeckAction>) : ServerEvent
     data class Confirm(val nonce: String, val id: String, val message: String, val expiresIn: Int) : ServerEvent
     data class ActionResult(val id: String, val ok: Boolean, val message: String) : ServerEvent
+    data class Voices(val items: List<Voice>, val current: String) : ServerEvent
+    /** Cabecera de una frase de voz: el audio llega justo después como mensaje binario. */
+    data class Audio(val seq: Int, val rate: Int, val text: String) : ServerEvent
+    data object AudioEnd : ServerEvent
 }
 
 object Protocol {
@@ -74,6 +80,15 @@ object Protocol {
                 o.getString("nonce"), o.getString("id"), o.getString("message"), o.getInt("expires_in"),
             )
             "action_result" -> ServerEvent.ActionResult(o.getString("id"), o.getBoolean("ok"), o.getString("message"))
+            "voices" -> {
+                val arr = o.getJSONArray("items")
+                ServerEvent.Voices(
+                    List(arr.length()) { i -> arr.getJSONObject(i).let { Voice(it.getString("id"), it.getString("label")) } },
+                    o.getString("current"),
+                )
+            }
+            "audio" -> ServerEvent.Audio(o.getInt("seq"), o.getInt("rate"), o.getString("text"))
+            "audio_end" -> ServerEvent.AudioEnd
             else -> null
         }
     } catch (_: Exception) {
@@ -84,5 +99,6 @@ object Protocol {
     fun chat(text: String): String = JSONObject().put("type", "chat").put("text", text).toString()
     fun simple(type: String): String = JSONObject().put("type", type).toString()
     fun action(id: String): String = JSONObject().put("type", "action").put("id", id).toString()
+    fun setVoice(id: String): String = JSONObject().put("type", "set_voice").put("voice", id).toString()
     fun confirm(nonce: String): String = JSONObject().put("type", "action_confirm").put("nonce", nonce).toString()
 }

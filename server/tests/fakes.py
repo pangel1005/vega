@@ -6,6 +6,41 @@ from collections.abc import AsyncIterator, Sequence
 
 from server.llm.base import ChatMessage, LlmUnavailable
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SttUnavailable, Transcript
+from server.speech.tts import TtsUnavailable, VoiceInfo
+
+
+class FakeTTS:
+    """Sintetizador de mentira: 2 bytes de «audio» por carácter, y recuerda lo que dijo."""
+
+    def __init__(self) -> None:
+        self.said: list[str] = []
+        self._voice = "es_MX-claude-high"
+
+    @property
+    def sample_rate(self) -> int:
+        return 22050
+
+    @property
+    def voice(self) -> str:
+        return self._voice
+
+    def voices(self) -> list[VoiceInfo]:
+        return [
+            VoiceInfo("es_MX-claude-high", "Claude · México"),
+            VoiceInfo("es_AR-daniela-high", "Daniela · Argentina"),
+        ]
+
+    def set_voice(self, voice_id: str) -> None:
+        if voice_id not in {v.id for v in self.voices()}:
+            raise TtsUnavailable(f"No tengo la voz «{voice_id}».")
+        self._voice = voice_id
+
+    def warmup(self) -> None:
+        pass
+
+    def synthesize(self, text: str) -> bytes:
+        self.said.append(text)
+        return b"\x01\x00" * len(text)
 
 
 class FakeSTT:

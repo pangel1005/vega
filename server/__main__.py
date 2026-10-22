@@ -76,7 +76,10 @@ def main() -> int:
         return 2
     log.info("Panel con %d botones", len(actions.actions))
     uvicorn.run(
-        create_app(settings, token=load_or_create_token(), stt=build_stt(settings),
+        create_app(
+            settings,
+            token=load_or_create_token(),
+            stt=build_stt(settings),
             actions=actions,
             tts=build_tts(settings),
         ),

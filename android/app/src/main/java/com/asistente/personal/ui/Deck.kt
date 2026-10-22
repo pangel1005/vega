@@ -70,6 +70,8 @@ fun Deck(
     onPress: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    voiceLabel: String? = null,
+    onNextVoice: () -> Unit = {},
 ) {
     Column(modifier.background(Color(0xF20B0A09)).hudFrame(Nerv.Orange.copy(alpha = 0.24f))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -77,6 +79,11 @@ fun Deck(
             Box(Modifier.size(8.dp))
             Text("操作盤", style = TextStyle(fontFamily = Nerv.Jp, fontSize = 13.sp, color = Nerv.Orange))
             Box(Modifier.weight(1f))
+            // Cambiar de voz: pasa a la siguiente y Vega se presenta con ella.
+            if (voiceLabel != null) {
+                NervButton("VOZ: ${voiceLabel.uppercase()}", Nerv.Teal, enabled = enabled, onClick = onNextVoice, ghost = true, small = true)
+                Box(Modifier.size(10.dp))
+            }
             NervButton("CERRAR", Nerv.Mute, enabled = true, onClick = onClose, ghost = true, small = true)
         }
         LazyVerticalGrid(

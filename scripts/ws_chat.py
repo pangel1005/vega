@@ -63,10 +63,24 @@ def main() -> int:
 
         first: float | None = None
         heard: float | None = None
+        first_audio: float | None = None
+        audio = bytearray()
+        rate = 22050
         while True:
-            event = json.loads(ws.recv())
+            raw = ws.recv()
+            if isinstance(raw, bytes):  # voz de una frase (PCM16)
+                audio += raw
+                continue
+            event = json.loads(raw)
             kind = event["type"]
-            if kind == "history":
+            if kind == "audio":
+                rate = event["rate"]
+                if first_audio is None:
+                    first_audio = time.perf_counter() - start
+                print(f"\n[voz {event['seq']} a los {time.perf_counter() - start:.2f} s: «{event['text']}»]", flush=True)
+            elif kind == "audio_end":
+                print("\n[fin de la voz]", flush=True)
+            elif kind == "history":
                 print(f"[historial recuperado: {len(event['messages'])} mensajes]")
             elif kind == "transcript":
                 heard = time.perf_counter() - start
@@ -86,6 +100,14 @@ def main() -> int:
                 print(f"\nERROR: {event['message']}")
     if first is not None:
         print(f"Primera palabra: {first:.2f} s | total: {time.perf_counter() - start:.2f} s")
+    if first_audio is not None:
+        out = Path("logs") / "ultima_voz.wav"
+        with wave.open(str(out), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(bytes(audio))
+        print(f"Primera voz: {first_audio:.2f} s | {len(audio) / 2 / rate:.1f} s de audio → {out}")
     return 0
 
 

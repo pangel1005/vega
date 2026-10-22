@@ -6,6 +6,7 @@ import com.asistente.personal.net.BASE_DELAY_MS
 import com.asistente.personal.net.MAX_DELAY_MS
 import com.asistente.personal.net.Protocol
 import com.asistente.personal.net.ServerEvent
+import com.asistente.personal.net.Voice
 import com.asistente.personal.net.backoffDelay
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -20,6 +21,18 @@ class ProtocolTest {
             Protocol.parse("""{"type":"transcript","text":"hola","audio_seconds":1.5,"elapsed_ms":180}"""),
         )
         assertEquals(ServerEvent.Token("Ho"), Protocol.parse("""{"type":"token","text":"Ho"}"""))
+    }
+
+    @Test fun `interpreta voz y voces`() {
+        assertEquals(ServerEvent.Audio(1, 22050, "Hola."), Protocol.parse("""{"type":"audio","seq":1,"rate":22050,"text":"Hola."}"""))
+        assertEquals(ServerEvent.AudioEnd, Protocol.parse("""{"type":"audio_end"}"""))
+        assertEquals(
+            ServerEvent.Voices(listOf(Voice("es_MX-claude-high", "Claude · México")), "es_MX-claude-high"),
+            Protocol.parse("""{"type":"voices","items":[{"id":"es_MX-claude-high","label":"Claude · México"}],"current":"es_MX-claude-high"}"""),
+        )
+        val msg = org.json.JSONObject(Protocol.setVoice("x")) // el orden de las claves no importa
+        assertEquals("set_voice", msg.getString("type"))
+        assertEquals("x", msg.getString("voice"))
     }
 
     @Test fun `ignora lo desconocido o roto`() {

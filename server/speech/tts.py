@@ -115,7 +115,10 @@ class PiperTTS:
 
     def warmup(self) -> None:
         with self._lock:
-            self._load()
+            voice = self._load()
+            # La primera síntesis prepara el motor (~1-2 s): mejor ahora que en la primera respuesta.
+            for _ in voice.synthesize("Hola."):
+                pass
 
     def synthesize(self, text: str) -> bytes:
         with self._lock:

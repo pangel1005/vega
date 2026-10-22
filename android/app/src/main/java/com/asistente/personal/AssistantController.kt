@@ -7,10 +7,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.asistente.personal.audio.Microphone
+import com.asistente.personal.audio.Player
 import com.asistente.personal.net.AssistantSocket
 import com.asistente.personal.net.AssistantState
 import com.asistente.personal.net.LinkStatus
 import com.asistente.personal.net.Protocol
+import com.asistente.personal.net.ServerEvent
 import com.asistente.personal.state.Action
 import com.asistente.personal.state.UiState
 import com.asistente.personal.state.reduce
@@ -48,6 +50,14 @@ class AssistantController(context: Context) {
         private set
     var micAmount by mutableFloatStateOf(0f)
         private set
+    /** Vega está hablando (sonando en el altavoz). */
+    var speaking by mutableStateOf(false)
+        private set
+    /** Pulsos del volumen de la voz para mover la boca al hablar. */
+    var voicePulse by mutableIntStateOf(0)
+        private set
+    var voiceAmount by mutableFloatStateOf(0f)
+        private set
     /** Hay una versión más nueva de la app en el PC. */
     var updateAvailable by mutableStateOf(false)
         private set
@@ -59,10 +69,26 @@ class AssistantController(context: Context) {
 
     val hasToken: Boolean get() = !prefs.getString(KEY_TOKEN, null).isNullOrBlank()
 
+    @Volatile private var audioRate = 22_050
+
+    private val player = Player(
+        onLevel = { level ->
+            mainThread.post {
+                voiceAmount = min(1f, level * 3.5f)
+                voicePulse++
+            }
+        },
+        onSpeaking = { now -> mainThread.post { speaking = now } },
+    )
+
     private val socket = AssistantSocket(
         url = SERVER_WS,
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
-        onEvent = { dispatch(Action.Server(it)) },
+        onEvent = { event ->
+            if (event is ServerEvent.Audio) audioRate = event.rate
+            dispatch(Action.Server(event))
+        },
+        onAudio = { pcm -> player.enqueue(pcm, audioRate) },
         onStatus = { status, retry ->
             dispatch(Action.Link(status, retry))
             syncMic()
@@ -71,6 +97,8 @@ class AssistantController(context: Context) {
     )
 
     private val mic = Microphone { pcm, length, level ->
+        // Mientras Vega habla no se manda el micrófono: así no se escucha a sí misma.
+        if (player.speaking) return@Microphone
         socket.sendAudio(pcm, length)
         // La boca solo sigue tu voz mientras Vega te está atendiendo (no con el ruido de la sala:
         // así no se redibuja todo el rato).
@@ -95,7 +123,16 @@ class AssistantController(context: Context) {
 
     fun stop() {
         stopMic()
+        player.stop()
         socket.stop()
+    }
+
+    /** Pasa a la siguiente voz disponible (el PC la recuerda y se presenta con ella). */
+    fun nextVoice() {
+        val voices = ui.voices
+        if (voices.isEmpty()) return
+        val i = voices.indexOfFirst { it.id == ui.voice }
+        socket.send(Protocol.setVoice(voices[(i + 1) % voices.size].id))
     }
 
     /** Reintenta ya (p. ej. tras guardar un token nuevo). */

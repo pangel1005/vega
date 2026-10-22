@@ -2,6 +2,7 @@ package com.asistente.personal.state
 
 import com.asistente.personal.net.AssistantState
 import com.asistente.personal.net.DeckAction
+import com.asistente.personal.net.Voice
 import com.asistente.personal.net.LinkStatus
 import com.asistente.personal.net.ServerEvent
 import java.util.Locale
@@ -26,6 +27,8 @@ data class Notice(val seq: Int, val text: String, val ok: Boolean)
 
 data class UiState(
     val actions: List<DeckAction> = emptyList(),
+    val voices: List<Voice> = emptyList(),
+    val voice: String = "",
     val pending: PendingConfirm? = null,
     val notice: Notice? = null,
     val link: LinkStatus = LinkStatus.CONNECTING,
@@ -99,5 +102,8 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         is ServerEvent.Actions -> s.copy(actions = e.items)
         is ServerEvent.Confirm -> s.copy(pending = PendingConfirm(e.id, e.nonce, e.message, e.expiresIn))
         is ServerEvent.ActionResult -> s.copy(pending = null).notify(e.message, e.ok)
+        is ServerEvent.Voices -> s.copy(voices = e.items, voice = e.current)
+        // La voz la gestiona el reproductor; el estado de la pantalla no cambia.
+        is ServerEvent.Audio, ServerEvent.AudioEnd -> s
     }
 }
