@@ -43,7 +43,7 @@ En el teléfono:
 - **Volver a Android**: botón **ANDROID**.
 - **Actualizar la app**: cuando el PC tiene una versión nueva aparece **ACTUALIZAR**.
 
-Arrancar con Windows (opcional):
+Arrancar con Windows (activado en el PC del autor desde el 22-10-2026):
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1          # activar
 powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1 -Remove  # desactivar
