@@ -3,8 +3,10 @@ package com.asistente.personal
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -89,7 +91,15 @@ class MainActivity : ComponentActivity() {
         val fastest = display.supportedModes
             .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
             .maxByOrNull { it.refreshRate } ?: return
-        window.attributes = window.attributes.apply { preferredDisplayModeId = fastest.modeId }
+        window.attributes = window.attributes.apply {
+            preferredDisplayModeId = fastest.modeId
+            preferredRefreshRate = fastest.refreshRate
+        }
+        // Android 15+: además, cada cuadro de la app pide la categoría «alta». HyperOS deja
+        // a las apps que no conoce a 60 Hz si no lo piden así (medido: estaba a 60 con 120 disponibles).
+        if (Build.VERSION.SDK_INT >= 35) {
+            window.decorView.requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+        }
     }
 
     private fun takeToken(intent: Intent?): Boolean {
@@ -119,10 +129,10 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit) {
     val ui = c.ui
     val clock by produceState("" to "") {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val day = SimpleDateFormat("EEE dd.MM.yyyy", Locale.forLanguageTag("es"))
+        val day = SimpleDateFormat("EEEE d MMM", Locale.forLanguageTag("es"))
         while (true) {
             val now = Date()
-            value = time.format(now) to day.format(now).uppercase()
+            value = time.format(now) to day.format(now).removeSuffix(".")
             delay(15_000)
         }
     }

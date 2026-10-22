@@ -2,7 +2,6 @@ package com.asistente.personal.ui.led
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,11 +22,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import kotlin.math.min
 
 /** Color de un LED apagado: se ve la rejilla entera, como en un panel real. */
-val LedOff = Color(0xFF1E1713)
+val LedOff = Color(0xFF181716)
 
 private const val LEVELS = 8
 
@@ -130,40 +128,4 @@ fun LedFaceView(
         }
     }
     LedMatrix(animator.shown, FACE_COLS, FACE_ROWS, shade, { tick }, modifier)
-}
-
-/** Texto fijo en LED (p. ej. la cuenta atrás «04:59»). */
-@Composable
-fun LedText(text: String, color: Color, modifier: Modifier = Modifier, cols: Int = LedFont.width(text).coerceAtLeast(1)) {
-    val frame = remember(text, cols) {
-        Frame(cols, 5).also { LedFont.draw(it, LedFont.normalize(text).ifEmpty { text }, 0, 0) }
-    }
-    LedMatrix(frame.v, cols, 5, color, { 0 }, modifier, dot = 0.7f)
-}
-
-/**
- * Medidor vertical de LED (de abajo arriba). El color pasa a ámbar y rojo cerca del tope.
- */
-@Composable
-fun LedBar(fraction: Float?, color: Color, modifier: Modifier = Modifier, dots: Int = 12) {
-    Canvas(modifier) { drawBar(fraction, color, dots) }
-}
-
-private fun DrawScope.drawBar(fraction: Float?, color: Color, dots: Int) {
-    val pitch = min(size.height / dots, size.width)
-    val r = pitch * 0.33f
-    val cx = size.width / 2
-    val lit = if (fraction == null) 0 else (fraction.coerceIn(0f, 1f) * dots + 0.5f).toInt()
-    for (i in 0 until dots) {
-        val y = size.height - pitch * (i + 0.5f)
-        val on = i < lit
-        val c = when {
-            !on -> LedOff
-            i >= dots * 0.85f -> Color(0xFFFF2A3A)
-            i >= dots * 0.7f -> Color(0xFFFFB000)
-            else -> color
-        }
-        if (on) drawCircle(c.copy(alpha = 0.14f), r * 1.45f, Offset(cx, y))
-        drawCircle(c, r, Offset(cx, y))
-    }
 }

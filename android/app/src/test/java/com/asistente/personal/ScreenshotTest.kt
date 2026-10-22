@@ -67,7 +67,7 @@ class ScreenshotTest {
     )
 
     private fun model(ui: UiState, state: AssistantState = ui.state, pulse: Int = 0) = ScreenModel(
-        ui = ui, clock = "02:29", date = "JUE 22.10.2026", state = state, listening = true, micOn = true,
+        ui = ui, clock = "02:29", date = "jueves 22 oct", state = state, listening = true, micOn = true,
         battery = 91, charging = true, updateAvailable = true, hasToken = true,
         pulse = pulse, pulseAmount = 0.9f, nowMs = 1_000, appVersion = 423700,
     )

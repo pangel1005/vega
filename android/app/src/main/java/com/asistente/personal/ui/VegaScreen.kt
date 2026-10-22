@@ -1,18 +1,20 @@
 package com.asistente.personal.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -21,9 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,14 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PointMode
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.personal.net.AssistantState
@@ -53,10 +49,9 @@ import com.asistente.personal.state.Notice
 import com.asistente.personal.state.PendingConfirm
 import com.asistente.personal.state.Role
 import com.asistente.personal.state.UiState
-import com.asistente.personal.ui.led.LedBar
 import com.asistente.personal.ui.led.LedFaceView
+import com.asistente.personal.ui.led.LedFont
 import com.asistente.personal.ui.led.LedOff
-import com.asistente.personal.ui.led.LedText
 import com.asistente.personal.ui.led.Mood
 import kotlinx.coroutines.delay
 
@@ -117,42 +112,38 @@ fun moodFor(
     else -> Mood.IDLE
 }
 
+/** Color de la luz de la cara: blanco cálido normalmente; coral cuando te atiende. */
 fun moodColor(mood: Mood): Color = when (mood) {
-    Mood.LISTEN -> Nerv.Teal
-    Mood.THINK -> Nerv.Amber
-    Mood.HAPPY -> Nerv.Green
-    Mood.ERROR, Mood.ALERT -> Nerv.Red
-    Mood.SLEEP -> Color(0xFFB0581A)
-    Mood.OFFLINE -> Nerv.Mute
-    else -> Nerv.Orange
+    Mood.LISTEN -> Vega.Coral
+    Mood.THINK -> Vega.Amber
+    Mood.HAPPY -> Vega.Mint
+    Mood.ERROR, Mood.ALERT -> Vega.Red
+    Mood.SLEEP -> Color(0xFF6E6760)
+    Mood.OFFLINE -> Color(0xFF4A4642)
+    else -> Vega.Light
 }
 
-private fun moodLabel(mood: Mood, assistant: String): Pair<String, String> = when (mood) {
-    Mood.IDLE -> "待機" to "DI «${assistant.uppercase().ifEmpty { "SU NOMBRE" }}»"
-    Mood.LISTEN -> "受信" to "TE ESCUCHO"
-    Mood.THINK -> "思考" to "PENSANDO"
-    Mood.TALK -> "発声" to "HABLANDO"
-    Mood.HAPPY -> "完了" to "HECHO"
-    Mood.SLEEP -> "休止" to "MICRÓFONO EN SILENCIO"
-    Mood.ERROR -> "異常" to "ALGO FALLÓ"
-    Mood.ALERT -> "警告" to "CONFIRMA"
-    Mood.OFFLINE -> "接続断" to "SIN ENLACE"
+fun moodLabel(mood: Mood, assistant: String): String = when (mood) {
+    Mood.IDLE -> "Di «${assistant.ifEmpty { "Vega" }}»"
+    Mood.LISTEN -> "Te escucho"
+    Mood.THINK -> "Pensando"
+    Mood.TALK -> "Hablando"
+    Mood.HAPPY -> "Hecho"
+    Mood.SLEEP -> "Micrófono apagado"
+    Mood.ERROR -> "Algo falló"
+    Mood.ALERT -> "Confirma"
+    Mood.OFFLINE -> "Sin conexión con el PC"
 }
-
-private val mono = TextStyle(fontFamily = Nerv.Mono, letterSpacing = 1.5.sp)
-private val cond = TextStyle(fontFamily = Nerv.Cond, fontWeight = FontWeight.Bold)
-private val PanelBg = Color(0xFF0A0807)
-private val PanelLine = Color(0xFF2A211B)
 
 /**
- * Pantalla de Vega (horizontal, 800×360 dp). Todo con aspecto de panel de LED:
+ * Pantalla de Vega (horizontal, 800×360 dp), estilo «Vega · noche»:
  *
- *  ┌ VEGA · enlace ──────────────────────── micrófono · hora · ANDROID ┐
- *  │  PC      ┌──────── visor: cara de LED 48×20 ────────┐  AVISOS     │
- *  │  barras  │                                          │  cuenta     │
- *  │  LED     └──────────────────────────────────────────┘  batería    │
- *  │               VEGA ▸ lo último que dijo                            │
- *  └ [tecla] [tecla] [tecla] [tecla] [tecla] [tecla] [MÁS] ─────────────┘
+ *  ┌──────────── cara de LED ─────────────┐ ┌── hora ──────────┐
+ *  │ ● estado                             │ │ 14:32  jueves 22 │
+ *  │            (48 × 20 puntos)          │ ├── estado ────────┤
+ *  │ lo último que dijo                   │ │ PC · gráfica ·   │
+ *  └──────────────────────────────────────┘ │ batería · aviso  │
+ *  [tecla] [tecla] [tecla] [tecla] [tecla] [tecla] [más]
  */
 @Composable
 fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) {
@@ -161,7 +152,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     var showMore by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = showMore) { showMore = false }
 
-    // Cuenta atrás de la confirmación (compartida por las teclas y la hoja «MÁS»).
+    // Cuenta atrás de la confirmación (compartida por las teclas y la hoja «Más»).
     var secondsLeft by remember { mutableIntStateOf(ui.pending?.expiresIn ?: 0) }
     LaunchedEffect(ui.pending?.nonce) {
         val p = ui.pending ?: return@LaunchedEffect
@@ -174,11 +165,11 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     LaunchedEffect(ui.notice?.seq) {
         val n = ui.notice ?: return@LaunchedEffect
         // Un recordatorio dura lo que tarda en pasar por la cara (y un poco más).
-        val reminderMs = (com.asistente.personal.ui.led.LedFont.crossSeconds(n.text) * 1000).toLong() + 1500
+        val reminderMs = (LedFont.crossSeconds(n.text) * 1000).toLong() + 1500
         delay(if (n.reminder) maxOf(6000L, reminderMs) else if (n.ok) 2500 else 6000)
         a.noticeExpired(n.seq)
     }
-    // Al pulsar un botón desde «MÁS», la hoja se cierra cuando llega el resultado.
+    // Al pulsar un botón desde «Más», la hoja se cierra cuando llega el resultado.
     LaunchedEffect(ui.notice?.seq) { if (ui.notice != null && ui.pending == null) showMore = false }
 
     // Segundos desde la última lectura del PC: solo late cada segundo si hay avisos pendientes.
@@ -194,19 +185,19 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
 
     val mood = moodFor(m.state, ui.link, ui.pending, ui.notice, m.listening && m.micOn, m.hasToken)
     val color = moodColor(mood)
-    Box(modifier.fillMaxSize().dotTexture()) {
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 12.dp)) {
-            Header(m, a)
-            Row(Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp)) {
-                PcPanel(ui.telemetry, Modifier.width(104.dp).fillMaxHeight())
-                Visor(
-                    mood = mood, color = color, m = m,
-                    modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 10.dp)
+    Box(modifier.fillMaxSize().background(Vega.Bg)) {
+        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FaceCard(
+                    mood, color, m,
+                    Modifier.weight(1f).fillMaxHeight()
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { a.attention() },
                 )
-                PhonePanel(m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.width(104.dp).fillMaxHeight())
+                Column(Modifier.width(250.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ClockCard(m, a, Modifier.fillMaxWidth())
+                    StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxWidth().weight(1f))
+                }
             }
-            Subtitle(m, Modifier.fillMaxWidth().height(36.dp))
             KeyRow(
                 favorites = ui.actions.filter { it.quick },
                 pending = ui.pending,
@@ -214,232 +205,157 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 enabled = canAct,
                 onPress = a.press,
                 onMore = { showMore = true },
-                modifier = Modifier.fillMaxWidth().height(58.dp).padding(bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().height(66.dp),
             )
         }
-        if (ui.pending != null) Box(Modifier.fillMaxSize().hazardFrame(Nerv.Warn))
         AnimatedVisibility(
             visible = showMore,
-            enter = fadeIn() + slideInHorizontally { it / 3 },
-            exit = fadeOut() + slideOutHorizontally { it / 3 },
-            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.62f),
+            enter = fadeIn(tween(120)) + slideInVertically(spring(dampingRatio = 0.85f, stiffness = 900f)) { it / 4 },
+            exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 },
+            modifier = Modifier.fillMaxSize(),
         ) {
-            Deck(
-                actions = ui.actions,
-                pending = ui.pending,
-                secondsLeft = secondsLeft,
-                enabled = canAct,
-                onPress = a.press,
-                onClose = { showMore = false },
-                voiceLabel = ui.voices.firstOrNull { it.id == ui.voice }?.label,
-                onNextVoice = a.nextVoice,
-                modifier = Modifier.fillMaxSize().safeDrawingPadding(),
-            )
-        }
-    }
-}
-
-/** Fondo casi negro con una rejilla de puntos muy tenue (se calcula una vez por tamaño). */
-private fun Modifier.dotTexture(): Modifier = drawWithCache {
-    val step = 14.dp.toPx()
-    val pts = ArrayList<Offset>()
-    var y = step / 2
-    while (y < size.height) {
-        var x = step / 2
-        while (x < size.width) {
-            pts.add(Offset(x, y))
-            x += step
-        }
-        y += step
-    }
-    val w = 2.4.dp.toPx()
-    onDrawBehind {
-        drawRect(Color(0xFF050404))
-        drawPoints(pts, PointMode.Points, Color(0xFF17110E), strokeWidth = w, cap = StrokeCap.Round)
-    }
-}
-
-@Composable
-private fun Header(m: ScreenModel, a: ScreenActions) {
-    val ui = m.ui
-    val (linkText, linkColor) = when (ui.link) {
-        LinkStatus.OPEN -> "ENLACE USB" to Nerv.Green
-        LinkStatus.CONNECTING -> "CONECTANDO" to Nerv.Amber
-        LinkStatus.RECONNECTING -> "RECONECTANDO" to Nerv.Amber
-        LinkStatus.DENIED -> "ACCESO DENEGADO" to Nerv.Red
-    }
-    Row(Modifier.fillMaxWidth().height(34.dp).padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            ui.assistant.uppercase().ifEmpty { "· · ·" },
-            style = TextStyle(fontFamily = Nerv.Serif, fontSize = 20.sp, color = Nerv.Ink, letterSpacing = 4.sp),
-        )
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.size(6.dp).background(linkColor, CircleShape))
-        Spacer(Modifier.width(5.dp))
-        Text(linkText, style = mono.copy(fontSize = 9.sp, color = linkColor))
-        Spacer(Modifier.weight(1f))
-        val micColor = if (m.listening && m.micOn) Nerv.Teal else Nerv.Mute
-        NervButton(
-            if (!m.listening) "● MICRO APAGADO" else if (m.micOn) "● ESCUCHANDO" else "● MICRO…",
-            micColor, enabled = true, onClick = a.toggleMic, ghost = true, small = true,
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(m.clock, style = cond.copy(fontSize = 19.sp, color = Nerv.Ink))
-        Spacer(Modifier.width(6.dp))
-        Text(m.date, style = mono.copy(fontSize = 8.sp, color = Nerv.Mute))
-        if (m.updateAvailable) {
-            Spacer(Modifier.width(10.dp))
-            NervButton("ACTUALIZAR", Nerv.Amber, enabled = true, onClick = a.update, small = true)
-        }
-        Spacer(Modifier.width(10.dp))
-        NervButton("ANDROID", Nerv.Mute, enabled = true, onClick = a.openAndroid, ghost = true, small = true)
-    }
-}
-
-/** El visor: marco de aparato con la cara de LED dentro y el estado en la tira de arriba. */
-@Composable
-private fun Visor(mood: Mood, color: Color, m: ScreenModel, modifier: Modifier = Modifier) {
-    val shape = remember { Chamfer(14.dp) }
-    val tagShape = remember { Chamfer(4.dp) }
-    val (jp, es) = moodLabel(mood, m.ui.assistant)
-    val notice = m.ui.notice?.takeIf { it.reminder }
-    Column(
-        modifier
-            .background(PanelBg, shape)
-            .border(1.dp, color.copy(alpha = 0.35f), shape)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.background(color, tagShape).padding(horizontal = 5.dp)) {
-                Text(jp, style = TextStyle(fontFamily = Nerv.Jp, fontSize = 10.sp, color = Color(0xFF0A0A0A)))
+            Box(Modifier.fillMaxSize().background(Color(0xB3000000)).safeDrawingPadding().padding(10.dp)) {
+                Deck(
+                    actions = ui.actions,
+                    pending = ui.pending,
+                    secondsLeft = secondsLeft,
+                    enabled = canAct,
+                    onPress = a.press,
+                    onClose = { showMore = false },
+                    voiceLabel = ui.voices.firstOrNull { it.id == ui.voice }?.label,
+                    onNextVoice = a.nextVoice,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
+        }
+    }
+}
+
+/** La cara de LED con su estado arriba y lo último que dijo abajo. */
+@Composable
+private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, modifier: Modifier = Modifier) {
+    val border by animateColorAsState(
+        if (mood == Mood.ALERT || mood == Mood.ERROR) Vega.Red.copy(alpha = 0.7f) else Vega.Line,
+        tween(250),
+        label = "borde",
+    )
+    val notice = m.ui.notice?.takeIf { it.reminder }
+    Column(modifier.card(border).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Dot(color)
             Spacer(Modifier.width(7.dp))
-            Text(es, maxLines = 1, style = mono.copy(fontSize = 9.sp, letterSpacing = 2.5.sp, color = color))
+            Text(moodLabel(mood, m.ui.assistant), maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = color))
             Spacer(Modifier.weight(1f))
-            Pilots(color)
+            Text(
+                m.ui.assistant.uppercase().ifEmpty { "VEGA" },
+                style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp, color = Vega.Ink3),
+            )
         }
         LedFaceView(
             mood = mood,
             pulse = m.pulse,
             pulseAmount = m.pulseAmount,
-            color = color,
+            color = if (notice != null) Vega.Amber else color, // un recordatorio pasa en ámbar
             notice = notice?.text,
             noticeKey = notice?.seq ?: 0,
-            modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
         )
+        Subtitle(m, Modifier.fillMaxWidth().height(42.dp))
     }
 }
 
-/** Tres pilotos en la esquina del visor; el primero, encendido en el color del estado. */
+/** Hora en grande (tipografía de puntos), fecha y los botones del sistema. */
 @Composable
-private fun Pilots(color: Color) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.size(5.dp).background(color, CircleShape))
-        Box(Modifier.size(5.dp).background(PanelLine, CircleShape))
-        Box(Modifier.size(5.dp).background(PanelLine, CircleShape))
-    }
-}
-
-/** Panel izquierdo: el PC en barras de LED (procesador, gráfica, memoria de la gráfica). */
-@Composable
-private fun PcPanel(t: Telemetry?, modifier: Modifier = Modifier) {
-    SidePanel("PC", "演算", modifier) {
-        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            val temp = t?.gpuTemp
-            val vram = if (t?.vramUsed != null && t.vramTotal != null && t.vramTotal > 0) (t.vramUsed / t.vramTotal).toFloat() else null
-            Meter("CPU", t?.cpu?.let { "$it%" }, t?.cpu?.div(100f), Nerv.Orange)
-            // Temperatura de 30 °C (vacía) a 90 °C (llena).
-            Meter("GPU", temp?.let { "$it°" }, temp?.let { (it - 30) / 60f }, Nerv.Teal)
-            Meter("VRAM", t?.vramUsed?.let { gb(it) }, vram, Nerv.Teal)
-        }
-        Text(
-            if (t != null) "RAM ${gb(t.ramUsed)}/${gb(t.ramTotal)}" else "SIN DATOS",
-            maxLines = 1,
-            style = mono.copy(fontSize = 8.sp, letterSpacing = 0.5.sp, color = Nerv.Mute, textAlign = TextAlign.Center),
-            modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
-        )
-    }
-}
-
-@Composable
-private fun Meter(label: String, value: String?, fraction: Float?, color: Color) {
-    Column(Modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value ?: "--", style = cond.copy(fontSize = 12.sp, color = if (value == null) Nerv.Dim else Nerv.Ink))
-        LedBar(fraction, color, Modifier.width(14.dp).weight(1f).padding(vertical = 2.dp))
-        Text(label, style = mono.copy(fontSize = 7.sp, letterSpacing = 0.5.sp, color = Nerv.Mute))
-    }
-}
-
-/** Panel derecho: el próximo aviso con cuenta atrás en LED y la batería del teléfono. */
-@Composable
-private fun PhonePanel(battery: Int, charging: Boolean, upcoming: List<Upcoming>, elapsed: Long, modifier: Modifier = Modifier) {
-    SidePanel("AVISOS", "予定", modifier) {
-        val next = upcoming.firstOrNull()
-        Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center) {
-            if (next == null) {
-                Text(
-                    "NADA\nPENDIENTE",
-                    style = mono.copy(fontSize = 9.sp, color = Nerv.Dim, textAlign = TextAlign.Center),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            } else {
-                LedText(countdown(next.dueIn - elapsed), Nerv.Amber, Modifier.fillMaxWidth().height(26.dp))
-                Text(
-                    next.text,
-                    maxLines = 2,
-                    style = cond.copy(fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 13.sp, color = Nerv.Ink, textAlign = TextAlign.Center),
-                    modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
-                )
-                if (upcoming.size > 1) {
-                    Text(
-                        "+${upcoming.size - 1} MÁS",
-                        style = mono.copy(fontSize = 8.sp, color = Nerv.Mute, textAlign = TextAlign.Center),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+private fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) {
+    val ui = m.ui
+    Column(modifier.card().padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(m.clock, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 36.sp, lineHeight = 36.sp, color = Vega.Ink))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.padding(bottom = 4.dp)) {
+                Text(m.date, maxLines = 1, style = Vega.label)
+                val (link, linkColor) = when (ui.link) {
+                    LinkStatus.OPEN -> "En línea" to Vega.Mint
+                    LinkStatus.CONNECTING -> "Conectando…" to Vega.Amber
+                    LinkStatus.RECONNECTING -> "Reconectando…" to Vega.Amber
+                    LinkStatus.DENIED -> "Acceso denegado" to Vega.Red
                 }
+                Text(link, maxLines = 1, style = Vega.label.copy(color = linkColor))
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (battery >= 0) "$battery%" else "--", style = cond.copy(fontSize = 12.sp, color = if (charging) Nerv.Green else Nerv.Ink))
-            Spacer(Modifier.width(4.dp))
-            Text(if (charging) "CARGANDO" else "BATERÍA", style = mono.copy(fontSize = 7.sp, letterSpacing = 0.5.sp, color = Nerv.Mute))
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            val micOn = m.listening && m.micOn
+            Pill(if (micOn) "Oyendo" else "Micro apagado", if (micOn) Vega.Coral else Vega.Ink2, a.toggleMic, filled = micOn)
+            if (m.updateAvailable) Pill("Actualizar", Vega.Amber, a.update, filled = true)
+            Pill("Android", Vega.Ink2, a.openAndroid)
         }
-        BatteryDots(battery, charging)
     }
 }
 
-/** Batería en 10 LED. */
+/** PC, gráfica y batería en barras de puntos, y el próximo aviso con cuenta atrás. */
 @Composable
-private fun BatteryDots(battery: Int, charging: Boolean) {
-    val lit = if (battery < 0) 0 else (battery + 9) / 10
-    val color = if (battery in 0..15 && !charging) Nerv.Red else Nerv.Green
-    Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        for (i in 0 until 10) Box(Modifier.size(6.dp).background(if (i < lit) color else LedOff, CircleShape))
-    }
-}
-
-@Composable
-private fun SidePanel(title: String, jp: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    val shape = remember { Chamfer(10.dp) }
-    Column(
-        modifier
-            .background(PanelBg, shape)
-            .border(1.dp, PanelLine, shape)
-            .padding(horizontal = 8.dp, vertical = 7.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = mono.copy(fontSize = 9.sp, color = Nerv.Mute))
-            Spacer(Modifier.weight(1f))
-            Text(jp, style = TextStyle(fontFamily = Nerv.Jp, fontSize = 9.sp, color = Nerv.Orange.copy(alpha = 0.7f)))
+private fun StatusCard(t: Telemetry?, battery: Int, charging: Boolean, upcoming: List<Upcoming>, elapsed: Long, modifier: Modifier = Modifier) {
+    Column(modifier.card().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        val vram = if (t?.vramUsed != null && t.vramTotal != null && t.vramTotal > 0) (t.vramUsed / t.vramTotal).toFloat() else null
+        StatRow("Procesador", t?.cpu?.let { "$it %" }, t?.cpu?.div(100f))
+        // Temperatura de 30 °C (vacía) a 90 °C (llena).
+        StatRow("Gráfica", t?.gpuTemp?.let { "$it °C" }, t?.gpuTemp?.let { (it - 30) / 60f })
+        StatRow("Memoria gráfica", t?.vramUsed?.let { "${gb(it)} GB" }, vram)
+        StatRow("Batería", if (battery >= 0) "$battery %" else null, if (battery >= 0) battery / 100f else null, invert = true, charging = charging)
+        Spacer(Modifier.weight(1f))
+        val next = upcoming.firstOrNull()
+        if (next == null) {
+            Text("Sin recordatorios pendientes", maxLines = 1, style = Vega.label.copy(color = Vega.Ink3))
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(countdown(next.dueIn - elapsed), style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Vega.Amber))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    next.text + if (upcoming.size > 1) "  +${upcoming.size - 1}" else "",
+                    maxLines = 2,
+                    style = Vega.label.copy(fontSize = 12.sp, lineHeight = 14.sp, color = Vega.Ink),
+                )
+            }
         }
-        Spacer(Modifier.height(4.dp))
-        content()
     }
 }
 
 /**
- * Subtítulo: lo último que dijo Vega (o tu orden mientras piensa). Si no hay enlace, o hay
- * que confirmar algo, o llega un aviso, dice eso.
+ * Una línea de estado: nombre, valor y 10 puntos que se encienden. Los últimos puntos
+ * pasan a ámbar y rojo (o al revés con `invert`, para la batería: poca = mal).
+ */
+@Composable
+private fun StatRow(name: String, value: String?, fraction: Float?, invert: Boolean = false, charging: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(name, maxLines = 1, style = Vega.label, modifier = Modifier.weight(1f))
+        DotBar(fraction, invert, charging, Modifier.width(62.dp).height(7.dp))
+        Text(value ?: "—", maxLines = 1, style = Vega.label.copy(color = Vega.Ink), modifier = Modifier.width(50.dp).padding(start = 8.dp))
+    }
+}
+
+@Composable
+private fun DotBar(fraction: Float?, invert: Boolean, charging: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val n = 10
+        val step = size.width / n
+        val r = minOf(step, size.height) * 0.42f
+        val lit = if (fraction == null) 0 else (fraction.coerceIn(0f, 1f) * n + 0.5f).toInt()
+        val f = fraction ?: 0f
+        val color = when {
+            fraction == null -> LedOff
+            charging -> Vega.Mint // cargando: en verde
+            !invert && f >= 0.9f || invert && f <= 0.15f -> Vega.Red
+            !invert && f >= 0.75f || invert && f <= 0.3f -> Vega.Amber
+            else -> Vega.Light
+        }
+        for (i in 0 until n) drawCircle(if (i < lit) color else LedOff, r, Offset(step * (i + 0.5f), size.height / 2))
+    }
+}
+
+/**
+ * Lo último que dijo Vega (o tu orden mientras piensa). Si no hay enlace, hay que confirmar
+ * algo o llega un aviso, dice eso.
  */
 @Composable
 private fun Subtitle(m: ScreenModel, modifier: Modifier = Modifier) {
@@ -448,28 +364,28 @@ private fun Subtitle(m: ScreenModel, modifier: Modifier = Modifier) {
     val notice = ui.notice
     val (who, text, color) = when {
         ui.link == LinkStatus.DENIED || !m.hasToken ->
-            Triple("ERROR", "Sin token válido: ábrela desde el PC con scripts/android-install.ps1", Nerv.Red)
+            Triple("Error", "Sin token válido: ábrela desde el PC con scripts/android-install.ps1", Vega.Red)
         ui.link != LinkStatus.OPEN -> Triple(
-            "ENLACE",
-            "Sin conexión con el PC" + (ui.retryInMs?.let { " · reintento en ${(it + 999) / 1000} s" } ?: "") + ". Revisa el cable USB.",
-            Nerv.Amber,
+            "Conexión",
+            "No llego al PC" + (ui.retryInMs?.let { " · reintento en ${(it + 999) / 1000} s" } ?: "") + ". Revisa el cable USB.",
+            Vega.Amber,
         )
-        pending != null -> Triple("CONFIRMA", "${pending.message} Toca la tecla otra vez o di «sí».", Nerv.Red)
-        notice != null -> Triple(if (notice.ok) "AVISO" else "ERROR", notice.text, if (notice.ok) Nerv.Amber else Nerv.Red)
+        pending != null -> Triple("Confirma", "${pending.message} Toca la tecla otra vez o di «sí».", Vega.Red)
+        notice != null -> Triple(if (notice.ok) "Aviso" else "Error", notice.text, if (notice.ok) Vega.Amber else Vega.Red)
         else -> lastLine(ui.messages, ui.assistant)
     }
-    Row(modifier.padding(horizontal = 116.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (who.isNotEmpty()) Text("$who ▸ ", style = mono.copy(fontSize = 10.sp, color = color))
-        Text(text, maxLines = 2, style = TextStyle(fontFamily = Nerv.Cond, fontSize = 16.sp, lineHeight = 17.sp, color = Nerv.Ink))
+    Column(modifier, verticalArrangement = Arrangement.Bottom) {
+        if (who.isNotEmpty()) Text(who, style = Vega.label.copy(fontSize = 10.sp, color = color))
+        Text(text, maxLines = 2, style = Vega.body.copy(fontSize = 15.sp, lineHeight = 18.sp))
     }
 }
 
 private fun lastLine(messages: List<Message>, assistant: String): Triple<String, String, Color> {
-    val last = messages.lastOrNull() ?: return Triple("", "Di «${assistant.ifEmpty { "Vega" }}» y lo que necesites.", Nerv.Mute)
+    val last = messages.lastOrNull() ?: return Triple("", "Di «${assistant.ifEmpty { "Vega" }}» y lo que necesites.", Vega.Ink2)
     return when (last.role) {
-        Role.USER -> Triple("TÚ", last.text, Nerv.Mute)
-        Role.ASSISTANT -> Triple(assistant.uppercase().ifEmpty { "ASISTENTE" }, last.text + if (last.streaming) " ▌" else "", Nerv.Orange)
-        Role.ERROR -> Triple("ERROR", last.text, Nerv.Red)
-        Role.NOTE -> Triple("AVISO", last.text, Nerv.Amber)
+        Role.USER -> Triple("Tú", last.text, Vega.Ink2)
+        Role.ASSISTANT -> Triple(assistant.ifEmpty { "Asistente" }, last.text + if (last.streaming) " ▍" else "", Vega.Coral)
+        Role.ERROR -> Triple("Error", last.text, Vega.Red)
+        Role.NOTE -> Triple("Aviso", last.text, Vega.Amber)
     }
 }

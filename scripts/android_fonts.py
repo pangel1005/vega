@@ -2,8 +2,8 @@
 
     uv run python scripts/android_fonts.py
 
-Usa los mismos archivos que la web (ui/node_modules/@fontsource y la fuente
-japonesa recortada), así las dos interfaces se ven igual.
+Las toma de ui/node_modules/@fontsource (`npm install` en ui/). Ambas tienen licencia
+libre (SIL Open Font License).
 """
 
 from __future__ import annotations
@@ -19,12 +19,11 @@ OUT = ROOT / "android" / "app" / "src" / "main" / "res" / "font"
 
 # nombre en Android (solo minúsculas y _) → origen
 FONTS = {
-    "barlow_condensed_regular": FONTSOURCE / "barlow-condensed/files/barlow-condensed-latin-400-normal.woff2",
-    "barlow_condensed_bold": FONTSOURCE / "barlow-condensed/files/barlow-condensed-latin-700-normal.woff2",
-    "share_tech_mono": FONTSOURCE / "share-tech-mono/files/share-tech-mono-latin-400-normal.woff2",
-    "shippori_mincho_extrabold": FONTSOURCE
-    / "shippori-mincho-b1/files/shippori-mincho-b1-latin-800-normal.woff2",
-    "noto_sans_jp_black": ROOT / "ui/src/styles/fonts/noto-sans-jp-subset-900.woff2",
+    # Estilo «Vega · noche»: puntos para números y titulares, Space Grotesk para el texto.
+    "doto_black": FONTSOURCE / "doto/files/doto-latin-900-normal.woff2",
+    "space_grotesk_regular": FONTSOURCE / "space-grotesk/files/space-grotesk-latin-400-normal.woff2",
+    "space_grotesk_medium": FONTSOURCE / "space-grotesk/files/space-grotesk-latin-500-normal.woff2",
+    "space_grotesk_bold": FONTSOURCE / "space-grotesk/files/space-grotesk-latin-700-normal.woff2",
 }
 
 

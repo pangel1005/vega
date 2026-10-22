@@ -1,43 +1,41 @@
 package com.asistente.personal.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.personal.net.DeckAction
 import com.asistente.personal.state.PendingConfirm
-import com.asistente.personal.ui.led.LedOff
+
+private val KeyShape = RoundedCornerShape(18.dp)
 
 /**
- * Fila de teclas (como una botonera física): los 6 favoritos de config/actions.toml y
- * «MÁS». Cada tecla lleva una tira de LED de su color encima.
+ * Fila de teclas grandes (como una botonera): los 6 favoritos de config/actions.toml y
+ * «Más». Saltan al tocar, sin esperar a que levantes el dedo.
  */
 @Composable
 fun KeyRow(
@@ -49,7 +47,7 @@ fun KeyRow(
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         favorites.take(6).forEach { a ->
             Key(
                 label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled,
@@ -58,14 +56,15 @@ fun KeyRow(
             )
         }
         Key(
-            label = "Más", icon = "more", color = Nerv.Mute, enabled = true, confirming = false, secondsLeft = 0,
-            onClick = onMore, modifier = Modifier.weight(0.8f).fillMaxHeight(),
+            label = "Más", icon = "more", color = Vega.Ink2, enabled = true, confirming = false, secondsLeft = 0,
+            onClick = onMore, modifier = Modifier.weight(0.75f).fillMaxHeight(),
         )
     }
 }
 
+/** Una tecla: icono en su color, nombre debajo. Al pulsar se hunde y se ilumina. */
 @Composable
-private fun Key(
+fun Key(
     label: String,
     icon: String,
     color: Color,
@@ -75,51 +74,59 @@ private fun Key(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val haptics = LocalHapticFeedback.current
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.93f else 1f, spring(dampingRatio = 0.45f, stiffness = 900f), label = "pulsar")
-    val c = if (confirming) Nerv.Red else color
-    val shape = remember { Chamfer(9.dp) }
+    val pressed = remember { mutableStateOf(false) }
+    val down = pressed.value
+    // Muelle rápido: se hunde en el mismo cuadro del toque y rebota al soltar.
+    val scale by animateFloatAsState(if (down) 0.92f else 1f, spring(dampingRatio = 0.5f, stiffness = 1500f), label = "pulsar")
+    val fill by animateColorAsState(
+        when {
+            confirming -> Vega.Red
+            down -> color.copy(alpha = 0.22f)
+            else -> Vega.Card
+        },
+        tween(if (down) 0 else 220),
+        label = "fondo",
+    )
     Box(
         modifier
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-                alpha = if (enabled) 1f else 0.35f
+                alpha = if (enabled || confirming) 1f else 0.35f
             }
-            .background(if (confirming) Nerv.Red.copy(alpha = 0.9f) else if (pressed) c.copy(alpha = 0.22f) else Color(0xFF0D0A08), shape)
-            .border(1.dp, c.copy(alpha = if (confirming) 1f else 0.38f), shape)
-            .clickable(interactionSource = interaction, indication = null, enabled = enabled) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                onClick()
-            }
-            .padding(horizontal = 6.dp, vertical = 5.dp),
+            .background(fill, KeyShape)
+            .border(1.dp, if (confirming) Vega.Red else if (down) color.copy(alpha = 0.6f) else Vega.Line, KeyShape)
+            .instantPress(enabled = enabled, pressed = pressed, onPress = onClick)
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        val fg = if (confirming) Color(0xFF0A0A0A) else c
-        // Tira de LED: encendida en el color de la tecla.
-        Canvas(Modifier.fillMaxWidth().height(4.dp).align(Alignment.TopCenter)) {
-            val n = 5
-            val step = size.width / (n + 1)
-            for (i in 1..n) {
-                val p = Offset(step * i, size.height / 2)
-                if (!confirming) drawCircle(c.copy(alpha = 0.18f), size.height * 1.1f, p)
-                drawCircle(if (enabled || confirming) fg else LedOff, size.height / 2, p)
-            }
-        }
-        Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (confirming) {
-                Text("¿SEGURO? $secondsLeft", style = TextStyle(fontFamily = Nerv.Mono, fontSize = 9.sp, color = fg))
-                Text("TOCA OTRA VEZ", maxLines = 1, style = TextStyle(fontFamily = Nerv.Cond, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = fg))
-            } else {
-                Canvas(Modifier.size(17.dp)) { drawDeckIcon(icon, fg) }
+        if (confirming) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("¿Seguro?", style = TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1A0505)))
                 Text(
-                    label.uppercase(),
+                    "toca otra vez · $secondsLeft",
                     maxLines = 1,
-                    style = TextStyle(fontFamily = Nerv.Cond, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.sp, color = Nerv.Ink),
-                    modifier = Modifier.padding(top = 2.dp),
+                    style = TextStyle(fontFamily = Vega.Sans, fontSize = 10.sp, color = Color(0xFF1A0505), textAlign = TextAlign.Center),
+                )
+            }
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Canvas(Modifier.size(20.dp)) { drawDeckIcon(icon, color) }
+                Text(
+                    label,
+                    maxLines = 1,
+                    style = TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Vega.Ink),
                 )
             }
         }
     }
 }
+
+/** Indicador redondo pequeño (enlace, micrófono). */
+@Composable
+fun Dot(color: Color, modifier: Modifier = Modifier) {
+    Box(modifier.size(7.dp).background(color, RoundedCornerShape(50)))
+}
+
+/** Margen interior estándar de las tarjetas. */
+val CardPadding = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)
