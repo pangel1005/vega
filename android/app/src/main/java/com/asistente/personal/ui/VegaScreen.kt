@@ -2,6 +2,8 @@ package com.asistente.personal.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -213,6 +215,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     var waking by remember { mutableStateOf(false) }
     var wasAsleep by remember { mutableStateOf(false) }
     LaunchedEffect(asleep) {
+        if (asleep) delay(SLEEP_FADE_MS.toLong()) // baja el brillo cuando ya terminó de dormirse
         a.sleepChanged(asleep)
         if (!asleep && wasAsleep) {
             waking = true
@@ -221,77 +224,87 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         }
         wasAsleep = asleep
     }
-    if (asleep) {
-        SleepScreen(m, modifier)
-        return
-    }
+    // Transición suave entre despierta y dormida: la pantalla activa se apaga y se encoge un
+    // poco mientras aparece la de dormir (y al revés al despertar).
+    val sleepFade by animateFloatAsState(
+        if (asleep) 1f else 0f, tween(SLEEP_FADE_MS, easing = FastOutSlowInEasing), label = "dormirse",
+    )
 
     val mood = if (waking && ui.link == LinkStatus.OPEN) Mood.HAPPY
     else moodFor(m.state, ui.link, ui.pending, ui.notice, m.listening && m.micOn, m.hasToken)
     val color = moodColor(mood, m.faceColor.color)
     Box(modifier.fillMaxSize().background(Vega.Bg)) {
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FaceCard(
-                    mood, color, m,
-                    Modifier.weight(1f).fillMaxHeight()
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { a.attention() },
-                )
-                // Lo que casi no cambia se guarda como imagen (Offscreen): mientras la cara se anima,
-                // estas tarjetas no se vuelven a dibujar.
-                Column(Modifier.width(250.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ClockCard(m, a, Modifier.fillMaxWidth())
-                    StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxWidth().weight(1f))
-                }
-            }
-            KeyRow(
-                favorites = ui.actions.filter { it.quick },
-                pending = ui.pending,
-                secondsLeft = secondsLeft,
-                enabled = canAct,
-                onPress = a.press,
-                onMore = { showMore = true },
-                modifier = Modifier.fillMaxWidth().height(66.dp).cached(),
-                icons = m.icons,
-            )
-        }
-        AnimatedVisibility(
-            visible = showMore,
-            enter = fadeIn(tween(120)) + slideInVertically(spring(dampingRatio = 0.85f, stiffness = 900f)) { it / 4 },
-            exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 },
-            modifier = Modifier.fillMaxSize(),
+        if (sleepFade < 1f) Box(
+            Modifier.fillMaxSize().graphicsLayer {
+                alpha = 1f - sleepFade
+                scaleX = 1f - 0.05f * sleepFade
+                scaleY = 1f - 0.05f * sleepFade
+            },
         ) {
-            Box(
-                Modifier.fillMaxSize().background(Color(0xB3000000))
-                    // Se traga los toques: antes atravesaban el fondo y pulsaban las teclas de debajo.
-                    // Tocar fuera de la hoja la cierra.
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            awaitFirstDown().consume()
-                            showMore = false
-                        }
+            Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FaceCard(
+                        mood, color, m,
+                        Modifier.weight(1f).fillMaxHeight()
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { a.attention() },
+                    )
+                    // Lo que casi no cambia se guarda como imagen (Offscreen): mientras la cara se anima,
+                    // estas tarjetas no se vuelven a dibujar.
+                    Column(Modifier.width(250.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ClockCard(m, a, Modifier.fillMaxWidth())
+                        StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxWidth().weight(1f))
                     }
-                    .safeDrawingPadding().padding(10.dp),
-            ) {
-                Deck(
-                    actions = ui.actions,
+                }
+                KeyRow(
+                    favorites = ui.actions.filter { it.quick },
                     pending = ui.pending,
                     secondsLeft = secondsLeft,
                     enabled = canAct,
                     onPress = a.press,
-                    onClose = { showMore = false },
-                    voiceLabel = ui.voices.firstOrNull { it.id == ui.voice }?.label,
-                    onNextVoice = a.nextVoice,
-                    faceColor = m.faceColor,
-                    onNextFaceColor = a.nextFaceColor,
-                    // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.
-                    modifier = Modifier.fillMaxSize().pointerInput(Unit) {
-                        awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
-                    },
+                    onMore = { showMore = true },
+                    modifier = Modifier.fillMaxWidth().height(66.dp).cached(),
                     icons = m.icons,
                 )
             }
+            AnimatedVisibility(
+                visible = showMore,
+                enter = fadeIn(tween(120)) + slideInVertically(spring(dampingRatio = 0.85f, stiffness = 900f)) { it / 4 },
+                exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 },
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                Box(
+                    Modifier.fillMaxSize().background(Color(0xB3000000))
+                        // Se traga los toques: antes atravesaban el fondo y pulsaban las teclas de debajo.
+                        // Tocar fuera de la hoja la cierra.
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown().consume()
+                                showMore = false
+                            }
+                        }
+                        .safeDrawingPadding().padding(10.dp),
+                ) {
+                    Deck(
+                        actions = ui.actions,
+                        pending = ui.pending,
+                        secondsLeft = secondsLeft,
+                        enabled = canAct,
+                        onPress = a.press,
+                        onClose = { showMore = false },
+                        voiceLabel = ui.voices.firstOrNull { it.id == ui.voice }?.label,
+                        onNextVoice = a.nextVoice,
+                        faceColor = m.faceColor,
+                        onNextFaceColor = a.nextFaceColor,
+                        // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.
+                        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                            awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
+                        },
+                        icons = m.icons,
+                    )
+                }
+            }
         }
+        if (sleepFade > 0f) SleepScreen(m, Modifier.graphicsLayer { alpha = sleepFade })
     }
 }
 
@@ -333,6 +346,7 @@ private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, modifier: Modifie
 }
 
 private const val SLEEP_AFTER_MS = 20_000L
+private const val SLEEP_FADE_MS = 1200
 
 /**
  * Vega dormida (PC apagado): cara dormida, reloj grande del teléfono (sirve de reloj de
