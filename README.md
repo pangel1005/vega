@@ -125,8 +125,8 @@ cd ui; npm test; npm run lint; npx tsc -b       # interfaz web
 cd android; .\gradlew.bat testDebugUnitTest assembleRelease   # app (JAVA_HOME = JDK 21)
 ```
 
-Herramientas de prueba: `scripts/ws_chat.py` (hablar con el servidor desde la consola,
-guarda la voz en `logs/ultima_voz.wav`), `scripts/wake_test.py` (simula un micrófono
-continuo con archivos WAV) y `scripts/bench_stt.py` (velocidad de Whisper).
+Herramientas de prueba: `tools/ws_chat.py` (hablar con el servidor desde la consola,
+guarda la voz en `logs/ultima_voz.wav`), `tools/wake_test.py` (simula un micrófono
+continuo con archivos WAV) y `tools/bench_stt.py` (velocidad de Whisper).
 
 El plan original y las decisiones están en `docs/plan-inicial.md`.

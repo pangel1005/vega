@@ -1,7 +1,7 @@
 """Cliente de consola para probar el WebSocket `/ws`.
 
-    uv run python scripts/ws_chat.py "¿Qué puedes hacer?"
-    uv run python scripts/ws_chat.py --wav frase.wav      (WAV PCM16 mono 16 kHz)
+    uv run python tools/ws_chat.py "¿Qué puedes hacer?"
+    uv run python tools/ws_chat.py --wav frase.wav      (WAV PCM16 mono 16 kHz)
 
 Imprime cada trozo de la respuesta según llega y mide los tiempos. Con --wav
 envía el audio igual que la interfaz (bloques de 100 ms) y mide la transcripción.

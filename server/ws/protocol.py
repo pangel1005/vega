@@ -102,6 +102,12 @@ class Attention(_Msg):
     type: Literal["attention"] = "attention"
 
 
+class PlaybackDone(_Msg):
+    """El teléfono terminó de reproducir la voz de la respuesta (el PC no lo sabe por sí solo)."""
+
+    type: Literal["playback_done"] = "playback_done"
+
+
 class SetVoice(_Msg):
     type: Literal["set_voice"] = "set_voice"
     voice: str = Field(max_length=80)
@@ -119,6 +125,7 @@ AnyClientMessage = (
     | WakeMode
     | Attention
     | SetVoice
+    | PlaybackDone
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)

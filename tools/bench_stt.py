@@ -1,6 +1,6 @@
 """Mide faster-whisper con distintos modelos y dispositivos.
 
-    uv run python scripts/bench_stt.py audio1.wav [audio2.wav ...]
+    uv run python tools/bench_stt.py audio1.wav [audio2.wav ...]
 
 Para cada combinación: tiempo de carga, tiempo de transcripción (2.ª pasada,
 ya «caliente»), texto obtenido y memoria de vídeo usada.

@@ -153,6 +153,36 @@ def test_touching_the_face_opens_attention() -> None:
     assert model.preloads == 1
 
 
+def test_conversation_continues_without_the_name_after_the_reply() -> None:
+    """Tras responder (cuando el teléfono avisa de que terminó de sonar), sigue escuchando
+    unos segundos sin «Vega»: se puede seguir la conversación con naturalidad."""
+    model = FakeChat(pieces=["Hola."])
+    with session(["Vega, hola", "¿y qué tal estás?"], model, FakeExecutor()) as ws:
+        start(ws)
+        say(ws)
+        until(ws, "done")
+        until(ws, "state")  # vuelve a reposo
+        ws.send_json({"type": "playback_done"})
+        assert until(ws, "state")[-1] == {"type": "state", "state": "listening"}
+        say(ws)  # sin repetir el nombre
+        until(ws, "done")
+    assert [m.content for m in model.calls[1] if m.role == "user"][-1] == "¿y qué tal estás?"
+
+
+def test_playback_done_without_spoken_question_does_nothing() -> None:
+    model = FakeChat(pieces=["ok"])
+    with session(["algo sin nombre"], model, FakeExecutor()) as ws:
+        start(ws)
+        ws.send_json({"type": "chat", "text": "hola"})  # escrito, no por voz
+        until(ws, "done")
+        ws.send_json({"type": "playback_done"})
+        say(ws)  # sin «Vega»: se ignora
+        ws.send_json({"type": "chat", "text": "otra"})
+        events = until(ws, "done")
+    assert all(e.get("state") != "listening" for e in events)
+    assert all(e["type"] != "transcript" for e in events)
+
+
 def test_wake_mode_off_ignores_audio() -> None:
     model = FakeChat(pieces=["ok"])
     with session(["Vega, ¿qué hora es?"], model, FakeExecutor()) as ws:

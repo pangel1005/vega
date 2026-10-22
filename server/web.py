@@ -1,4 +1,4 @@
-"""Entrega la interfaz compilada (`ui/dist`) con el token metido en la página."""
+"""Entrega la interfaz compilada (`web/dist`) con el token metido en la página."""
 
 from __future__ import annotations
 
@@ -17,11 +17,11 @@ from server.tools.app_icons import AppIcons
 
 log = logging.getLogger(__name__)
 
-UI_DIST = ROOT / "ui" / "dist"
+UI_DIST = ROOT / "web" / "dist"
 # Versión optimizada (release) de la app: la que se instala y actualiza en el teléfono.
 APK_DIR = ROOT / "android" / "app" / "build" / "outputs" / "apk" / "release"
 TOKEN_PLACEHOLDER = "__ASSISTANT_TOKEN__"
-# Archivos sueltos de ui/public que se sirven en la raíz.
+# Archivos sueltos de web/public que se sirven en la raíz.
 ROOT_FILES = ("manifest.webmanifest", "icon.svg")
 
 MISSING_UI = """<!doctype html><meta charset="utf-8"><title>Interfaz sin compilar</title>
@@ -45,7 +45,7 @@ def register_ui(app: FastAPI, token: str, dist: Path = UI_DIST) -> None:
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
     else:
-        log.warning("No encuentro %s: ejecuta `npm run build` en ui/", assets)
+        log.warning("No encuentro %s: ejecuta `npm run build` en web/", assets)
 
     for name in ROOT_FILES:
         _serve_file(app, dist / name, f"/{name}")

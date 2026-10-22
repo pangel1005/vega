@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 
 // Fuentes incluidas en el proyecto: la interfaz funciona sin internet.
 // Solo los juegos de caracteres que se usan (latín + latín extendido para tildes y ñ).
-// El japonés usa una fuente recortada (ver scripts/subset_jp_font.py y theme.css).
+// El japonés usa una fuente recortada (ver tools/subset_jp_font.py y theme.css).
 import "@fontsource/barlow-condensed/latin-400.css";
 import "@fontsource/barlow-condensed/latin-ext-400.css";
 import "@fontsource/barlow-condensed/latin-700.css";

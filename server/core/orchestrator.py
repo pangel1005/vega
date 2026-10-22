@@ -88,6 +88,9 @@ class Orchestrator:
         self._wake_on = False
         self._segmenter = SpeechSegmenter()
         self._followup_until = 0.0
+        self._reply_was_spoken = (
+            False  # ¿la última orden fue por voz? (tras oírse la respuesta, sigue escuchando)
+        )
         self._voice_task: asyncio.Task[None] | None = None
         self._voice_confirm: tuple[str, float] | None = None  # (código, caduca)
         self._last_preload = -PRELOAD_GAP_SECONDS
@@ -187,6 +190,17 @@ class Orchestrator:
         self._followup_until = 0.0
         log.info("Escucha continua %s", "activada" if on else "desactivada")
 
+    async def playback_done(self) -> None:
+        """El teléfono terminó de decir la respuesta. Si era una conversación por voz, se sigue
+        escuchando unos segundos SIN tener que decir «Vega» (antes había que repetirlo en cada
+        frase: si seguías hablando, te ignoraba y parecía congelada)."""
+        if not self._reply_was_spoken or not self._wake_on:
+            return
+        if self._voice_busy:
+            return  # aún habla (el teléfono avisa entre frases si hay una pausa): se espera al final
+        self._reply_was_spoken = False
+        await self._open_followup()
+
     async def attention(self) -> None:
         """El usuario tocó el rostro: la próxima frase es una orden aunque no diga el nombre."""
         await self._open_followup()
@@ -273,7 +287,7 @@ class Orchestrator:
         else:
             wake = parse_wake(text, self._name)
             if not wake.woke:
-                log.debug("Frase sin la palabra de activación (descartada)")
+                log.info("Frase sin «%s» (descartada): «%s»", self._name, text)
                 return
             command = wake.command
             if not command:
@@ -281,6 +295,7 @@ class Orchestrator:
                 return
 
         self._followup_until = 0.0
+        self._reply_was_spoken = True  # al terminar de oírse la respuesta, seguirá escuchando
         await self._emit(
             TranscriptEvent(
                 text=command,

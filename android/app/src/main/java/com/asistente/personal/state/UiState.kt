@@ -8,7 +8,7 @@ import com.asistente.personal.net.ServerEvent
 import com.asistente.personal.net.Telemetry
 import java.util.Locale
 
-/** Estado de la pantalla a partir de los eventos del servidor (igual que ui/src/chat/reducer.ts). */
+/** Estado de la pantalla a partir de los eventos del servidor (igual que web/src/chat/reducer.ts). */
 
 enum class Role { USER, ASSISTANT, ERROR, NOTE }
 

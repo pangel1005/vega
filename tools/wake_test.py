@@ -1,6 +1,6 @@
 """Prueba de la escucha continua con audio real: simula un micrófono que no para.
 
-    uv run python scripts/wake_test.py frase1.wav frase2.wav ...
+    uv run python tools/wake_test.py frase1.wav frase2.wav ...
 
 Envía silencio + cada WAV + silencio a velocidad real (como el teléfono) y muestra
 lo que hace el servidor. Las acciones se ejecutan de verdad: usa frases inofensivas.

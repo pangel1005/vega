@@ -5,7 +5,7 @@
 #
 # Hace, en orden:
 #   1. Arranca Ollama si no está en marcha.
-#   2. Compila la interfaz web si falta (ui\dist).
+#   2. Compila la interfaz web si falta (web\dist).
 #   3. Arranca el servidor. El servidor ya vigila el cable USB: al conectar el
 #      teléfono, lo enlaza y abre la app solo.
 
@@ -43,12 +43,12 @@ if (-not (Test-Ollama)) {
 Say 'Ollama listo.' 'Green'
 
 # --- 2. Interfaz web ---
-if (-not (Test-Path "$root\ui\dist\index.html")) {
+if (-not (Test-Path "$root\web\dist\index.html")) {
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
         Say 'Aviso: falta Node.js; la interfaz web del PC no estará disponible (la app del teléfono sí).' 'Yellow'
     } else {
         Say 'Compilando la interfaz web (solo la primera vez)...'
-        Push-Location "$root\ui"
+        Push-Location "$root\web"
         try {
             npm ci --no-fund --no-audit | Out-Null
             npm run build | Out-Null

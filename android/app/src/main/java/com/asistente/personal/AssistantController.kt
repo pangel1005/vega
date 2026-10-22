@@ -27,6 +27,7 @@ private const val PREFS = "asistente"
 private const val KEY_TOKEN = "token"
 private const val KEY_LISTEN = "escucha_continua"
 private const val KEY_FACE_COLOR = "color_cara"
+private const val ECHO_GUARD_MS = 500L
 
 /**
  * Une la conexión, el estado de la pantalla y el micrófono. Todo su estado es
@@ -80,18 +81,26 @@ class AssistantController(context: Context) {
     val hasToken: Boolean get() = !prefs.getString(KEY_TOKEN, null).isNullOrBlank()
 
     @Volatile private var audioRate = 22_050
+    @Volatile private var voiceEndedAt = 0L
 
-    private val player = Player(
+    private val player: Player = Player(
         onLevel = { level ->
             mainThread.post {
                 voiceAmount = min(1f, level * 3.5f)
                 voicePulse++
             }
         },
-        onSpeaking = { now -> mainThread.post { speaking = now } },
+        onSpeaking = { now ->
+            if (!now) {
+                // Avisa al PC de que terminó de sonar: así sigue escuchando sin tener que decir «Vega».
+                voiceEndedAt = android.os.SystemClock.elapsedRealtime()
+                socket.send(Protocol.simple("playback_done"))
+            }
+            mainThread.post { speaking = now }
+        },
     )
 
-    private val socket = AssistantSocket(
+    private val socket: AssistantSocket = AssistantSocket(
         url = SERVER_WS,
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
         onEvent = { event ->
@@ -114,7 +123,8 @@ class AssistantController(context: Context) {
 
     private val mic = Microphone { pcm, length, level ->
         // Mientras Vega habla no se manda el micrófono: así no se escucha a sí misma.
-        if (player.speaking) return@Microphone
+        // Medio segundo más: el altavoz aún suena un poco tras el último trozo y se oía a sí misma.
+        if (player.speaking || android.os.SystemClock.elapsedRealtime() - voiceEndedAt < ECHO_GUARD_MS) return@Microphone
         socket.sendAudio(pcm, length)
         // La boca solo sigue tu voz mientras Vega te está atendiendo (no con el ruido de la sala:
         // así no se redibuja todo el rato).

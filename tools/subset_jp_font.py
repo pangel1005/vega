@@ -5,9 +5,9 @@ La fuente completa pesa más de 1 MB; recortada queda en unos pocos KB, lo que
 ayuda a que la página cargue rápido en equipos modestos.
 
 Hay que volver a ejecutarlo si se añade texto japonés nuevo (web, app o botones),
-y después `scripts/android_fonts.py` para la app:
+y después `tools/android_fonts.py` para la app:
 
-    uv run python scripts/subset_jp_font.py && uv run python scripts/android_fonts.py
+    uv run python tools/subset_jp_font.py && uv run python tools/android_fonts.py
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from pathlib import Path
 from fontTools import subset
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "ui" / "node_modules" / "@fontsource" / "noto-sans-jp" / "files"
-OUTPUT = ROOT / "ui" / "src" / "styles" / "fonts" / "noto-sans-jp-subset-900.woff2"
+SOURCE = ROOT / "web" / "node_modules" / "@fontsource" / "noto-sans-jp" / "files"
+OUTPUT = ROOT / "web" / "src" / "styles" / "fonts" / "noto-sans-jp-subset-900.woff2"
 # Kana, kanji y signos de puntuación japoneses.
 CJK = re.compile(r"[　-ヿ一-鿿＀-￯]")
 
@@ -28,7 +28,7 @@ CJK = re.compile(r"[　-ヿ一-鿿＀-￯]")
 def sources() -> list[Path]:
     """Todo lo que puede mostrar texto japonés: web, app Android y los botones configurados."""
     return [
-        *(ROOT / "ui" / "src").rglob("*.ts*"),
+        *(ROOT / "web" / "src").rglob("*.ts*"),
         *(ROOT / "android" / "app" / "src" / "main").rglob("*.kt"),
         *(ROOT / "config").glob("*.toml"),
     ]
@@ -44,7 +44,7 @@ def used_characters() -> str:
 def main() -> int:
     source = SOURCE / "noto-sans-jp-japanese-900-normal.woff2"
     if not source.exists():
-        print(f"No encuentro {source}. Ejecuta `npm install` en ui/.")
+        print(f"No encuentro {source}. Ejecuta `npm install` en web/.")
         return 1
     text = used_characters()
     options = subset.Options()

@@ -1,8 +1,8 @@
 """Copia las fuentes de la interfaz web a la app Android (Android necesita TTF, no WOFF2).
 
-    uv run python scripts/android_fonts.py
+    uv run python tools/android_fonts.py
 
-Las toma de ui/node_modules/@fontsource (`npm install` en ui/). Ambas tienen licencia
+Las toma de web/node_modules/@fontsource (`npm install` en web/). Ambas tienen licencia
 libre (SIL Open Font License).
 """
 
@@ -14,7 +14,7 @@ from pathlib import Path
 from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parents[1]
-FONTSOURCE = ROOT / "ui" / "node_modules" / "@fontsource"
+FONTSOURCE = ROOT / "web" / "node_modules" / "@fontsource"
 OUT = ROOT / "android" / "app" / "src" / "main" / "res" / "font"
 
 # nombre en Android (solo minúsculas y _) → origen
@@ -31,7 +31,7 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, src in FONTS.items():
         if not src.exists():
-            print(f"Falta {src}. Ejecuta `npm install` en ui/.")
+            print(f"Falta {src}. Ejecuta `npm install` en web/.")
             return 1
         font = TTFont(str(src))
         font.flavor = None  # WOFF2 → TTF

@@ -29,6 +29,7 @@ from server.ws.protocol import (
     ListenCancel,
     ListenStart,
     ListenStop,
+    PlaybackDone,
     Ready,
     Reset,
     ServerEvent,
@@ -157,6 +158,8 @@ def register_ws(
                     await orchestrator.attention()
                 elif isinstance(msg, SetVoice):
                     await orchestrator.set_voice(msg.voice)
+                elif isinstance(msg, PlaybackDone):
+                    await orchestrator.playback_done()
         except WebSocketDisconnect:
             log.info("Cliente desconectado")
         finally:

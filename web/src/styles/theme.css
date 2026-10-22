@@ -1,7 +1,7 @@
 /* Tema NERV: mismos tokens que el portafolio (portafolio-nerv/css/styles.css). */
 
 /* Noto Sans JP recortada a los ~25 caracteres de la interfaz (5 KB en vez de 1 MB).
-   Si se añade texto japonés: `uv run python scripts/subset_jp_font.py`. */
+   Si se añade texto japonés: `uv run python tools/subset_jp_font.py`. */
 @font-face {
   font-family: "Noto Sans JP";
   font-weight: 900;

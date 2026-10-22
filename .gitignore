@@ -8,7 +8,7 @@ __pycache__/
 
 # Node
 node_modules/
-ui/dist/
+web/dist/
 
 # Datos locales (historial, registros, voces y modelos descargados)
 data/

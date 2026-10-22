@@ -29,7 +29,7 @@ fun backoffDelay(attempt: Int, random: Double = Random.nextDouble()): Long {
 
 /**
  * Conexión con el servidor del PC que se recupera sola (mismo comportamiento que
- * ui/src/net/socket.ts). Los avisos llegan siempre en el hilo principal.
+ * web/src/net/socket.ts). Los avisos llegan siempre en el hilo principal.
  */
 class AssistantSocket(
     private val url: String,

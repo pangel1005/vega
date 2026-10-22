@@ -7,7 +7,7 @@ Mide, para cada modelo indicado:
 
 Solo usa la biblioteca estándar, para poder ejecutarse antes de instalar nada:
 
-    uv run --python 3.12 --no-project scripts/check_ollama.py qwen3:8b
+    uv run --python 3.12 --no-project tools/check_ollama.py qwen3:8b
 """
 
 from __future__ import annotations
