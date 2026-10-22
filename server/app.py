@@ -13,6 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from server import __version__
 from server.core.config import Settings
+from server.device.usb import PhoneStatus
 from server.llm.base import ChatModel
 from server.llm.ollama import OllamaChat
 from server.memory.store import ConversationStore
@@ -61,6 +62,7 @@ def create_app(
     stt: SpeechToText | None = None,
     actions: ActionRunner | None = None,
     tts: TextToSpeech | None = None,
+    phone: PhoneStatus | None = None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
@@ -87,6 +89,7 @@ def create_app(
             "llm": {"model": settings.llm.model, "reachable": llm.reachable, "detail": llm.detail},
             "stt": stt.name if stt else None,
             "tts": tts.voice if tts else None,
+            "telefono": phone.summary() if phone else None,
         }
 
     log.info(

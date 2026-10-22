@@ -82,6 +82,12 @@ class SpeechSettings(_Section):
         return self.voices_dir if self.voices_dir.is_absolute() else ROOT / self.voices_dir
 
 
+class DeviceSettings(_Section):
+    usb_watcher: bool = True
+    adb_path: str = ""
+    open_app_on_connect: bool = True
+
+
 class MemorySettings(_Section):
     file: Path = Path("data/history.sqlite")
 
@@ -98,6 +104,7 @@ class Settings(_Section):
     logging: LoggingSettings = LoggingSettings()
     memory: MemorySettings = MemorySettings()
     speech: SpeechSettings = SpeechSettings()
+    device: DeviceSettings = DeviceSettings()
 
     @property
     def system_prompt(self) -> str:

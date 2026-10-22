@@ -12,6 +12,7 @@ from server.app import create_app
 from server.core.config import ROOT, ConfigError, Settings, load_settings
 from server.core.logs import setup_logging
 from server.core.token import load_or_create_token
+from server.device.usb import UsbWatcher, find_adb
 from server.speech.base import SttUnavailable
 from server.speech.tts import KokoroTTS, PiperTTS, TtsUnavailable, VoiceRouter
 from server.speech.whisper import WhisperSTT
@@ -68,6 +69,26 @@ def build_tts(settings: Settings) -> VoiceRouter | None:
     return tts
 
 
+def build_usb_watcher(settings: Settings, token: str) -> UsbWatcher | None:
+    d = settings.device
+    if not d.usb_watcher:
+        return None
+    adb = d.adb_path or find_adb()
+    if not adb:
+        log.warning("No encuentro adb: el teléfono no se enlazará solo por USB")
+        return None
+    watcher = UsbWatcher(
+        adb,
+        settings.server.port,
+        token,
+        open_app=d.open_app_on_connect,
+        memory_file=ROOT / "data" / "telefono.txt",
+    )
+    watcher.start()
+    log.info("Vigilante USB activo (%s)", adb)
+    return watcher
+
+
 def main() -> int:
     try:
         settings = load_settings()
@@ -81,13 +102,16 @@ def main() -> int:
         print(f"Error en los botones: {exc}", file=sys.stderr)
         return 2
     log.info("Panel con %d botones", len(actions.actions))
+    token = load_or_create_token()
+    usb = build_usb_watcher(settings, token)
     uvicorn.run(
         create_app(
             settings,
-            token=load_or_create_token(),
+            token=token,
             stt=build_stt(settings),
             actions=actions,
             tts=build_tts(settings),
+            phone=usb.status if usb else None,
         ),
         host=settings.server.host,
         port=settings.server.port,

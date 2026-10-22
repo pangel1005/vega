@@ -54,6 +54,13 @@ max_seconds = 30
 tts_enabled = true
 tts_voice = "kokoro:ef_dora"
 
+[device]
+# Teléfono por cable USB: el servidor vigila adb y, al conectar el teléfono, aplica
+# `adb reverse` y abre la app. Ruta de adb vacía = buscarla sola (SDK, winget, PATH).
+usb_watcher = true
+adb_path = ""
+open_app_on_connect = true
+
 [memory]
 # Historial de conversaciones (SQLite). Fuera de git.
 file = "data/history.sqlite"
