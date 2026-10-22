@@ -7,6 +7,7 @@ import com.asistente.personal.net.Telemetry
 import com.asistente.personal.net.Upcoming
 import com.asistente.personal.net.Voice
 import com.asistente.personal.state.Message
+import com.asistente.personal.state.Notice
 import com.asistente.personal.state.PendingConfirm
 import com.asistente.personal.state.Role
 import com.asistente.personal.state.UiState
@@ -81,31 +82,36 @@ class ScreenshotTest {
 
     @Test fun reposo() = shot("1_reposo", model(base))
 
-    // Poco después de un pulso de voz: la boca y la corona están abiertas.
-    @Test fun hablando() = shot("2_hablando", model(base, AssistantState.SPEAKING, pulse = 3), afterMs = 80)
+    // Poco después de un pulso de voz: la boca está abierta.
+    @Test fun hablando() = shot("2_hablando", model(base, AssistantState.SPEAKING, pulse = 3), afterMs = 120)
+
+    @Test fun escuchando() = shot("3_escuchando", model(base, AssistantState.LISTENING, pulse = 2), afterMs = 120)
 
     @Test fun pensando() = shot(
-        "3_pensando",
+        "4_pensando",
         model(base.copy(messages = base.messages + Message(3, Role.USER, "Dame una idea para cenar")), AssistantState.THINKING),
     )
 
+    @Test fun contenta() = shot("5_contenta", model(base.copy(notice = Notice(1, "Abriendo Spotify.", ok = true))))
+
     @Test fun confirmar_apagado() = shot(
-        "4_confirmar",
+        "6_confirmar",
         model(base.copy(pending = PendingConfirm("apagar", "n", "¿Apagar el PC?", 10))),
     )
 
+    // El recordatorio pasa por la cara en letras de LED.
+    @Test fun recordatorio() = shot(
+        "7_recordatorio",
+        model(base.copy(notice = Notice(1, "Te recuerdo: llamar a mamá.", ok = true, reminder = true))),
+        afterMs = 2200,
+    )
+
+    @Test fun dormida() = shot("8_microfono_apagado", model(base).copy(listening = false))
+
     @Test fun sin_enlace() = shot(
-        "5_sin_enlace",
+        "9_sin_enlace",
         model(base.copy(link = LinkStatus.RECONNECTING, retryInMs = 3000, telemetry = null)),
     )
 
-    @Test fun aviso() = shot(
-        "7_aviso",
-        model(base.copy(notice = com.asistente.personal.state.Notice(1, "Te recuerdo: llamar a mamá.", ok = true))),
-    )
-
-    @Test fun primera_vez() = shot(
-        "6_vacio",
-        model(UiState(actions = actions, link = LinkStatus.OPEN, assistant = "Vega")),
-    )
+    @Test fun error() = shot("10_error", model(base.copy(notice = Notice(1, "No pude abrir Discord.", ok = false))))
 }

@@ -2,10 +2,6 @@ package com.asistente.personal.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,7 +42,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.personal.net.DeckAction
-import com.asistente.personal.state.Notice
 import com.asistente.personal.state.PendingConfirm
 import kotlin.math.PI
 import kotlin.math.cos
@@ -101,32 +96,6 @@ fun Deck(
                     onPress = { onPress(a.id) },
                 )
             }
-        }
-    }
-}
-
-/** Aviso corto del resultado de un botón (abajo, centrado). */
-@Composable
-fun NoticeBar(notice: Notice?, modifier: Modifier = Modifier) {
-    androidx.compose.animation.AnimatedVisibility(
-        visible = notice != null,
-        enter = fadeIn() + slideInVertically { it },
-        exit = fadeOut() + slideOutVertically { it },
-        modifier = modifier,
-    ) {
-        val n = notice ?: return@AnimatedVisibility
-        val c = if (n.ok) Nerv.Amber else Nerv.Red
-        val shape = remember { Chamfer(10.dp) }
-        Row(
-            Modifier.background(Color(0xF20B0A09), shape).border(1.5.dp, c.copy(alpha = 0.8f), shape)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.background(c).padding(horizontal = 6.dp, vertical = 1.dp)) {
-                Text(if (n.ok) "通知" else "警報", style = TextStyle(fontFamily = Nerv.Jp, fontSize = 15.sp, color = Color(0xFF0A0A0A)))
-            }
-            Box(Modifier.size(10.dp))
-            Text(n.text, maxLines = 2, style = TextStyle(fontFamily = Nerv.Cond, fontSize = 18.sp, lineHeight = 20.sp, color = Nerv.Ink))
         }
     }
 }

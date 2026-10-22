@@ -23,8 +23,11 @@ data class Message(
 /** Acción sensible esperando la segunda pulsación. */
 data class PendingConfirm(val id: String, val nonce: String, val message: String, val expiresIn: Int)
 
-/** Aviso corto tras pulsar un botón (p. ej. «El PC se apagará en 15 s…»). */
-data class Notice(val seq: Int, val text: String, val ok: Boolean)
+/**
+ * Aviso corto: resultado de un botón («El PC se apagará en 15 s…»), un error o un
+ * recordatorio (`reminder`: pasa por la cara en letras de LED).
+ */
+data class Notice(val seq: Int, val text: String, val ok: Boolean, val reminder: Boolean = false)
 
 data class UiState(
     val actions: List<DeckAction> = emptyList(),
@@ -57,7 +60,8 @@ sealed interface Action {
     data class Telemetry(val data: com.asistente.personal.net.Telemetry, val at: Long) : Action
 }
 
-private fun UiState.notify(text: String, ok: Boolean) = copy(notice = Notice((notice?.seq ?: 0) + 1, text, ok))
+private fun UiState.notify(text: String, ok: Boolean, reminder: Boolean = false) =
+    copy(notice = Notice((notice?.seq ?: 0) + 1, text, ok, reminder))
 
 const val NOT_HEARD = "No te he oído. Prueba a hablar un poco más cerca del micrófono."
 
@@ -116,7 +120,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         is ServerEvent.Voices -> s.copy(voices = e.items, voice = e.current)
         // La voz la gestiona el reproductor; el estado de la pantalla no cambia.
         is ServerEvent.Audio, ServerEvent.AudioEnd -> s
-        is ServerEvent.Reminder -> s.push(Role.NOTE, e.text).notify(e.text, ok = true)
+        is ServerEvent.Reminder -> s.push(Role.NOTE, e.text).notify(e.text, ok = true, reminder = true)
         // Llega sin hora local; AssistantController la reenvía como Action.Telemetry con la hora.
         is ServerEvent.Stats -> s.copy(telemetry = e.telemetry)
     }
