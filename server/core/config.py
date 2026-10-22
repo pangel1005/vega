@@ -71,7 +71,8 @@ class SpeechSettings(_Section):
     models_dir: Path = Path("models/whisper")
     tts_enabled: bool = True
     tts_voice: str = "es_MX-claude-high"
-    tts_speed: float = Field(default=1.1, ge=0.7, le=1.5)
+    tts_speed: float = Field(default=1.0, ge=0.7, le=1.5)
+    tts_accent: Literal["es-419", "es"] = "es-419"
     voices_dir: Path = Path("models/piper")
 
     @property

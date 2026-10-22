@@ -136,7 +136,9 @@ def test_router_lists_both_engines_and_remembers(tmp_path: Path) -> None:
 
     r = router()
     assert r.voice == "kokoro:ef_dora"
-    assert [v.id for v in r.voices()][:3] == ["kokoro:ef_dora", "kokoro:em_alex", "kokoro:em_santa"]
+    assert [v.id for v in r.voices()][:5] == [
+        "kokoro:ef_dora", "kokoro:dora_suave", "kokoro:dora_calida", "kokoro:em_alex", "kokoro:em_santa"
+    ]  # fmt: skip
     assert "es_MX-claude-high" in {v.id for v in r.voices()}
     r.set_voice("es_MX-claude-high")
     assert router().voice == "es_MX-claude-high"

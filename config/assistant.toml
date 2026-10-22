@@ -48,14 +48,17 @@ max_seconds = 30
 
 # Texto a voz, en la CPU (no usa la GPU). La voz se cambia desde la app (MÁS → VOZ);
 # la elegida se guarda en data/prefs.json y tiene prioridad sobre este valor.
-#   Kokoro (natural, models/kokoro): "kokoro:ef_dora", "kokoro:em_alex", "kokoro:em_santa"
+#   Kokoro (natural, models/kokoro): "kokoro:ef_dora", "kokoro:dora_suave", "kokoro:dora_calida",
+#     "kokoro:em_alex", "kokoro:em_santa"
 #     ~3,4 veces más rápido que el tiempo real en este PC.
 #   Piper (más robótica, models/piper): "es_MX-claude-high", "es_AR-daniela-high"…
 #     ~28 veces más rápido que el tiempo real.
 tts_enabled = true
 tts_voice = "kokoro:ef_dora"
-# Velocidad al hablar (solo Kokoro): 1.0 normal, 1.1 algo más ágil, 1.2 rápida.
-tts_speed = 1.1
+# Velocidad al hablar (solo Kokoro): 1.0 normal (la más natural), 1.1 algo más ágil.
+tts_speed = 1.0
+# Acento de Kokoro: "es-419" latinoamericano («sena», «sinco») o "es" de España («θena»).
+tts_accent = "es-419"
 
 [device]
 # Teléfono por cable USB: el servidor vigila adb y, al conectar el teléfono, aplica

@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 
+from server.speech.spoken import speakable
+
 if TYPE_CHECKING:
     from piper import PiperVoice
 
@@ -68,17 +70,37 @@ class TtsUnavailable(Exception):
 
 KOKORO_VOICES = {
     "ef_dora": "Dora · natural",
+    "dora_suave": "Dora · suave",
+    "dora_calida": "Dora · cálida",
     "em_alex": "Alex · natural",
     "em_santa": "Santa · natural",
 }
+# Mezclas: Dora con un toque de una voz inglesa más expresiva. Kokoro solo trae tres
+# voces en español; mezclar estilos cambia el timbre sin perder el acento.
+KOKORO_MIXES = {
+    "dora_suave": {"ef_dora": 0.8, "af_bella": 0.2},
+    "dora_calida": {"ef_dora": 0.8, "af_heart": 0.2},
+}
 KOKORO_PREFIX = "kokoro:"
+SENTENCE_PAUSE = 0.32  # s de silencio tras «.», «?», «!»: sin él las frases se pisaban
+CLAUSE_PAUSE = 0.14  # tras «,», «;», «:» (la primera frase se corta en una coma)
+
+
+def pause_after(text: str) -> float:
+    end = text.rstrip()[-1:]
+    if end in ".!?…":
+        return SENTENCE_PAUSE
+    if end in ",;:":
+        return CLAUSE_PAUSE
+    return 0.0
 
 
 class KokoroTTS:
     """Voces naturales de Kokoro (82 M parámetros, ONNX en la CPU)."""
 
-    def __init__(self, model_dir: Path, speed: float = 1.0) -> None:
+    def __init__(self, model_dir: Path, speed: float = 1.0, accent: str = "es-419") -> None:
         self._speed = speed
+        self._accent = accent  # "es-419": latinoamericano («sena»); "es": España («θena»)
         self._model = model_dir / "kokoro-v1.0.onnx"
         self._voices_file = model_dir / "voices-v1.0.bin"
         self._engine: Any = None
@@ -105,11 +127,20 @@ class KokoroTTS:
     def warmup(self, voice_id: str) -> None:
         self.synthesize("Hola.", voice_id)
 
+    def _style(self, engine: Any, name: str) -> Any:
+        mix = KOKORO_MIXES.get(name)
+        if mix is None:
+            return name
+        return sum(weight * engine.get_voice_style(voice) for voice, weight in mix.items())
+
     def synthesize(self, text: str, voice_id: str) -> tuple[bytes, int]:
         with self._lock:
-            samples, rate = self._load().create(
-                text, voice=voice_id.removeprefix(KOKORO_PREFIX), speed=self._speed, lang="es"
-            )
+            engine = self._load()
+            style = self._style(engine, voice_id.removeprefix(KOKORO_PREFIX))
+            samples, rate = engine.create(text, voice=style, speed=self._speed, lang=self._accent)
+        # Kokoro recorta el silencio del final: sin pausa, cada frase empezaba pegada a la anterior.
+        silence = np.zeros(int(pause_after(text) * rate), dtype=samples.dtype)
+        samples = np.concatenate([samples, silence])
         pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
         return pcm.tobytes(), int(rate)
 
@@ -222,6 +253,7 @@ class VoiceRouter:
             self._piper.warmup()
 
     def synthesize(self, text: str) -> bytes:
+        text = speakable(text)
         if self._voice.startswith(KOKORO_PREFIX):
             pcm, self._last_rate = self._kokoro.synthesize(text, self._voice)
             return pcm
