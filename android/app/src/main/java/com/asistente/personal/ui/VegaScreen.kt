@@ -36,6 +36,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
@@ -79,6 +83,9 @@ data class ScreenModel(
     val nowMs: Long,
     /** Número de compilación de la app (para saber si ya se actualizó). */
     val appVersion: Int = 0,
+    /** Iconos reales de las apps del panel, por id de botón. */
+    val icons: Map<String, ImageBitmap> = emptyMap(),
+    val faceColor: FaceColor = FaceColor.WARM,
 )
 
 class ScreenActions(
@@ -90,6 +97,7 @@ class ScreenActions(
     val nextVoice: () -> Unit = {},
     val confirmExpired: (String) -> Unit = {},
     val noticeExpired: (Int) -> Unit = {},
+    val nextFaceColor: () -> Unit = {},
 )
 
 /** Qué cara pone Vega según lo que está pasando de verdad. */
@@ -114,16 +122,19 @@ fun moodFor(
     else -> Mood.IDLE
 }
 
-/** Color de la luz de la cara: blanco cálido normalmente; coral cuando te atiende. */
-fun moodColor(mood: Mood): Color = when (mood) {
+/** Color de la luz de la cara: el elegido en reposo y al hablar; coral cuando te atiende. */
+fun moodColor(mood: Mood, base: Color = Vega.Light): Color = when (mood) {
     Mood.LISTEN -> Vega.Coral
     Mood.THINK -> Vega.Amber
     Mood.HAPPY -> Vega.Mint
     Mood.ERROR, Mood.ALERT -> Vega.Red
     Mood.SLEEP -> Color(0xFF6E6760)
     Mood.OFFLINE -> Color(0xFF4A4642)
-    else -> Vega.Light
+    else -> base
 }
+
+/** El arcoíris solo se ve en reposo y al hablar: los demás estados mantienen su color de aviso. */
+fun showsRainbow(mood: Mood, faceColor: FaceColor) = faceColor == FaceColor.RAINBOW && (mood == Mood.IDLE || mood == Mood.TALK)
 
 fun moodLabel(mood: Mood, assistant: String): String = when (mood) {
     Mood.IDLE -> "Di «${assistant.ifEmpty { "Vega" }}»"
@@ -186,7 +197,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     }
 
     val mood = moodFor(m.state, ui.link, ui.pending, ui.notice, m.listening && m.micOn, m.hasToken)
-    val color = moodColor(mood)
+    val color = moodColor(mood, m.faceColor.color)
     Box(modifier.fillMaxSize().background(Vega.Bg)) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -210,6 +221,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 onPress = a.press,
                 onMore = { showMore = true },
                 modifier = Modifier.fillMaxWidth().height(66.dp).cached(),
+                icons = m.icons,
             )
         }
         AnimatedVisibility(
@@ -218,7 +230,18 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
             exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 },
             modifier = Modifier.fillMaxSize(),
         ) {
-            Box(Modifier.fillMaxSize().background(Color(0xB3000000)).safeDrawingPadding().padding(10.dp)) {
+            Box(
+                Modifier.fillMaxSize().background(Color(0xB3000000))
+                    // Se traga los toques: antes atravesaban el fondo y pulsaban las teclas de debajo.
+                    // Tocar fuera de la hoja la cierra.
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            showMore = false
+                        }
+                    }
+                    .safeDrawingPadding().padding(10.dp),
+            ) {
                 Deck(
                     actions = ui.actions,
                     pending = ui.pending,
@@ -228,7 +251,13 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     onClose = { showMore = false },
                     voiceLabel = ui.voices.firstOrNull { it.id == ui.voice }?.label,
                     onNextVoice = a.nextVoice,
-                    modifier = Modifier.fillMaxSize(),
+                    faceColor = m.faceColor,
+                    onNextFaceColor = a.nextFaceColor,
+                    // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.
+                    modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                        awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
+                    },
+                    icons = m.icons,
                 )
             }
         }
@@ -265,6 +294,7 @@ private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, modifier: Modifie
             color = if (notice != null) Vega.Amber else color, // un recordatorio pasa en ámbar
             notice = notice?.text,
             noticeKey = notice?.seq ?: 0,
+            rainbow = notice == null && showsRainbow(mood, m.faceColor),
             modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
         )
         Subtitle(m, Modifier.fillMaxWidth().height(42.dp).cached())

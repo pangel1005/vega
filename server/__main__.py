@@ -17,6 +17,7 @@ from server.speech.base import SttUnavailable
 from server.speech.tts import KokoroTTS, PiperTTS, TtsUnavailable, VoiceRouter
 from server.speech.whisper import WhisperSTT
 from server.tools.actions import ActionConfigError, ActionRunner, load_actions
+from server.tools.app_icons import AppIcons
 from server.tools.windows import WindowsExecutor
 
 log = logging.getLogger("server")
@@ -113,6 +114,7 @@ def main() -> int:
             tts=build_tts(settings),
             phone=usb.status if usb else None,
             phone_battery=usb.battery if usb else (lambda: None),
+            app_icons=AppIcons(actions.actions, ROOT / "data" / "icons"),
         ),
         host=settings.server.host,
         port=settings.server.port,

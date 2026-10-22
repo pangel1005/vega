@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,6 +30,19 @@ class Updater(private val context: Context) {
             http.newCall(Request.Builder().url("$SERVER_HTTP/app/version").build()).execute().use { resp ->
                 val code = JSONObject(resp.body.string()).optInt("version_code", 0)
                 code.takeIf { it > BuildConfig.VERSION_CODE }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Icono de una app del panel (PNG que el PC saca de su .exe), o null si no hay. */
+    suspend fun appIcon(id: String): androidx.compose.ui.graphics.ImageBitmap? = withContext(Dispatchers.IO) {
+        try {
+            http.newCall(Request.Builder().url("$SERVER_HTTP/app/icons/$id.png").build()).execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                val bytes = resp.body.bytes()
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
             }
         } catch (_: Exception) {
             null

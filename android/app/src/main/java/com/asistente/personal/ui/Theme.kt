@@ -52,6 +52,27 @@ object Vega {
     val body = TextStyle(fontFamily = Sans, fontSize = 16.sp, lineHeight = 20.sp, color = Ink)
 }
 
+/**
+ * Color de la cara en reposo y al hablar (lo elige el usuario en «Más»). Los demás estados
+ * conservan su color, porque significan algo: coral = te escucho, rojo = cuidado…
+ */
+enum class FaceColor(val label: String, val color: Color) {
+    WARM("Cálido", Vega.Light),
+    CORAL("Coral", Vega.Coral),
+    SKY("Cielo", Vega.Sky),
+    MINT("Menta", Vega.Mint),
+    VIOLET("Violeta", Color(0xFFB79BFF)),
+    PINK("Rosa", Color(0xFFFF8CC6)),
+    RAINBOW("Arcoíris", Vega.Light), // el color real lo pone el pincel de arcoíris
+    ;
+
+    fun next(): FaceColor = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun from(name: String?): FaceColor = entries.firstOrNull { it.name == name } ?: WARM
+    }
+}
+
 /** Color de cada botón según config/actions.toml (más suaves que antes: es un acento, no un fondo). */
 fun deckColor(name: String): Color = when (name) {
     "red" -> Vega.Red

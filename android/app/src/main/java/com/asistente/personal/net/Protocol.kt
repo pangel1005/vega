@@ -22,8 +22,10 @@ data class DeckAction(
     val icon: String,
     val color: String,
     val confirm: Boolean,
-    /** Aparece en el panal principal (los demás, en «MÁS»). */
+    /** Aparece en la fila principal (los demás, en «Más»). */
     val quick: Boolean = false,
+    /** Es una app con icono propio en /app/icons/<id>.png. */
+    val appIcon: Boolean = false,
 )
 
 data class Voice(val id: String, val label: String)
@@ -90,7 +92,7 @@ object Protocol {
                     DeckAction(
                         a.getString("id"), a.getString("label"), a.optString("jp"),
                         a.optString("icon", "app"), a.optString("color", "orange"), a.optBoolean("confirm"),
-                        a.optBoolean("quick"),
+                        a.optBoolean("quick"), a.optBoolean("app_icon"),
                     )
                 })
             }

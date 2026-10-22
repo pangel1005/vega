@@ -24,7 +24,8 @@ from server.skills.router import SkillRouter
 from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner
-from server.web import UI_DIST, register_ui
+from server.tools.app_icons import AppIcons
+from server.web import UI_DIST, register_app_icons, register_ui
 from server.ws.routes import register_ws
 
 log = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ def create_app(
     tts: TextToSpeech | None = None,
     phone: PhoneStatus | None = None,
     phone_battery: Callable[[], int | None] = lambda: None,
+    app_icons: AppIcons | None = None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
@@ -94,6 +96,8 @@ def create_app(
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(TRUSTED_HOSTS))
     register_ws(app, settings, model, history, token, stt, actions, tts, skills, memory, hub)
     register_ui(app, token, ui_dist)
+    if app_icons is not None:
+        register_app_icons(app, app_icons)
 
     @app.get("/health")
     async def health() -> dict[str, object]:

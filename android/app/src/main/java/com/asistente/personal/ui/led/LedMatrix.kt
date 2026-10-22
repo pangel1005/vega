@@ -17,7 +17,9 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas as BitmapCanvas
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
@@ -48,7 +50,17 @@ private class Grid(size: Size, cols: Int, rows: Int) {
  * @param tick cambia cuando `values` cambió (leerlo aquí hace que solo se redibuje esta capa)
  */
 @Composable
-fun LedMatrix(values: FloatArray, cols: Int, rows: Int, color: Color, tick: () -> Int, modifier: Modifier = Modifier, dot: Float = 0.62f) {
+fun LedMatrix(
+    values: FloatArray,
+    cols: Int,
+    rows: Int,
+    color: Color,
+    tick: () -> Int,
+    modifier: Modifier = Modifier,
+    dot: Float = 0.62f,
+    /** Si no es null, los LED encendidos se pintan con este pincel (p. ej. el arcoíris) en vez de `color`. */
+    brush: ((width: Float) -> Brush)? = null,
+) {
     // Capa propia: cuando la cara cambia solo se vuelve a grabar esta capa, no toda la pantalla
     // (medido en el teléfono: redibujar todo costaba ~11 ms por cuadro).
     Box(
@@ -69,13 +81,22 @@ fun LedMatrix(values: FloatArray, cols: Int, rows: Int, color: Color, tick: () -
                     buckets[min(LEVELS - 1, (a * LEVELS).toInt())].add(p)
                     if (a > 0.8f) glow.add(p)
                 }
+                val paint = brush?.invoke(size.width)
                 if (glow.isNotEmpty()) {
-                    drawPoints(glow, PointMode.Points, color.copy(alpha = 0.16f), strokeWidth = g.pitch * 0.9f, cap = StrokeCap.Round)
+                    if (paint != null) {
+                        drawPoints(glow, PointMode.Points, paint, strokeWidth = g.pitch * 0.9f, cap = StrokeCap.Round, alpha = 0.16f)
+                    } else {
+                        drawPoints(glow, PointMode.Points, color.copy(alpha = 0.16f), strokeWidth = g.pitch * 0.9f, cap = StrokeCap.Round)
+                    }
                 }
                 for (i in 0 until LEVELS) {
                     if (buckets[i].isEmpty()) continue
                     val alpha = (i + 1f) / LEVELS
-                    drawPoints(buckets[i], PointMode.Points, color.copy(alpha = alpha), strokeWidth = g.pitch * dot, cap = StrokeCap.Round)
+                    if (paint != null) {
+                        drawPoints(buckets[i], PointMode.Points, paint, strokeWidth = g.pitch * dot, cap = StrokeCap.Round, alpha = alpha)
+                    } else {
+                        drawPoints(buckets[i], PointMode.Points, color.copy(alpha = alpha), strokeWidth = g.pitch * dot, cap = StrokeCap.Round)
+                    }
                 }
             }
         },
@@ -109,8 +130,12 @@ fun LedFaceView(
     notice: String?,
     noticeKey: Int,
     modifier: Modifier = Modifier,
+    /** Arcoíris que se desplaza despacio por la cara (en vez de un solo color). */
+    rainbow: Boolean = false,
 ) {
     val animator = remember { LedFaceAnimator() }
+    val currentRainbow by rememberUpdatedState(rainbow)
+    val time = remember { floatArrayOf(0f) }
     val currentMood by rememberUpdatedState(mood)
     var tick by remember { mutableIntStateOf(0) }
     // Volumen: sube con cada trozo de voz (o de micrófono) y cae solo entre medias.
@@ -126,9 +151,25 @@ fun LedFaceView(
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1000f).coerceAtMost(0.1f)
                 last = now
                 level[0] *= kotlin.math.exp(-dt * 5f)
-                if (animator.step(dt, now / 1000f, currentMood, level[0])) tick++
+                time[0] = now / 1000f
+                // En arcoíris los colores se mueven: hay que redibujar cada cuadro aunque la cara esté quieta.
+                if (animator.step(dt, time[0], currentMood, level[0]) || currentRainbow) tick++
             }
         }
     }
-    LedMatrix(animator.shown, FACE_COLS, FACE_ROWS, shade, { tick }, modifier)
+    LedMatrix(
+        animator.shown, FACE_COLS, FACE_ROWS, shade, { tick }, modifier,
+        brush = if (rainbow) { width -> rainbowBrush(width, time[0]) } else null,
+    )
+}
+
+private val RAINBOW = listOf(
+    Color(0xFFFF4D4D), Color(0xFFFFA43D), Color(0xFFFFE15C), Color(0xFF6CF0A8),
+    Color(0xFF59C8FF), Color(0xFF9B7BFF), Color(0xFFFF6FD8), Color(0xFFFF4D4D),
+)
+
+/** Arcoíris horizontal que da una vuelta completa cada 8 segundos. */
+fun rainbowBrush(width: Float, seconds: Float): Brush {
+    val shift = (seconds / 8f % 1f) * width
+    return Brush.linearGradient(RAINBOW, start = Offset(-shift, 0f), end = Offset(width - shift, 0f), tileMode = TileMode.Repeated)
 }

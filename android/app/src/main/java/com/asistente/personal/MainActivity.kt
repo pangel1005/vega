@@ -152,6 +152,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit) {
             nextVoice = c::nextVoice,
             confirmExpired = c::confirmExpired,
             noticeExpired = c::noticeExpired,
+            nextFaceColor = c::nextFaceColor,
         )
     }
     VegaScreen(
@@ -179,6 +180,8 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit) {
             },
             nowMs = SystemClock.elapsedRealtime(),
             appVersion = BuildConfig.VERSION_CODE,
+            icons = c.icons,
+            faceColor = c.faceColor,
         ),
         actions,
     )

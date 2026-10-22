@@ -31,7 +31,7 @@ audit = logging.getLogger("audit")
 
 ACTIONS_FILE = ROOT / "config" / "actions.toml"
 CONFIRM_SECONDS = 10.0
-DEBOUNCE_SECONDS = 1.0
+DEBOUNCE_SECONDS = 0.3  # evita un doble disparo accidental; con 1 s se perdían pulsaciones rápidas (volumen)
 
 PowerArg = Literal["shutdown", "restart", "sleep", "lock", "cancel"]
 
@@ -79,6 +79,8 @@ class ActionDef(BaseModel):
             "color": self.color,
             "confirm": self.confirm,
             "quick": self.quick,
+            # Las apps tienen icono propio en /app/icons/<id>.png (si el PC lo puede sacar del .exe).
+            "app_icon": self.kind == "launch",
         }
 
 

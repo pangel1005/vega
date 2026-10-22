@@ -14,6 +14,7 @@ import com.asistente.personal.state.UiState
 import com.asistente.personal.ui.ScreenActions
 import com.asistente.personal.ui.ScreenModel
 import com.asistente.personal.ui.VegaScreen
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -125,5 +126,27 @@ class ScreenshotTest {
         compose.onNodeWithText("Más").performTouchInput { down(center); up() }
         compose.mainClock.advanceTimeBy(600)
         compose.onRoot().captureRoboImage("build/capturas/11_hoja_mas.png")
+    }
+
+    // Cara en arcoíris y en violeta (opciones de «Más»); teclas con el icono real de la app.
+    @Test fun arcoiris() = shot("12_arcoiris", model(base).copy(faceColor = com.asistente.personal.ui.FaceColor.RAINBOW, icons = fakeIcons()))
+
+    @Test fun violeta() = shot("13_violeta", model(base, AssistantState.SPEAKING, pulse = 3).copy(faceColor = com.asistente.personal.ui.FaceColor.VIOLET), afterMs = 120)
+
+    /** Iconos de prueba (círculos de color) en lugar de los de los .exe del PC. */
+    private fun fakeIcons(): Map<String, androidx.compose.ui.graphics.ImageBitmap> {
+        fun circle(c: Int) = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888).also {
+            android.graphics.Canvas(it).drawCircle(48f, 48f, 44f, android.graphics.Paint().apply { color = c; isAntiAlias = true })
+        }.asImageBitmap()
+        return mapOf("spotify" to circle(0xFF1ED760.toInt()), "discord" to circle(0xFF5865F2.toInt()))
+    }
+
+    @Test fun hoja_mas_colores() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent { VegaScreen(model(base).copy(faceColor = com.asistente.personal.ui.FaceColor.RAINBOW, icons = fakeIcons()), ScreenActions()) }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Más").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(600)
+        compose.onRoot().captureRoboImage("build/capturas/14_hoja_mas_colores.png")
     }
 }

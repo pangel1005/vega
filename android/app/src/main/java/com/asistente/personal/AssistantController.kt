@@ -26,6 +26,7 @@ const val SERVER_WS = "ws://127.0.0.1:8000/ws"
 private const val PREFS = "asistente"
 private const val KEY_TOKEN = "token"
 private const val KEY_LISTEN = "escucha_continua"
+private const val KEY_FACE_COLOR = "color_cara"
 
 /**
  * Une la conexión, el estado de la pantalla y el micrófono. Todo su estado es
@@ -62,6 +63,15 @@ class AssistantController(context: Context) {
     var updateAvailable by mutableStateOf(false)
         private set
 
+    /** Color de la cara elegido en «Más» (se recuerda entre reinicios). */
+    var faceColor by mutableStateOf(com.asistente.personal.ui.FaceColor.from(prefs.getString(KEY_FACE_COLOR, null)))
+        private set
+
+    fun nextFaceColor() {
+        faceColor = faceColor.next()
+        prefs.edit().putString(KEY_FACE_COLOR, faceColor.name).apply()
+    }
+
     private var micAllowed = false
     private val updater = Updater(context)
     private val scope = kotlinx.coroutines.MainScope()
@@ -86,6 +96,7 @@ class AssistantController(context: Context) {
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
         onEvent = { event ->
             if (event is ServerEvent.Reminder) vibrate()
+            if (event is ServerEvent.Actions) loadIcons(event.items)
             if (event is ServerEvent.Stats) {
                 dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
             } else {
@@ -145,6 +156,19 @@ class AssistantController(context: Context) {
     }
 
     private var updateJob: kotlinx.coroutines.Job? = null
+
+    /** Iconos reales de las apps (Spotify, Discord…), descargados del PC una vez. */
+    val icons = androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
+
+    private fun loadIcons(items: List<com.asistente.personal.net.DeckAction>) {
+        val missing = items.filter { it.appIcon && it.id !in icons }.map { it.id }
+        if (missing.isEmpty()) return
+        scope.launch {
+            for (id in missing) {
+                updater.appIcon(id)?.let { icons[id] = it }
+            }
+        }
+    }
 
     /**
      * Mira si el PC tiene una versión nueva al conectar y luego cada minuto (antes solo al

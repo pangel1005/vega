@@ -139,8 +139,8 @@ def test_repeated_presses_are_debounced() -> None:
     ex, clock = FakeExecutor(), Clock()
     r = runner(ex, clock)
     assert r.request("silenciar").kind == "done"
-    assert r.request("silenciar").kind == "ignored"
-    clock.t += 1.5
+    assert r.request("silenciar").kind == "ignored"  # rebote del mismo toque
+    clock.t += 0.4  # dos toques rápidos de verdad (p. ej. volumen +) sí cuentan
     assert r.request("silenciar").kind == "done"
     assert ex.ran == ["silenciar", "silenciar"]
 

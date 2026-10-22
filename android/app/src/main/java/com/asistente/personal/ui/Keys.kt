@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -46,11 +49,12 @@ fun KeyRow(
     onPress: (String) -> Unit,
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
+    icons: Map<String, ImageBitmap> = emptyMap(),
 ) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         favorites.take(6).forEach { a ->
             Key(
-                label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled,
+                label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled, image = icons[a.id],
                 confirming = pending?.id == a.id, secondsLeft = secondsLeft, onClick = { onPress(a.id) },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
@@ -73,6 +77,7 @@ fun Key(
     secondsLeft: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    image: ImageBitmap? = null,
 ) {
     val pressed = remember { mutableStateOf(false) }
     val down = pressed.value
@@ -111,7 +116,12 @@ fun Key(
             }
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Canvas(Modifier.size(20.dp)) { drawDeckIcon(icon, color) }
+                // Las apps llevan su icono real (del .exe del PC); lo demás, el dibujo de siempre.
+                if (image != null) {
+                    Image(image, contentDescription = null, modifier = Modifier.size(24.dp), filterQuality = FilterQuality.High)
+                } else {
+                    Canvas(Modifier.size(20.dp)) { drawDeckIcon(icon, color) }
+                }
                 Text(
                     label,
                     maxLines = 1,

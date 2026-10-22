@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,11 +32,17 @@ fun Deck(
     modifier: Modifier = Modifier,
     voiceLabel: String? = null,
     onNextVoice: () -> Unit = {},
+    icons: Map<String, ImageBitmap> = emptyMap(),
+    faceColor: FaceColor = FaceColor.WARM,
+    onNextFaceColor: () -> Unit = {},
 ) {
     Column(modifier.card(fill = Vega.Card.copy(alpha = 0.98f)).padding(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Todos los botones", style = TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Vega.Ink))
             Spacer(Modifier.weight(1f))
+            // Color de la cara: cada toque pasa al siguiente (el último es el arcoíris).
+            Pill("Cara: ${faceColor.label}", if (faceColor == FaceColor.RAINBOW) Vega.Amber else faceColor.color, onNextFaceColor)
+            Spacer(Modifier.width(8.dp))
             // Cambiar de voz: pasa a la siguiente y Vega se presenta con ella.
             if (voiceLabel != null) {
                 Pill("Voz: $voiceLabel", Vega.Sky, onNextVoice)
@@ -51,7 +58,7 @@ fun Deck(
                 Row(Modifier.fillMaxWidth().height(72.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { a ->
                         Key(
-                            label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled,
+                            label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled, image = icons[a.id],
                             confirming = pending?.id == a.id, secondsLeft = secondsLeft, onClick = { onPress(a.id) },
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )

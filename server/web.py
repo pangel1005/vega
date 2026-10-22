@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import logging
@@ -12,6 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from server.core.config import ROOT
+from server.tools.app_icons import AppIcons
 
 log = logging.getLogger(__name__)
 
@@ -72,6 +74,17 @@ def register_app_updates(app: FastAPI, apk_dir: Path = APK_DIR) -> None:
         if not files:
             return Response(status_code=404)
         return FileResponse(files[0], media_type="application/vnd.android.package-archive")
+
+
+def register_app_icons(app: FastAPI, icons: AppIcons) -> None:
+    """Icono real de cada app del panel (PNG), para las teclas del teléfono."""
+
+    @app.get("/app/icons/{action_id}.png", include_in_schema=False)
+    async def icon(action_id: str) -> Response:
+        data = await asyncio.to_thread(icons.png, action_id)
+        if data is None:
+            return Response(status_code=404)
+        return Response(data, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
 
 
 def _serve_file(app: FastAPI, path: Path, route: str) -> None:
