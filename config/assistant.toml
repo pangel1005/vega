@@ -15,13 +15,16 @@ port = 8000
 url = "http://127.0.0.1:11434"
 # Modelo pequeño a propósito (~3 GB). Alternativa más capaz pero más pesada (~5,2 GB): "qwen3:8b".
 model = "qwen3.5:4b"
-# false (por defecto): el modelo corre en el PROCESADOR y la tarjeta gráfica queda libre para
-# usar el PC con normalidad (juegos, vídeo…). Medido en el Ryzen 7 5700X: ~8–9 palabras/s y
-# la primera palabra en ~0,5 s. true: en la GPU (más rápido, pero ocupa ~3 GB de vídeo).
-gpu = false
-threads = 8
-# Tiempo sin uso tras el cual Ollama saca el modelo de la memoria. En el procesador ocupa
-# ~3 GB de RAM (de 32) y cargarlo de nuevo cuesta 10–20 s, así que se deja todo el día.
+# Reparto entre la tarjeta gráfica y el procesador. Medido en la RTX 4060 Ti + Ryzen 7 5700X:
+#   gpu_layers = 1  → ~650 MB de vídeo, primera palabra en ~0,45 s, ~10 palabras/s  ← por defecto
+#   gpu_layers = 0  → nada de vídeo, pero la primera palabra tarda ~2,3 s
+#   gpu_layers = -1 → todo en la gráfica: ~3,7 GB de vídeo, ~65 palabras/s
+gpu_layers = 1
+# Hilos del procesador para el modelo. Se dejan núcleos libres para la voz (Kokoro, 4 hilos).
+threads = 6
+context = 2048
+# Tiempo sin uso tras el cual Ollama saca el modelo de la memoria. Casi todo va en la RAM
+# (~3 GB de 32) y cargarlo de nuevo cuesta ~6 s, así que se deja todo el día.
 keep_alive = "12h"
 # {name} se reemplaza por el nombre del asistente.
 # Corto a propósito: en el procesador, el modelo relee estas instrucciones en cada turno

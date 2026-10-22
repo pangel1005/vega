@@ -77,8 +77,9 @@ def create_app(
         settings.llm.url,
         settings.llm.model,
         settings.llm.keep_alive,
-        gpu=settings.llm.gpu,
+        gpu_layers=settings.llm.gpu_layers,
         threads=settings.llm.threads,
+        context=settings.llm.context,
     )
     history = store or ConversationStore(settings.memory.path)
     memory = PersonalMemory(history)

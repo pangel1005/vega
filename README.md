@@ -46,19 +46,22 @@ Todo es local y gratuito. Uso medido en el PC del autor (RTX 4060 Ti de 8 GB, Ry
 | Para qué | Modelo | Dónde corre | Detalles |
 |---|---|---|---|
 | Entender la voz (voz → texto) | **Whisper base** ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)) | CPU | ~0,6 s por frase. Silero VAD para cortar silencios. `small` en GPU es más rápido, pero ocupa la gráfica |
-| Pensar la respuesta | **Qwen 3.5 4B** (Q4_K_M) con [Ollama](https://ollama.com) | **CPU** (~3 GB de RAM) | ~8–9 palabras/s. Primera palabra en ~3 s. Se le pasan la fecha, la hora y lo que sabe de ti |
+| Pensar la respuesta | **Qwen 3.5 4B** (Q4_K_M) con [Ollama](https://ollama.com) | Casi todo en CPU (~3 GB de RAM) y 1 capa en GPU (~700 MB) | La gráfica solo lee la pregunta: primera palabra en ~0,5 s; escribe ~10 palabras/s. Se le pasan la fecha, la hora y lo que sabe de ti |
 | Hablar (texto → voz) | **Kokoro 82M** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)) | CPU | Voces Dora, Alex y Santa (y mezclas), con acento latino. Unas 3–4 veces más rápido que el tiempo real |
 | Hablar (alternativa) | **Piper** ([rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices)) | CPU | Más robótica, pero unas 28 veces más rápida que el tiempo real |
 
 **Probado y descartado:** Qwen3-TTS 0.6B, una voz más humana. En esta gráfica iba más
 lento que el tiempo real y no cabía junto al modelo de lenguaje.
 
-**La tarjeta gráfica queda libre.** Por defecto todo corre en el procesador, para que el PC
-se use con normalidad. Desde que terminas de hablar hasta que empieza su voz pasan unos
-5–8 s; con la GPU eran ~1,6 s.
+**Ligero con la tarjeta gráfica.** Vega ocupa ~700 MB de vídeo (antes ~4 GB): el modelo va
+casi entero en el procesador y la gráfica solo lee la pregunta, que es lo que más tarda en
+la CPU. Desde que terminas de hablar hasta que empieza su voz pasan unos 3–4 s.
 
-Con `gpu = true` (modelo) y `stt_device = "cuda"` (Whisper) en `config/assistant.toml`
-vuelve a la gráfica, más rápido pero ocupando ~4 GB de vídeo.
+| Reparto (`gpu_layers` en `config/assistant.toml`) | Vídeo | Primera palabra | Escribe |
+|---|---|---|---|
+| `0`: todo en el procesador | 0 MB | ~2,3 s | ~9 palabras/s |
+| **`1`: por defecto** | **~700 MB** | **~0,5 s** | **~10 palabras/s** |
+| `-1`: todo en la gráfica | ~3,7 GB | ~0,1 s | ~65 palabras/s |
 
 ## Qué hace ahora
 

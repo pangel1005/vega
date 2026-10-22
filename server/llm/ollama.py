@@ -24,16 +24,23 @@ class OllamaChat:
         model: str,
         keep_alive: str = "10m",
         transport: httpx.AsyncBaseTransport | None = None,
-        gpu: bool = False,
+        gpu_layers: int = 1,
         threads: int = 8,
+        context: int = 2048,
     ) -> None:
         self._url = url.rstrip("/")
         self._model = model
         self._keep_alive = keep_alive
         self._transport = transport
-        # Sin GPU (por defecto): el modelo va en la RAM y lo calcula el procesador, para que la
-        # tarjeta gráfica quede libre para el resto del PC. num_gpu = 0 → ninguna capa en la GPU.
-        self._options: dict[str, int] = {} if gpu else {"num_gpu": 0, "num_thread": threads}
+        # Reparto entre la gráfica y el procesador (medido en la RTX 4060 Ti + Ryzen 7 5700X):
+        #   gpu_layers = 1 (por defecto): ~650 MB de vídeo; la gráfica solo lee la pregunta
+        #     (primera palabra en ~0,45 s) y el procesador escribe (~10 palabras/s).
+        #   gpu_layers = 0: nada en la gráfica, pero la primera palabra tarda ~2,3 s.
+        #   gpu_layers = -1: todo en la gráfica (~3,7 GB), lo más rápido.
+        # El contexto (2048) reserva menos memoria que el de serie y sobra para charlas cortas.
+        self._options: dict[str, int] = {"num_ctx": context}
+        if gpu_layers >= 0:
+            self._options |= {"num_gpu": gpu_layers, "num_thread": threads}
 
     @property
     def name(self) -> str:

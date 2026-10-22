@@ -82,6 +82,7 @@ KOKORO_MIXES = {
     "dora_calida": {"ef_dora": 0.8, "af_heart": 0.2},
 }
 KOKORO_PREFIX = "kokoro:"
+KOKORO_THREADS = 4
 SENTENCE_PAUSE = 0.32  # s de silencio tras «.», «?», «!»: sin él las frases se pisaban
 CLAUSE_PAUSE = 0.14  # tras «,», «;», «:» (la primera frase se corta en una coma)
 
@@ -117,10 +118,16 @@ class KokoroTTS:
 
     def _load(self) -> Any:
         if self._engine is None:
+            import onnxruntime as ort
             from kokoro_onnx import Kokoro
 
             start = time.perf_counter()
-            self._engine = Kokoro(str(self._model), str(self._voices_file))
+            # Hilos propios y pocos: el modelo de lenguaje escribe en el procesador a la vez, y
+            # si los dos usan todos los núcleos se estorban (la voz tardaba 2–4 s en salir).
+            options = ort.SessionOptions()
+            options.intra_op_num_threads = KOKORO_THREADS
+            session = ort.InferenceSession(str(self._model), options, providers=["CPUExecutionProvider"])
+            self._engine = Kokoro.from_session(session, str(self._voices_file))
             log.info("Kokoro listo en %.1f s", time.perf_counter() - start)
         return self._engine
 

@@ -53,5 +53,5 @@ packages = ["server"]
 
 [[tool.mypy.overrides]]
 # Librerías que no publican tipos.
-module = ["faster_whisper", "faster_whisper.*", "psutil", "pynvml", "kokoro_onnx", "piper", "piper.*"]
+module = ["faster_whisper", "faster_whisper.*", "psutil", "pynvml", "kokoro_onnx", "onnxruntime", "piper", "piper.*"]
 ignore_missing_imports = true

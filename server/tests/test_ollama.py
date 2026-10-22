@@ -37,8 +37,8 @@ def test_streams_pieces_and_disables_thinking() -> None:
     assert collect(chat) == ["Ho", "la"]
     assert seen["think"] is False and seen["stream"] is True and seen["model"] == "qwen3:8b"
     assert seen["keep_alive"] == "10m"
-    # Por defecto, nada en la tarjeta gráfica: el modelo lo calcula el procesador.
-    assert seen["options"] == {"num_gpu": 0, "num_thread": 8}
+    # Por defecto, casi nada en la gráfica (1 capa) y un contexto pequeño: poca memoria de vídeo.
+    assert seen["options"] == {"num_ctx": 2048, "num_gpu": 1, "num_thread": 8}
 
 
 def test_gpu_can_be_enabled() -> None:
@@ -48,9 +48,9 @@ def test_gpu_can_be_enabled() -> None:
         seen.update(json.loads(request.content))
         return httpx.Response(200, content=ndjson({"message": {"content": "ok"}, "done": True}))
 
-    chat = OllamaChat("http://ollama", "m", transport=httpx.MockTransport(handler), gpu=True)
+    chat = OllamaChat("http://ollama", "m", transport=httpx.MockTransport(handler), gpu_layers=-1)
     collect(chat)
-    assert seen["options"] == {}  # Ollama decide (en la GPU si cabe)
+    assert seen["options"] == {"num_ctx": 2048}  # todas las capas: Ollama las pone en la gráfica
 
 
 def test_connection_refused_is_clear_error() -> None:
