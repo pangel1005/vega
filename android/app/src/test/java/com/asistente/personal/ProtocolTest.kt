@@ -6,6 +6,7 @@ import com.asistente.personal.net.BASE_DELAY_MS
 import com.asistente.personal.net.MAX_DELAY_MS
 import com.asistente.personal.net.Protocol
 import com.asistente.personal.net.ServerEvent
+import com.asistente.personal.net.Upcoming
 import com.asistente.personal.net.Voice
 import com.asistente.personal.net.backoffDelay
 import org.junit.Assert.assertEquals
@@ -40,6 +41,28 @@ class ProtocolTest {
             ServerEvent.Reminder("timer", "¡Tiempo!"),
             Protocol.parse("""{"type":"reminder","kind":"timer","text":"¡Tiempo!"}"""),
         )
+    }
+
+    @Test fun `interpreta la telemetría del PC`() {
+        val e = Protocol.parse(
+            """{"type":"telemetry","cpu":21,"ram_used":23.6,"ram_total":31.9,"gpu_temp":62,"gpu_util":52,""" +
+                """"vram_used":7.0,"vram_total":8.0,"upcoming":[{"kind":"timer","text":"temporizador","due_in":299}]}""",
+        ) as ServerEvent.Stats
+        assertEquals(21, e.telemetry.cpu)
+        assertEquals(62, e.telemetry.gpuTemp)
+        assertEquals(listOf(Upcoming("timer", "temporizador", 299)), e.telemetry.upcoming)
+        // Sin gráfica NVIDIA: esos campos llegan vacíos.
+        val noGpu = Protocol.parse(
+            """{"type":"telemetry","cpu":3,"ram_used":1.0,"ram_total":2.0,"gpu_temp":null,"vram_used":null,"vram_total":null,"upcoming":[]}""",
+        ) as ServerEvent.Stats
+        assertNull(noGpu.telemetry.gpuTemp)
+        assertNull(noGpu.telemetry.vramTotal)
+    }
+
+    @Test fun `cuenta atrás legible`() {
+        assertEquals("04:59", com.asistente.personal.ui.countdown(299))
+        assertEquals("1:00:05", com.asistente.personal.ui.countdown(3605))
+        assertEquals("00:00", com.asistente.personal.ui.countdown(-4))
     }
 
     @Test fun `ignora lo desconocido o roto`() {

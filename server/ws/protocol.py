@@ -213,6 +213,26 @@ class ReminderEvent(_Msg):
     text: str
 
 
+class Upcoming(BaseModel):
+    kind: Literal["reminder", "timer"]
+    text: str
+    due_in: int  # segundos que faltan (el teléfono hace la cuenta atrás entre lecturas)
+
+
+class TelemetryEvent(_Msg):
+    """Cada pocos segundos: estado del PC y próximos avisos, para el panel del teléfono."""
+
+    type: Literal["telemetry"] = "telemetry"
+    cpu: int
+    ram_used: float
+    ram_total: float
+    gpu_temp: int | None = None
+    gpu_util: int | None = None
+    vram_used: float | None = None
+    vram_total: float | None = None
+    upcoming: list[Upcoming] = []
+
+
 ServerEvent = (
     Ready
     | HistoryEvent
@@ -228,4 +248,5 @@ ServerEvent = (
     | AudioEvent
     | AudioEnd
     | ReminderEvent
+    | TelemetryEvent
 )

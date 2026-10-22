@@ -115,12 +115,18 @@ fun NoticeBar(notice: Notice?, modifier: Modifier = Modifier) {
         modifier = modifier,
     ) {
         val n = notice ?: return@AnimatedVisibility
-        val c = if (n.ok) Nerv.Green else Nerv.Red
-        Box(
-            Modifier.background(Color(0xF00B0A09)).border(1.dp, c.copy(alpha = 0.6f))
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+        val c = if (n.ok) Nerv.Amber else Nerv.Red
+        val shape = remember { Chamfer(10.dp) }
+        Row(
+            Modifier.background(Color(0xF20B0A09), shape).border(1.5.dp, c.copy(alpha = 0.8f), shape)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(n.text, style = TextStyle(fontFamily = Nerv.Cond, fontSize = 17.sp, color = Nerv.Ink))
+            Box(Modifier.background(c).padding(horizontal = 6.dp, vertical = 1.dp)) {
+                Text(if (n.ok) "通知" else "警報", style = TextStyle(fontFamily = Nerv.Jp, fontSize = 15.sp, color = Color(0xFF0A0A0A)))
+            }
+            Box(Modifier.size(10.dp))
+            Text(n.text, maxLines = 2, style = TextStyle(fontFamily = Nerv.Cond, fontSize = 18.sp, lineHeight = 20.sp, color = Nerv.Ink))
         }
     }
 }

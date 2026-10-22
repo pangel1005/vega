@@ -28,6 +28,21 @@ data class DeckAction(
 
 data class Voice(val id: String, val label: String)
 
+/** Recordatorio o temporizador pendiente; `dueIn` en segundos desde que llegó la lectura. */
+data class Upcoming(val kind: String, val text: String, val dueIn: Int)
+
+/** Lectura del PC que manda el servidor cada 2 s (los campos de la gráfica faltan si no hay NVIDIA). */
+data class Telemetry(
+    val cpu: Int,
+    val ramUsed: Double,
+    val ramTotal: Double,
+    val gpuTemp: Int? = null,
+    val gpuUtil: Int? = null,
+    val vramUsed: Double? = null,
+    val vramTotal: Double? = null,
+    val upcoming: List<Upcoming> = emptyList(),
+)
+
 sealed interface ServerEvent {
     data class Ready(val assistant: String, val model: String) : ServerEvent
     data class History(val messages: List<HistoryItem>) : ServerEvent
@@ -45,6 +60,7 @@ sealed interface ServerEvent {
     data object AudioEnd : ServerEvent
     /** Ha vencido un recordatorio o un temporizador. */
     data class Reminder(val kind: String, val text: String) : ServerEvent
+    data class Stats(val telemetry: Telemetry) : ServerEvent
 }
 
 object Protocol {
@@ -92,6 +108,21 @@ object Protocol {
             "audio" -> ServerEvent.Audio(o.getInt("seq"), o.getInt("rate"), o.getString("text"))
             "audio_end" -> ServerEvent.AudioEnd
             "reminder" -> ServerEvent.Reminder(o.getString("kind"), o.getString("text"))
+            "telemetry" -> {
+                val arr = o.optJSONArray("upcoming")
+                fun optInt(k: String) = if (o.isNull(k)) null else o.getInt(k)
+                fun optDouble(k: String) = if (o.isNull(k)) null else o.getDouble(k)
+                ServerEvent.Stats(
+                    Telemetry(
+                        cpu = o.getInt("cpu"), ramUsed = o.getDouble("ram_used"), ramTotal = o.getDouble("ram_total"),
+                        gpuTemp = optInt("gpu_temp"), gpuUtil = optInt("gpu_util"),
+                        vramUsed = optDouble("vram_used"), vramTotal = optDouble("vram_total"),
+                        upcoming = List(arr?.length() ?: 0) { i ->
+                            arr!!.getJSONObject(i).let { Upcoming(it.getString("kind"), it.getString("text"), it.getInt("due_in")) }
+                        },
+                    ),
+                )
+            }
             else -> null
         }
     } catch (_: Exception) {

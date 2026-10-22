@@ -86,7 +86,11 @@ class AssistantController(context: Context) {
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
         onEvent = { event ->
             if (event is ServerEvent.Reminder) vibrate()
-            dispatch(Action.Server(event))
+            if (event is ServerEvent.Stats) {
+                dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
+            } else {
+                dispatch(Action.Server(event))
+            }
         },
         onAudio = { pcm -> player.enqueue(pcm, audioRate) },
         onAudioRate = { audioRate = it },
@@ -120,15 +124,40 @@ class AssistantController(context: Context) {
         prefs.edit().putString(KEY_TOKEN, token.trim()).apply()
     }
 
-    fun start() = socket.start()
+    private var batteryJob: kotlinx.coroutines.Job? = null
+
+    fun start() {
+        socket.start()
+        batteryJob?.cancel()
+        batteryJob = scope.launch {
+            while (true) {
+                readBattery()
+                kotlinx.coroutines.delay(30_000)
+            }
+        }
+    }
 
     fun stop() {
+        batteryJob?.cancel()
         stopMic()
         player.stop()
         socket.stop()
     }
 
     private val vibrator = context.getSystemService(android.os.Vibrator::class.java)
+    private val batteryManager = context.getSystemService(android.os.BatteryManager::class.java)
+
+    /** Batería del propio teléfono (−1 si no se sabe) y si está cargando. */
+    var battery by mutableIntStateOf(-1)
+        private set
+    var charging by mutableStateOf(false)
+        private set
+
+    private fun readBattery() {
+        val bm = batteryManager ?: return
+        battery = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 } ?: -1
+        charging = bm.isCharging
+    }
 
     /** Tres pulsos cortos: se nota aunque no estés mirando el teléfono. */
     private fun vibrate() {

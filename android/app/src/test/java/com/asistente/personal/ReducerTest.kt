@@ -69,6 +69,15 @@ class ReducerTest {
         assertNull(reduce(s, Action.ConfirmExpired("n1")).pending)
     }
 
+    @Test fun `la telemetría se guarda y se quita al perder el enlace`() {
+        val t = com.asistente.personal.net.Telemetry(cpu = 10, ramUsed = 1.0, ramTotal = 2.0)
+        var s = reduce(UiState(link = LinkStatus.OPEN), Action.Telemetry(t, at = 5_000))
+        assertEquals(t, s.telemetry)
+        assertEquals(5_000L, s.telemetryAt)
+        s = reduce(s, Action.Link(LinkStatus.RECONNECTING, 1000))
+        assertNull(s.telemetry) // sin enlace no se muestra una lectura vieja como si fuera actual
+    }
+
     @Test fun `cierra la respuesta a medias si se corta la conexión`() {
         val s = run(server(ServerEvent.Token("Medio")), Action.Link(LinkStatus.RECONNECTING, 500))
         assertFalse(s.messages.last().streaming)

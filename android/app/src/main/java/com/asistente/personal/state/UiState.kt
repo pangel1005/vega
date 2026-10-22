@@ -5,6 +5,7 @@ import com.asistente.personal.net.DeckAction
 import com.asistente.personal.net.Voice
 import com.asistente.personal.net.LinkStatus
 import com.asistente.personal.net.ServerEvent
+import com.asistente.personal.net.Telemetry
 import java.util.Locale
 
 /** Estado de la pantalla a partir de los eventos del servidor (igual que ui/src/chat/reducer.ts). */
@@ -40,6 +41,10 @@ data class UiState(
     val nextId: Int = 1,
     /** Cuenta de trozos recibidos: mueve la boca mientras llega la respuesta. */
     val tokenPulse: Int = 0,
+    /** Última lectura del PC (null hasta la primera, o sin enlace). */
+    val telemetry: Telemetry? = null,
+    /** Cuándo llegó (reloj del teléfono, ms): con ella se cuentan atrás los temporizadores. */
+    val telemetryAt: Long = 0,
 )
 
 sealed interface Action {
@@ -49,6 +54,7 @@ sealed interface Action {
     data class LocalError(val text: String) : Action
     data class ConfirmExpired(val nonce: String) : Action
     data class NoticeExpired(val seq: Int) : Action
+    data class Telemetry(val data: com.asistente.personal.net.Telemetry, val at: Long) : Action
 }
 
 private fun UiState.notify(text: String, ok: Boolean) = copy(notice = Notice((notice?.seq ?: 0) + 1, text, ok))
@@ -66,7 +72,11 @@ private fun UiState.replaceLast(m: Message) = copy(messages = messages.dropLast(
 
 fun reduce(s: UiState, action: Action): UiState = when (action) {
     is Action.Link -> {
-        val next = s.copy(link = action.status, retryInMs = action.retryInMs)
+        // Sin enlace, la lectura del PC deja de ser verdad: se quita en vez de mostrarla congelada.
+        val next = s.copy(
+            link = action.status, retryInMs = action.retryInMs,
+            telemetry = if (action.status == LinkStatus.OPEN) s.telemetry else null,
+        )
         val open = next.lastStreaming()
         // Si se corta a mitad de una respuesta, se cierra lo que había llegado.
         if (action.status == LinkStatus.OPEN || open == null) next else next.replaceLast(open.copy(streaming = false))
@@ -75,6 +85,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
     is Action.LocalError -> s.push(Role.ERROR, action.text).notify(action.text, ok = false)
     is Action.ConfirmExpired -> if (s.pending?.nonce == action.nonce) s.copy(pending = null) else s
     is Action.NoticeExpired -> if (s.notice?.seq == action.seq) s.copy(notice = null) else s
+    is Action.Telemetry -> s.copy(telemetry = action.data, telemetryAt = action.at)
     is Action.Server -> when (val e = action.event) {
         is ServerEvent.Ready -> s.copy(assistant = e.assistant, model = e.model)
         is ServerEvent.History -> e.messages.fold(s.copy(messages = emptyList())) { acc, m ->
@@ -106,5 +117,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         // La voz la gestiona el reproductor; el estado de la pantalla no cambia.
         is ServerEvent.Audio, ServerEvent.AudioEnd -> s
         is ServerEvent.Reminder -> s.push(Role.NOTE, e.text).notify(e.text, ok = true)
+        // Llega sin hora local; AssistantController la reenvía como Action.Telemetry con la hora.
+        is ServerEvent.Stats -> s.copy(telemetry = e.telemetry)
     }
 }

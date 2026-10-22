@@ -33,6 +33,14 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests {
+            // Las pruebas de captura dibujan la pantalla en el PC (Robolectric) con las fuentes reales.
+            isIncludeAndroidResources = true
+            all { it.systemProperty("roborazzi.test.record", "true") }
+        }
+    }
 }
 
 kotlin {
@@ -50,4 +58,10 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // org.json real para las pruebas locales (el de Android es solo un esqueleto fuera del teléfono).
     testImplementation("org.json:json:20250517")
+    // Capturas de pantalla en el PC (sin teléfono): ver el diseño antes de instalarlo.
+    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.77.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.77.0")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

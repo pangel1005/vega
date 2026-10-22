@@ -191,6 +191,8 @@ fun Face(state: AssistantState, pulse: Int, pulseAmount: Float, modifier: Modifi
                 }
             },
         )
+        // Corona de voz: barras alrededor del rostro que siguen el volumen (solo mientras suena algo).
+        Canvas(Modifier.fillMaxSize()) { if (level > QUIET) drawCorona(acc, mouthTime, level) }
         // Boca: barras tipo osciloscopio.
         Canvas(Modifier.fillMaxSize()) { drawMouth(acc, mouthTime, level) }
     }
@@ -220,6 +222,29 @@ private fun hexPath(c: Offset, r: Float): Path = Path().apply {
         if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
     }
     close()
+}
+
+private const val CORONA = 60
+
+/** Barras radiales entre el marco y las marcas exteriores; más largas cuanto más fuerte suena. */
+private fun DrawScope.drawCorona(acc: Color, time: Float, level: Float) {
+    val c = center
+    val m = size.minDimension
+    val r0 = m * 0.395f
+    val width = m * 0.006f
+    for (i in 0 until CORONA) {
+        val a = i * (2 * PI.toFloat() / CORONA)
+        val wobble = abs(sin(time * 9 + i * 0.9f) * sin(time * 3.7f + i * 0.37f))
+        val len = m * 0.065f * level * (0.25f + 0.75f * wobble)
+        val dx = cos(a)
+        val dy = sin(a)
+        drawLine(
+            acc.copy(alpha = 0.35f + 0.55f * wobble),
+            Offset(c.x + r0 * dx, c.y + r0 * dy),
+            Offset(c.x + (r0 + len) * dx, c.y + (r0 + len) * dy),
+            width,
+        )
+    }
 }
 
 private fun DrawScope.drawMouth(acc: Color, time: Float, level: Float) {

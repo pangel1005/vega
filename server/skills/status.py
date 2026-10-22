@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 import psutil
 
@@ -26,6 +27,30 @@ def _gpu() -> tuple[int, float, float, int] | None:
     except Exception as exc:  # sin GPU NVIDIA o sin controlador: se omite
         log.debug("Sin datos de la GPU: %s", exc)
         return None
+
+
+@dataclass(frozen=True)
+class PcSample:
+    """Una lectura del PC para el panel de telemetría del teléfono."""
+
+    cpu: int  # %
+    ram_used: float  # GB
+    ram_total: float
+    gpu_temp: int | None = None  # °C
+    gpu_util: int | None = None  # %
+    vram_used: float | None = None  # GB
+    vram_total: float | None = None
+
+
+def sample_pc() -> PcSample:
+    """Lectura rápida (no espera): el % de procesador es desde la lectura anterior."""
+    ram = psutil.virtual_memory()
+    base = PcSample(round(psutil.cpu_percent(interval=None)), ram.used / 2**30, ram.total / 2**30)
+    gpu = _gpu()
+    if gpu is None:
+        return base
+    temp, used, total, util = gpu
+    return PcSample(base.cpu, base.ram_used, base.ram_total, temp, util, used, total)
 
 
 def _gb(value: float) -> str:

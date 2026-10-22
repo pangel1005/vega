@@ -42,6 +42,7 @@ from server.ws.protocol import (
     ServerEvent,
     State,
     StateEvent,
+    TelemetryEvent,
     TokenEvent,
     TranscriptEvent,
     VoicesEvent,
@@ -329,6 +330,9 @@ class Orchestrator:
             spoken = f"Te recuerdo: {reminder.text}."
         await self._emit(ReminderEvent(kind=reminder.kind, text=spoken))
         await self.speak(spoken)
+
+    async def send_telemetry(self, event: TelemetryEvent) -> None:
+        await self._emit(event)
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
         task = asyncio.create_task(coro)
