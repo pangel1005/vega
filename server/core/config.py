@@ -50,6 +50,8 @@ class LlmSettings(_Section):
     url: str = "http://127.0.0.1:11434"
     model: str = Field(min_length=1)
     keep_alive: str = Field(default="10m", pattern=r"^\d+[smh]$")
+    gpu: bool = False  # False: el modelo corre en el procesador y la tarjeta gráfica queda libre
+    threads: int = Field(default=8, ge=1, le=64)  # hilos del procesador si no usa la GPU
     system_prompt: str = "Eres {name}, un asistente personal. Responde en español, breve y claro."
 
 

@@ -73,7 +73,13 @@ def create_app(
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
-    model = chat_model or OllamaChat(settings.llm.url, settings.llm.model, settings.llm.keep_alive)
+    model = chat_model or OllamaChat(
+        settings.llm.url,
+        settings.llm.model,
+        settings.llm.keep_alive,
+        gpu=settings.llm.gpu,
+        threads=settings.llm.threads,
+    )
     history = store or ConversationStore(settings.memory.path)
     memory = PersonalMemory(history)
     skills = SkillRouter(memory, phone_battery=phone_battery)

@@ -45,16 +45,20 @@ Todo es local y gratuito. Uso medido en el PC del autor (RTX 4060 Ti de 8 GB, Ry
 
 | Para qué | Modelo | Dónde corre | Detalles |
 |---|---|---|---|
-| Entender la voz (voz → texto) | **Whisper small** ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)) | GPU (CUDA, int8) | Unos 0,2–0,6 s por frase. Silero VAD para cortar silencios |
-| Pensar la respuesta | **Qwen 3.5 4B** (Q4_K_M) con [Ollama](https://ollama.com) | GPU, ~3,1 GB | Respuestas de 1–2 frases. Se le pasan la fecha y la hora, y lo que sabe de ti |
+| Entender la voz (voz → texto) | **Whisper base** ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)) | CPU | ~0,6 s por frase. Silero VAD para cortar silencios. `small` en GPU es más rápido, pero ocupa la gráfica |
+| Pensar la respuesta | **Qwen 3.5 4B** (Q4_K_M) con [Ollama](https://ollama.com) | **CPU** (~3 GB de RAM) | ~8–9 palabras/s. Primera palabra en ~3 s. Se le pasan la fecha, la hora y lo que sabe de ti |
 | Hablar (texto → voz) | **Kokoro 82M** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)) | CPU | Voces Dora, Alex y Santa (y mezclas), con acento latino. Unas 3–4 veces más rápido que el tiempo real |
 | Hablar (alternativa) | **Piper** ([rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices)) | CPU | Más robótica, pero unas 28 veces más rápida que el tiempo real |
 
 **Probado y descartado:** Qwen3-TTS 0.6B, una voz más humana. En esta gráfica iba más
 lento que el tiempo real y no cabía junto al modelo de lenguaje.
 
-**Tiempo de respuesta medido:** desde que terminas de hablar hasta que empieza su voz,
-unos 1,5–2 s.
+**La tarjeta gráfica queda libre.** Por defecto todo corre en el procesador, para que el PC
+se use con normalidad. Desde que terminas de hablar hasta que empieza su voz pasan unos
+5–8 s; con la GPU eran ~1,6 s.
+
+Con `gpu = true` (modelo) y `stt_device = "cuda"` (Whisper) en `config/assistant.toml`
+vuelve a la gráfica, más rápido pero ocupando ~4 GB de vídeo.
 
 ## Qué hace ahora
 
@@ -98,7 +102,7 @@ conversación. Tocar la cara tiene el mismo efecto.
 | Modelo más listo | `qwen3:8b` descargado; es un trueque con la memoria de la gráfica |
 | A veces adorna o pregunta de más | El modelo de 4B es pequeño. Las preguntas sobre ti se responden desde la memoria, sin el modelo |
 | 120 Hz en el teléfono | HyperOS limita a 60 Hz las apps que no conoce. La app lo pide, pero el sistema manda |
-| «Modo bolsillo» | Idea: notas y recordatorios en el teléfono sin el PC, que se sincronicen al conectar |
+| IA en el teléfono («modo bolsillo») | En estudio: que el teléfono entienda, recuerde y hable sin el PC. Plan en [docs/ia-en-el-telefono.md](docs/ia-en-el-telefono.md) |
 | Wi-Fi y coche (Bluetooth) | Aparcado: de momento, solo cable |
 | Interfaz web (`http://127.0.0.1:8000`) | Antigua: chat escrito, sin panel de botones |
 | Otros equipos (Raspberry Pi, otros Android) | Objetivo a largo plazo: que funcione en equipos modestos |

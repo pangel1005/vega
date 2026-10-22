@@ -13,36 +13,34 @@ port = 8000
 
 [llm]
 url = "http://127.0.0.1:11434"
-# Modelo pequeño a propósito: ~2,9 GB de memoria de vídeo, para no acaparar la GPU.
-# Alternativa más capaz pero más pesada (~5,2 GB): "qwen3:8b".
+# Modelo pequeño a propósito (~3 GB). Alternativa más capaz pero más pesada (~5,2 GB): "qwen3:8b".
 model = "qwen3.5:4b"
-# Tiempo sin uso tras el cual Ollama saca el modelo de la GPU y la deja libre.
-# Con la escucha continua («Vega, …») no se puede precargar mientras hablas, así que se
-# deja más tiempo: si lo usas a menudo responde al instante (~2,9 GB de VRAM ocupados).
-# Si prefieres liberar la GPU antes, baja este valor (la primera respuesta tardará ~5 s).
-keep_alive = "30m"
+# false (por defecto): el modelo corre en el PROCESADOR y la tarjeta gráfica queda libre para
+# usar el PC con normalidad (juegos, vídeo…). Medido en el Ryzen 7 5700X: ~8–9 palabras/s y
+# la primera palabra en ~0,5 s. true: en la GPU (más rápido, pero ocupa ~3 GB de vídeo).
+gpu = false
+threads = 8
+# Tiempo sin uso tras el cual Ollama saca el modelo de la memoria. En el procesador ocupa
+# ~3 GB de RAM (de 32) y cargarlo de nuevo cuesta 10–20 s, así que se deja todo el día.
+keep_alive = "12h"
 # {name} se reemplaza por el nombre del asistente.
+# Corto a propósito: en el procesador, el modelo relee estas instrucciones en cada turno
+# (Qwen 3.5 no puede reaprovecharlas), y cada línea de más retrasa la primera palabra.
 system_prompt = """
-Tu nombre es {name}. Eres un asistente personal de voz que corre en el PC del usuario.
-Hablas siempre en primera persona («yo», «puedo», «te recuerdo») y nunca hablas de ti en tercera persona.
-El usuario NO se llama {name}: {name} eres tú. Nunca le llames {name} ni uses ese nombre para dirigirte a él.
-Responde siempre en español y MUY breve: una o dos frases cortas (unas 25 palabras), como en una conversación hablada. Solo das más detalle si te lo piden.
-No termines con preguntas de cortesía («¿quieres saber más?», «¿algo más?»): responde y para.
-No uses listas, tablas, emojis ni formato Markdown: tus respuestas se leerán en voz alta.
-Al final de estas instrucciones tienes la fecha y la hora actuales: úsalas si te preguntan por el día o la hora.
-No tienes acceso a internet ni al tiempo (clima): si te piden algo así, dilo con sinceridad en una frase.
-Los botones del panel (apagar, grabar, volumen, abrir apps…) los ejecuta el sistema, no tú: no digas que has hecho algo que no has hecho.
+Eres {name}, asistente de voz del usuario (él no se llama {name}). Habla en primera persona y en español.
+Responde MUY breve: una o dos frases cortas, sin preguntas de cortesía al final, sin listas, emojis ni Markdown (se leerá en voz alta).
+Usa la fecha y hora que se te dan. No tienes internet ni clima: dilo si te lo piden.
+Los botones (apagar, volumen, abrir apps…) los ejecuta el sistema, no tú: no digas que hiciste algo que no hiciste.
 """
 
 [speech]
-# Voz a texto (faster-whisper). Medido en la RTX 4060 Ti con frases de ~4 s:
-#   small en GPU: ~0,2–0,3 s y ~0,5 GB de VRAM  ← por defecto, ligero
-#   large-v3-turbo en GPU: ~0,25–0,3 s y ~1,1 GB de VRAM, más preciso
-#   small en CPU: ~2 s (sin GPU funciona, pero más lento)
-# Si la GPU no está disponible, se usa la CPU automáticamente.
-stt_model = "small"
-stt_device = "cuda"
-stt_compute = "int8_float16"
+# Voz a texto (faster-whisper). Medido con frases de ~3 s:
+#   base en CPU: ~0,6 s y sin tarjeta gráfica  ← por defecto: la GPU queda libre
+#   small en CPU: ~1,5 s, algo más preciso
+#   small en GPU ("cuda", "int8_float16"): ~0,2–0,3 s, pero ocupa ~1 GB de vídeo
+stt_model = "base"
+stt_device = "cpu"
+stt_compute = "int8"
 # Máximo de una grabación, en segundos.
 max_seconds = 30
 

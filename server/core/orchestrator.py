@@ -53,7 +53,9 @@ log = logging.getLogger(__name__)
 Emit = Callable[[ServerEvent], Awaitable[None]]
 
 # Mensajes (usuario + asistente) que se envían al modelo como contexto.
-MAX_HISTORY = 20
+# Mensajes anteriores que se le pasan al modelo. Pocos a propósito: en el procesador, cada
+# mensaje de más es tiempo de lectura antes de la primera palabra.
+MAX_HISTORY = 4  # las dos últimas preguntas y respuestas
 # Tras decir solo «Vega» (o tocar el rostro), tiempo para decir la orden sin repetir el nombre.
 FOLLOWUP_SECONDS = 8.0
 # Al detectar voz se precarga el modelo de lenguaje, como mucho una vez por este intervalo.
@@ -440,14 +442,19 @@ class Orchestrator:
         question = ChatMessage("user", text)
         conversation = await asyncio.to_thread(self._store.latest_conversation)
         previous = await asyncio.to_thread(self._store.recent, conversation, MAX_HISTORY)
-        # El modelo no tiene reloj: en cada pregunta se le da la fecha y hora del PC.
-        extra = [self._now_context()]
+        # Orden pensado para que el modelo reutilice lo ya leído en el turno anterior (caché de
+        # Ollama): primero lo que casi no cambia (instrucciones y lo que sabe de ti), luego el
+        # historial y, al final, la fecha y hora (cambian cada minuto). Con la hora dentro de las
+        # instrucciones, en el procesador releía todo en cada turno: 7–17 s hasta la primera palabra.
+        extra = []
         if self._memory is not None:
             known = await asyncio.to_thread(self._memory.prompt_context)
             if known:
                 extra.append(known)
         system = ChatMessage("system", "\n".join([self._system.content, *extra]))
-        context = [system, *(m.as_chat() for m in previous), question]
+        # El modelo no tiene reloj: en cada pregunta se le da la fecha y hora del PC.
+        now = ChatMessage("system", self._now_context())
+        context = [system, *(m.as_chat() for m in previous), now, question]
         await self._set_state(State.THINKING)
 
         start = time.perf_counter()

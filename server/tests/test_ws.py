@@ -73,7 +73,8 @@ def test_chat_streams_tokens_and_states() -> None:
         {"type": "done", "text": "Hola, ¿qué tal?"},
     ]
     sent = model.calls[0]
-    assert sent[0].role == "system" and sent[0].content.startswith("Eres Prueba.\nFecha y hora actuales")
+    assert sent[0].role == "system" and sent[0].content.startswith("Eres Prueba.")
+    assert sent[-2].role == "system" and sent[-2].content.startswith("Fecha y hora actuales")
     assert sent[-1].content == "hola"
 
 
@@ -84,8 +85,9 @@ def test_history_is_sent_on_next_turn() -> None:
         chat(ws, "primera")
         chat(ws, "segunda")
 
-    contents = [(m.role, m.content) for m in model.calls[1]]
-    assert contents[1:] == [("user", "primera"), ("assistant", "respuesta"), ("user", "segunda")]
+    # Solo el diálogo (sin los mensajes de sistema: instrucciones y fecha).
+    contents = [(m.role, m.content) for m in model.calls[1] if m.role != "system"]
+    assert contents == [("user", "primera"), ("assistant", "respuesta"), ("user", "segunda")]
 
 
 def test_history_survives_restart(tmp_path: Path) -> None:
@@ -103,7 +105,7 @@ def test_history_survives_restart(tmp_path: Path) -> None:
             {"role": "assistant", "content": "Encantada, Pablo."},
         ]
         chat(ws, "¿Cómo me llamo?")
-    assert [m.content for m in model.calls[0][1:]] == [
+    assert [m.content for m in model.calls[0] if m.role != "system"] == [
         "Me llamo Pablo",
         "Encantada, Pablo.",
         "¿Cómo me llamo?",
@@ -118,7 +120,7 @@ def test_reset_starts_empty_conversation() -> None:
         ws.send_json({"type": "reset"})
         assert ws.receive_json() == {"type": "history", "messages": []}
         chat(ws, "algo nuevo")
-    assert [m.content for m in model.calls[-1][1:]] == ["algo nuevo"]
+    assert [m.content for m in model.calls[-1] if m.role != "system"] == ["algo nuevo"]
 
 
 def test_llm_down_gives_clear_error_and_recovers() -> None:

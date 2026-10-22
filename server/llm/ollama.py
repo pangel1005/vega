@@ -12,7 +12,8 @@ from server.llm.base import ChatMessage, LlmUnavailable
 
 log = logging.getLogger(__name__)
 
-# La primera respuesta tras arrancar puede tardar: Ollama tiene que cargar el modelo en la GPU.
+# La primera respuesta tras arrancar puede tardar: Ollama tiene que cargar el modelo (de 10 a
+# 20 s en la CPU; luego se queda en memoria el tiempo de `keep_alive`).
 _TIMEOUT = httpx.Timeout(connect=3.0, read=120.0, write=10.0, pool=5.0)
 
 
@@ -23,22 +24,28 @@ class OllamaChat:
         model: str,
         keep_alive: str = "10m",
         transport: httpx.AsyncBaseTransport | None = None,
+        gpu: bool = False,
+        threads: int = 8,
     ) -> None:
         self._url = url.rstrip("/")
         self._model = model
         self._keep_alive = keep_alive
         self._transport = transport
+        # Sin GPU (por defecto): el modelo va en la RAM y lo calcula el procesador, para que la
+        # tarjeta gráfica quede libre para el resto del PC. num_gpu = 0 → ninguna capa en la GPU.
+        self._options: dict[str, int] = {} if gpu else {"num_gpu": 0, "num_thread": threads}
 
     @property
     def name(self) -> str:
         return self._model
 
     async def preload(self) -> None:
-        # Una petición sin texto solo carga el modelo en la GPU (o renueva su keep_alive).
+        # Una petición sin texto solo carga el modelo en memoria (o renueva su keep_alive).
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT, transport=self._transport) as client:
                 await client.post(
-                    f"{self._url}/api/generate", json={"model": self._model, "keep_alive": self._keep_alive}
+                    f"{self._url}/api/generate",
+                    json={"model": self._model, "keep_alive": self._keep_alive, "options": self._options},
                 )
         except httpx.HTTPError as exc:
             log.debug("No se pudo precargar el modelo: %s", exc)
@@ -50,8 +57,9 @@ class OllamaChat:
             "stream": True,
             # En voz no queremos que el modelo «piense en voz alta»: retrasa la primera palabra.
             "think": False,
-            # Pasado este tiempo sin uso, Ollama libera la memoria de vídeo.
+            # Pasado este tiempo sin uso, Ollama libera la memoria.
             "keep_alive": self._keep_alive,
+            "options": self._options,
         }
         try:
             async with (

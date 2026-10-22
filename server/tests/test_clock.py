@@ -28,5 +28,7 @@ def test_model_receives_current_date() -> None:
         model, "Eres Vega.", ConversationStore(":memory:"), emit, now_context=lambda: "Fecha: HOY-PRUEBA."
     )
     asyncio.run(orch.handle_text("¿Qué día es?"))
-    system = model.calls[0][0]
-    assert system.role == "system" and system.content == "Eres Vega.\nFecha: HOY-PRUEBA."
+    sent = model.calls[0]
+    assert sent[0].role == "system" and sent[0].content == "Eres Vega."
+    # La fecha va justo antes de la pregunta (así lo anterior se reaprovecha entre turnos).
+    assert sent[-2].role == "system" and sent[-2].content == "Fecha: HOY-PRUEBA."
