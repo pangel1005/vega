@@ -97,7 +97,7 @@ class AssistantController(context: Context) {
         onStatus = { status, retry ->
             dispatch(Action.Link(status, retry))
             syncMic()
-            if (status == LinkStatus.OPEN) scope.launch { updateAvailable = updater.newerVersion() != null }
+            if (status == LinkStatus.OPEN) watchUpdates() else updateJob?.cancel()
         },
     )
 
@@ -142,6 +142,22 @@ class AssistantController(context: Context) {
         stopMic()
         player.stop()
         socket.stop()
+    }
+
+    private var updateJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Mira si el PC tiene una versión nueva al conectar y luego cada minuto (antes solo al
+     * conectar: una versión compilada después no aparecía hasta reconectar el cable).
+     */
+    private fun watchUpdates() {
+        updateJob?.cancel()
+        updateJob = scope.launch {
+            while (true) {
+                updateAvailable = updater.newerVersion() != null
+                kotlinx.coroutines.delay(60_000)
+            }
+        }
     }
 
     private val vibrator = context.getSystemService(android.os.Vibrator::class.java)

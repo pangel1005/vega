@@ -5,6 +5,10 @@
 $server = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
 if ($server) {
     Stop-Process -Id $server.OwningProcess -Force
+    # Espera a que el puerto quede libre: si no, un start.ps1 justo después creía que seguía en marcha.
+    for ($i = 0; $i -lt 50 -and (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue); $i++) {
+        Start-Sleep -Milliseconds 200
+    }
     Write-Host 'Servidor detenido.' -ForegroundColor Green
 } else {
     Write-Host 'El servidor no estaba en marcha.'
