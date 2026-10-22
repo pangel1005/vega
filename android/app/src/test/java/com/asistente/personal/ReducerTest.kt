@@ -78,6 +78,26 @@ class ReducerTest {
         assertNull(s.telemetry) // sin enlace no se muestra una lectura vieja como si fuera actual
     }
 
+    @Test fun `apagar el PC hace que Vega se duerma y el enlace la despierta`() {
+        val apagar = DeckAction("apagar", "Apagar PC", "", "power", "red", true, power = "shutdown")
+        val cancelar = DeckAction("cancelar", "Cancelar apagado", "", "cancel", "green", false, power = "cancel")
+        val volumen = DeckAction("vol", "Volumen +", "", "volume-up", "orange", false)
+        var s = UiState(link = LinkStatus.OPEN, actions = listOf(apagar, cancelar, volumen))
+        s = reduce(s, Action.Server(ServerEvent.ActionResult("vol", true, "hecho")))
+        assertNull(s.pcOff)
+        s = reduce(s, Action.Server(ServerEvent.ActionResult("apagar", false, "falló")))
+        assertNull(s.pcOff) // si falló, el PC sigue encendido
+        s = reduce(s, Action.Server(ServerEvent.ActionResult("apagar", true, "El PC se apagará en 15 s")))
+        assertEquals("shutdown", s.pcOff)
+        s = reduce(s, Action.Server(ServerEvent.ActionResult("cancelar", true, "Cancelado")))
+        assertNull(s.pcOff)
+        s = reduce(s, Action.Server(ServerEvent.ActionResult("apagar", true, "El PC se apagará en 15 s")))
+        s = reduce(s, Action.Link(LinkStatus.RECONNECTING, 1000))
+        assertEquals("shutdown", s.pcOff) // sigue dormida mientras no hay enlace
+        s = reduce(s, Action.Link(LinkStatus.OPEN))
+        assertNull(s.pcOff) // el PC volvió: se despierta
+    }
+
     @Test fun `cierra la respuesta a medias si se corta la conexión`() {
         val s = run(server(ServerEvent.Token("Medio")), Action.Link(LinkStatus.RECONNECTING, 500))
         assertFalse(s.messages.last().streaming)

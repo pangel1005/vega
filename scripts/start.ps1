@@ -14,6 +14,13 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+# En segundo plano (p. ej. al arrancar Windows) no hay ventana: todo queda en logs\arranque.log.
+# Antes, si algo fallaba al encender el PC, se cerraba sin dejar rastro y Vega no volvía.
+if ($Hidden) {
+    New-Item -ItemType Directory -Force "$root\logs" | Out-Null
+    Start-Transcript -Path "$root\logs\arranque.log" -Append | Out-Null
+}
+
 function Say($text, $color = 'Gray') { Write-Host $text -ForegroundColor $color }
 
 # El PATH puede no estar al día si el usuario acaba de instalar algo.
@@ -36,11 +43,14 @@ if (-not (Test-Ollama)) {
     if (-not (Test-Path $ollama)) { throw "No encuentro Ollama en $ollama. Instálalo (README.md)." }
     Say 'Arrancando Ollama...'
     Start-Process -FilePath $ollama -WindowStyle Hidden
+    # Al encender el PC el disco va cargado y Ollama puede tardar más de un minuto.
     $ok = $false
-    for ($i = 0; $i -lt 30 -and -not $ok; $i++) { Start-Sleep 1; $ok = Test-Ollama }
-    if (-not $ok) { throw 'Ollama no responde tras 30 s.' }
+    for ($i = 0; $i -lt 120 -and -not $ok; $i++) { Start-Sleep 1; $ok = Test-Ollama }
+    if ($ok) { Say 'Ollama listo.' 'Green' }
+    else { Say 'Aviso: Ollama aún no responde; arranco Vega igual (contestará cuando Ollama esté listo).' 'Yellow' }
+} else {
+    Say 'Ollama listo.' 'Green'
 }
-Say 'Ollama listo.' 'Green'
 
 # --- 2. Interfaz web ---
 if (-not (Test-Path "$root\web\dist\index.html")) {
@@ -60,11 +70,14 @@ if (-not (Test-Path "$root\web\dist\index.html")) {
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw 'No encuentro uv. Instálalo (README.md).' }
 if ($Hidden) {
     Start-Process -FilePath uv -ArgumentList 'run', 'python', '-m', 'server' -WorkingDirectory $root -WindowStyle Hidden
-    for ($i = 0; $i -lt 60; $i++) {
+    $up = $false
+    for ($i = 0; $i -lt 90 -and -not $up; $i++) {
         Start-Sleep 1
-        try { Invoke-RestMethod 'http://127.0.0.1:8000/health' -TimeoutSec 2 | Out-Null; break } catch { }
+        try { Invoke-RestMethod 'http://127.0.0.1:8000/health' -TimeoutSec 2 | Out-Null; $up = $true } catch { }
     }
-    Say 'Asistente en marcha en segundo plano. Registros: logs\server.log  ·  Parar: scripts\stop.ps1' 'Green'
+    if ($up) { Say 'Asistente en marcha en segundo plano. Registros: logs\server.log  ·  Parar: scripts\stop.ps1' 'Green' }
+    else { Say 'El servidor no respondió en 90 s: mira logs\server.log.' 'Red' }
+    Stop-Transcript | Out-Null
 } else {
     $Host.UI.RawUI.WindowTitle = 'Asistente (cierra esta ventana para pararlo)'
     Say 'Arrancando el servidor. Conecta el teléfono por USB: se enlazará solo.' 'Green'

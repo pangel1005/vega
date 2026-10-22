@@ -26,6 +26,8 @@ data class DeckAction(
     val quick: Boolean = false,
     /** Es una app con icono propio en /app/icons/<id>.png. */
     val appIcon: Boolean = false,
+    /** Botones de energía: shutdown, restart, sleep, lock o cancel (vacío en los demás). */
+    val power: String = "",
 )
 
 data class Voice(val id: String, val label: String)
@@ -92,7 +94,7 @@ object Protocol {
                     DeckAction(
                         a.getString("id"), a.getString("label"), a.optString("jp"),
                         a.optString("icon", "app"), a.optString("color", "orange"), a.optBoolean("confirm"),
-                        a.optBoolean("quick"), a.optBoolean("app_icon"),
+                        a.optBoolean("quick"), a.optBoolean("app_icon"), a.optString("power"),
                     )
                 })
             }

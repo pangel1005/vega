@@ -48,6 +48,11 @@ data class UiState(
     val telemetry: Telemetry? = null,
     /** Cuándo llegó (reloj del teléfono, ms): con ella se cuentan atrás los temporizadores. */
     val telemetryAt: Long = 0,
+    /**
+     * Se mandó apagar, reiniciar o suspender el PC (shutdown/restart/sleep): al perder el
+     * enlace, Vega se duerme en vez de mostrar «reconectando». Se borra al volver el enlace.
+     */
+    val pcOff: String? = null,
 )
 
 sealed interface Action {
@@ -80,6 +85,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         val next = s.copy(
             link = action.status, retryInMs = action.retryInMs,
             telemetry = if (action.status == LinkStatus.OPEN) s.telemetry else null,
+            pcOff = if (action.status == LinkStatus.OPEN) null else s.pcOff,
         )
         val open = next.lastStreaming()
         // Si se corta a mitad de una respuesta, se cierra lo que había llegado.
@@ -116,7 +122,16 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         is ServerEvent.Error -> s.push(Role.ERROR, e.message).notify(e.message, ok = false)
         is ServerEvent.Actions -> s.copy(actions = e.items)
         is ServerEvent.Confirm -> s.copy(pending = PendingConfirm(e.id, e.nonce, e.message, e.expiresIn))
-        is ServerEvent.ActionResult -> s.copy(pending = null).notify(e.message, e.ok)
+        is ServerEvent.ActionResult -> {
+            val power = s.actions.firstOrNull { it.id == e.id }?.power.orEmpty()
+            val pcOff = when {
+                !e.ok -> s.pcOff
+                power in setOf("shutdown", "restart", "sleep") -> power
+                power == "cancel" -> null
+                else -> s.pcOff
+            }
+            s.copy(pending = null, pcOff = pcOff).notify(e.message, e.ok)
+        }
         is ServerEvent.Voices -> s.copy(voices = e.items, voice = e.current)
         // La voz la gestiona el reproductor; el estado de la pantalla no cambia.
         is ServerEvent.Audio, ServerEvent.AudioEnd -> s

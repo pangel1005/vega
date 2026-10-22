@@ -98,6 +98,8 @@ class ScreenActions(
     val confirmExpired: (String) -> Unit = {},
     val noticeExpired: (Int) -> Unit = {},
     val nextFaceColor: () -> Unit = {},
+    /** Vega se duerme o se despierta: la actividad baja o devuelve el brillo de la pantalla. */
+    val sleepChanged: (Boolean) -> Unit = {},
 )
 
 /** Qué cara pone Vega según lo que está pasando de verdad. */
@@ -196,7 +198,36 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         }
     }
 
-    val mood = moodFor(m.state, ui.link, ui.pending, ui.notice, m.listening && m.micOn, m.hasToken)
+    // Vega se duerme si mandaste apagar el PC y se cortó el enlace, o si lleva 20 s sin enlace
+    // (el PC se apagó por otro lado). Así no se queda con «reconectando» toda la noche.
+    var longOffline by remember { mutableStateOf(false) }
+    LaunchedEffect(ui.link) {
+        longOffline = false
+        if (ui.link == LinkStatus.CONNECTING || ui.link == LinkStatus.RECONNECTING) {
+            delay(SLEEP_AFTER_MS)
+            longOffline = true
+        }
+    }
+    val asleep = m.hasToken && ui.link != LinkStatus.OPEN && ui.link != LinkStatus.DENIED && (ui.pcOff != null || longOffline)
+    // Al volver el PC se despierta contenta un momento.
+    var waking by remember { mutableStateOf(false) }
+    var wasAsleep by remember { mutableStateOf(false) }
+    LaunchedEffect(asleep) {
+        a.sleepChanged(asleep)
+        if (!asleep && wasAsleep) {
+            waking = true
+            delay(2500)
+            waking = false
+        }
+        wasAsleep = asleep
+    }
+    if (asleep) {
+        SleepScreen(m, modifier)
+        return
+    }
+
+    val mood = if (waking && ui.link == LinkStatus.OPEN) Mood.HAPPY
+    else moodFor(m.state, ui.link, ui.pending, ui.notice, m.listening && m.micOn, m.hasToken)
     val color = moodColor(mood, m.faceColor.color)
     Box(modifier.fillMaxSize().background(Vega.Bg)) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -298,6 +329,44 @@ private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, modifier: Modifie
             modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
         )
         Subtitle(m, Modifier.fillMaxWidth().height(42.dp).cached())
+    }
+}
+
+private const val SLEEP_AFTER_MS = 20_000L
+
+/**
+ * Vega dormida (PC apagado): cara dormida, reloj grande del teléfono (sirve de reloj de
+ * noche) y qué pasa. Se despierta sola cuando el PC vuelve a contestar.
+ */
+@Composable
+private fun SleepScreen(m: ScreenModel, modifier: Modifier = Modifier) {
+    val message = when (m.ui.pcOff) {
+        "restart" -> "El PC se está reiniciando · vuelvo enseguida"
+        "sleep" -> "El PC está en suspensión · me despierto cuando lo despiertes"
+        else -> "El PC está apagado · me despierto cuando lo enciendas"
+    }
+    Row(
+        modifier.fillMaxSize().background(Vega.Bg).safeDrawingPadding().padding(horizontal = 28.dp, vertical = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LedFaceView(
+            mood = Mood.SLEEP, pulse = 0, pulseAmount = 0f, color = Color(0xFF6E6760),
+            notice = null, noticeKey = 0, modifier = Modifier.weight(1f).fillMaxHeight(0.7f),
+        )
+        Spacer(Modifier.width(28.dp))
+        Column(Modifier.width(250.dp)) {
+            Text(m.clock, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 64.sp, lineHeight = 64.sp, color = Color(0xFF8A847C)))
+            Text(m.date, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink3))
+            Spacer(Modifier.height(18.dp))
+            Text(message, style = Vega.body.copy(fontSize = 15.sp, lineHeight = 19.sp, color = Vega.Ink2))
+            if (m.battery >= 0) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Teléfono ${m.battery} %" + if (m.charging) " · cargando" else "",
+                    style = Vega.label.copy(color = if (m.battery <= 15 && !m.charging) Vega.Red else Vega.Ink3),
+                )
+            }
+        }
     }
 }
 

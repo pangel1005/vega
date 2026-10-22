@@ -141,6 +141,13 @@ class ScreenshotTest {
         return mapOf("spotify" to circle(0xFF1ED760.toInt()), "discord" to circle(0xFF5865F2.toInt()))
     }
 
+    // PC apagado desde Vega: se duerme (reloj de noche) en vez de «reconectando».
+    @Test fun dormida_pc_apagado() = shot(
+        "15_dormida",
+        model(base.copy(link = LinkStatus.RECONNECTING, retryInMs = 3000, telemetry = null, pcOff = "shutdown"), AssistantState.IDLE),
+        afterMs = 1500,
+    )
+
     @Test fun hoja_mas_colores() {
         compose.mainClock.autoAdvance = false
         compose.setContent { VegaScreen(model(base).copy(faceColor = com.asistente.personal.ui.FaceColor.RAINBOW, icons = fakeIcons()), ScreenActions()) }

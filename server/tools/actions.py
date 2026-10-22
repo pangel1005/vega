@@ -81,6 +81,8 @@ class ActionDef(BaseModel):
             "quick": self.quick,
             # Las apps tienen icono propio en /app/icons/<id>.png (si el PC lo puede sacar del .exe).
             "app_icon": self.kind == "launch",
+            # shutdown/restart/sleep/lock/cancel: la app sabe que el PC se va a apagar y Vega «se duerme».
+            "power": self.arg if self.kind == "power" else "",
         }
 
 

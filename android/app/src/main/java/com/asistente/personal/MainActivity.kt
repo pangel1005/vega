@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
 
         controller = AssistantController(applicationContext)
         takeToken(intent)
-        setContent { AssistantScreen(controller, ::openAndroid) }
+        setContent { AssistantScreen(controller, ::openAndroid, ::dimScreen) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -102,6 +102,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Con Vega dormida (PC apagado) la pantalla baja casi al mínimo; al despertar, vuelve a la normal. */
+    private fun dimScreen(dim: Boolean) {
+        window.attributes = window.attributes.apply {
+            screenBrightness = if (dim) 0.02f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        }
+    }
+
     private fun takeToken(intent: Intent?): Boolean {
         val token = intent?.getStringExtra("token")?.takeIf { it.isNotBlank() } ?: return false
         controller.saveToken(token)
@@ -125,7 +132,7 @@ class MainActivity : ComponentActivity() {
 
 /** Une el controlador (estado vivo) con la pantalla, que no sabe nada de él. */
 @Composable
-private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit) {
+private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sleepChanged: (Boolean) -> Unit) {
     val ui = c.ui
     val clock by produceState("" to "") {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -153,6 +160,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit) {
             confirmExpired = c::confirmExpired,
             noticeExpired = c::noticeExpired,
             nextFaceColor = c::nextFaceColor,
+            sleepChanged = sleepChanged,
         )
     }
     VegaScreen(
