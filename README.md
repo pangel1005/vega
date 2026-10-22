@@ -1,132 +1,201 @@
-# Vega — asistente personal de voz, local
+# Vega — asistente personal de voz, 100 % local
 
-Un asistente al que le hablas («Vega, …») y que también funciona como un panel de
-botones (apagar el PC, grabar, música, abrir apps). Todo corre **en tu PC**, sin
-servicios de pago ni internet. Un teléfono Android conectado por **cable USB** hace
-de «cuerpo»: rostro animado, micrófono, altavoz y botones.
+Vega es un asistente al que le hablas («Vega, …») y que a la vez es una **botonera**
+(apagar el PC, música, abrir apps, grabar…), como una mezcla de Alexa y Stream Deck.
 
-> El nombre «Vega» sale de `config/assistant.toml`; se puede cambiar ahí.
+- **El cerebro está en tu PC.** Entiende la voz, piensa la respuesta y habla con modelos
+  de IA que corren en tu propio equipo: sin servicios de pago, sin nube y sin internet.
+- **El cuerpo es un teléfono Android** conectado por **cable USB**. Pone la cara de LED,
+  el micrófono, el altavoz y las teclas.
+
+> **Prototipo personal en evolución.** Funciona y se usa a diario, pero espera fallos.
+> El nombre «Vega» se cambia en `config/assistant.toml`.
+
+![Pantalla de Vega](docs/capturas/pantalla.png)
+
+## Cómo funciona
 
 ```
- Teléfono (app Android)        cable USB         PC con Windows
- rostro · micrófono · voz  ◄── adb reverse ──►  servidor (127.0.0.1:8000)
- panal de botones                                ├─ Whisper (voz → texto, GPU)
-                                                 ├─ Ollama qwen3.5:4b (respuestas, GPU)
-                                                 ├─ Kokoro / Piper (texto → voz, CPU)
-                                                 ├─ botones de Windows (con permisos)
-                                                 └─ historial (SQLite)
+ Teléfono Android (app nativa)          cable USB            PC con Windows
+ ┌───────────────────────────┐      (adb reverse)      ┌──────────────────────────────────┐
+ │ cara de LED 48×20         │ ◄────────────────────► │ servidor Python (127.0.0.1:8000)  │
+ │ micrófono continuo 16 kHz │   WebSocket: eventos   │  ├─ oye: Whisper (GPU)            │
+ │ altavoz (voz de Vega)     │   JSON + audio PCM     │  ├─ piensa: Qwen 3.5 4B (Ollama)  │
+ │ teclas + hoja «Más»       │                        │  ├─ habla: Kokoro / Piper (CPU)   │
+ └───────────────────────────┘                        │  ├─ habilidades sin IA            │
+                                                      │  ├─ botones de Windows            │
+                                                      │  └─ memoria (SQLite)              │
+                                                      └──────────────────────────────────┘
 ```
 
-## Estado
+1. El teléfono manda el micrófono al PC todo el rato. El PC detecta cuándo empieza y
+   acaba una frase y la pasa a texto.
+2. Si la frase empieza por «Vega» (o acabas de hablar con ella), la atiende.
+   - Primero prueba las **habilidades**: memoria, recordatorios, notas y estado del PC.
+     Son rápidas, fiables y no usan la gráfica.
+   - Después, las **frases de los botones** («apaga el PC»).
+   - Lo demás va al **modelo de lenguaje**.
+3. La respuesta se va convirtiendo en voz frase a frase y suena en el teléfono mientras
+   se sigue generando. La cara mueve la boca con el volumen.
 
-| Parte | Estado |
+## Modelos de IA que usa
+
+Todo es local y gratuito. Uso medido en el PC del autor (RTX 4060 Ti de 8 GB, Ryzen 7
+5700X, 32 GB de RAM).
+
+| Para qué | Modelo | Dónde corre | Detalles |
+|---|---|---|---|
+| Entender la voz (voz → texto) | **Whisper small** ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)) | GPU (CUDA, int8) | Unos 0,2–0,6 s por frase. Silero VAD para cortar silencios |
+| Pensar la respuesta | **Qwen 3.5 4B** (Q4_K_M) con [Ollama](https://ollama.com) | GPU, ~3,1 GB | Respuestas de 1–2 frases. Se le pasan la fecha y la hora, y lo que sabe de ti |
+| Hablar (texto → voz) | **Kokoro 82M** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)) | CPU | Voces Dora, Alex y Santa (y mezclas), con acento latino. Unas 3–4 veces más rápido que el tiempo real |
+| Hablar (alternativa) | **Piper** ([rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices)) | CPU | Más robótica, pero unas 28 veces más rápida que el tiempo real |
+
+**Probado y descartado:** Qwen3-TTS 0.6B, una voz más humana. En esta gráfica iba más
+lento que el tiempo real y no cabía junto al modelo de lenguaje.
+
+**Tiempo de respuesta medido:** desde que terminas de hablar hasta que empieza su voz,
+unos 1,5–2 s.
+
+## Qué hace ahora
+
+| Le dices «Vega, …» | Hace |
 |---|---|
-| Escucha continua «Vega, …», respuestas habladas, botones, historial | **Funciona y está probado**, pero es un **prototipo**: úsalo, pero espera fallos |
-| Cable USB que se reconecta solo, arranque con un comando | Funciona (probado reconectando el USB) |
-| Interfaz web del PC (`http://127.0.0.1:8000`) | Más antigua: chat escrito, sin panel de botones |
-| Wi-Fi, coche | No hecho (decidido dejarlo para más adelante) |
+| «recuerda que me gusta el café sin azúcar» · «qué sabes de mí» · «olvida que…» | Memoria sobre ti; la usa también al conversar |
+| «recuérdame llamar a mamá en 20 minutos / a las 6 / mañana a las 8» | Recordatorio: lo dice en voz alta, el teléfono vibra y el texto cruza su cara. Si el teléfono estaba desconectado, avisa al conectarlo |
+| «pon un temporizador de 5 minutos» · «qué recordatorios tengo» · «cancela…» | Temporizadores y recordatorios, con cuenta atrás en pantalla |
+| «apunta comprar leche» · «lee mis notas» · «borra mis notas» | Notas |
+| «cómo está el PC» | Procesador, memoria, gráfica (temperatura y uso) y batería del teléfono |
+| «apaga el PC», «sube el volumen», «abre Spotify»… | Botones del panel (frases `say` en `config/actions.toml`) |
+| cualquier otra cosa | Conversación con el modelo de lenguaje |
+
+Después de responderte, **sigue escuchando 8 s sin que repitas «Vega»**, para seguir la
+conversación. Tocar la cara tiene el mismo efecto.
+
+**En el teléfono** (horizontal, pensado para un Redmi 15C):
+- **Cara de LED con personalidad.** Mira alrededor, parpadea, guiña y tiene manías en
+  reposo. Tiene expresiones para escuchar, pensar, hablar, contenta, dormida, error,
+  confirmar algo peligroso y sin conexión.
+- **Color de la cara elegible:** cálido, coral, cielo, menta, violeta, rosa o
+  **arcoíris**.
+- **Teclas que actúan al tocar**, sin esperar a soltar, con una vibración corta. Las
+  apps llevan **su icono real**, que el PC saca del `.exe`.
+- **Datos en vivo:** estado del PC, batería y el próximo aviso con cuenta atrás.
+- **Se actualiza sola desde el PC:** aparece el botón **Actualizar**.
+- Puede ser la **pantalla de inicio** del teléfono. El botón **Android** vuelve a
+  HyperOS.
+
+![Expresiones](docs/capturas/expresiones.png)
+
+| Arcoíris | Hoja «Más» |
+|---|---|
+| ![Cara en arcoíris](docs/capturas/arcoiris.png) | ![Todos los botones](docs/capturas/mas.png) |
+
+## En evolución / pendiente
+
+| Tema | Estado |
+|---|---|
+| Voz más humana | Kokoro con acento latino, pausas y horas bien leídas. Las voces neuronales grandes no caben hoy en 8 GB junto al modelo de lenguaje |
+| Modelo más listo | `qwen3:8b` descargado; es un trueque con la memoria de la gráfica |
+| A veces adorna o pregunta de más | El modelo de 4B es pequeño. Las preguntas sobre ti se responden desde la memoria, sin el modelo |
+| 120 Hz en el teléfono | HyperOS limita a 60 Hz las apps que no conoce. La app lo pide, pero el sistema manda |
+| «Modo bolsillo» | Idea: notas y recordatorios en el teléfono sin el PC, que se sincronicen al conectar |
+| Wi-Fi y coche (Bluetooth) | Aparcado: de momento, solo cable |
+| Interfaz web (`http://127.0.0.1:8000`) | Antigua: chat escrito, sin panel de botones |
+| Otros equipos (Raspberry Pi, otros Android) | Objetivo a largo plazo: que funcione en equipos modestos |
+
+## Estructura del proyecto
+
+```
+.
+├── server/              Cerebro (Python 3.12, FastAPI)
+│   ├── core/            Orquestador (escucha → habilidades/botones/modelo → voz), configuración, avisos
+│   ├── speech/          Whisper, Kokoro/Piper, detector de frases y palabra «Vega», texto para leer
+│   ├── llm/             Cliente de Ollama
+│   ├── skills/          Habilidades sin IA: memoria, recordatorios, notas, estado del PC
+│   ├── memory/          SQLite: historial, datos sobre ti, notas, recordatorios
+│   ├── tools/           Botones de Windows (apagar, teclas, abrir apps) e iconos de las apps
+│   ├── device/          Vigilante del cable USB (adb)
+│   ├── ws/              Protocolo y ruta WebSocket
+│   └── tests/           Pruebas (pytest)
+├── android/             App del teléfono (Kotlin + Jetpack Compose)
+│   └── app/src/main/java/com/asistente/personal/
+│       ├── ui/          Pantalla, teclas, tema «Vega · noche»
+│       │   └── led/     Cara de LED: expresiones, letras, dibujo
+│       ├── audio/       Micrófono y reproductor
+│       ├── net/         WebSocket y protocolo
+│       └── state/       Estado de la pantalla
+├── config/              assistant.toml (nombre, modelo, voz…) y actions.toml (botones)
+├── scripts/             Lo de uso diario: arrancar, parar, arranque automático, instalar la app
+├── tools/               Herramientas de desarrollo y medición (chat por consola, pruebas de voz…)
+├── web/                 Interfaz web antigua (React)
+└── docs/                Plan inicial y capturas
+```
+
+No van en git: `models/` (voces y Whisper), `data/` (tu memoria e historial), `logs/` y
+`config/token.txt`.
 
 ## Uso diario
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -Hidden   # arrancar
-powershell -ExecutionPolicy Bypass -File scripts\stop.ps1            # parar y liberar la GPU
+powershell -ExecutionPolicy Bypass -File scripts\stop.ps1            # parar y liberar la gráfica
+powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1       # arrancar con Windows (-Remove para quitarlo)
 ```
 
-Conecta el teléfono por USB: el servidor lo enlaza y abre la app solo (tarda unos
-segundos; tras reconectar el cable, hasta ~30 s).
-
-Lo que entiende sin usar el modelo de lenguaje (rápido y fiable):
-
-| Dices «Vega, …» | Hace |
-|---|---|
-| «recuerda que me gusta el café sin azúcar» · «qué sabes de mí» · «olvida que…» | Memoria sobre ti (también la usa al conversar) |
-| «cómo se llama mi perro» | Lo responde desde su memoria si lo sabe |
-| «recuérdame llamar a mamá en 20 minutos / a las 6 / mañana a las 8» | Recordatorio: lo dice en voz alta y el teléfono vibra. Si el teléfono estaba desconectado, avisa al conectarlo |
-| «qué recordatorios tengo» · «cancela los recordatorios» | Lista / cancela |
-| «pon un temporizador de 5 minutos» · «cancela el temporizador» | Temporizador |
-| «apunta comprar leche» · «lee mis notas» · «borra mis notas» | Notas |
-| «cómo está el PC» | Procesador, memoria, gráfica (temperatura y uso) y batería del teléfono |
-| «apaga el PC», «sube el volumen», «abre Spotify»… | Botones del panel (`say` en `config/actions.toml`) |
-
-Lo demás va al modelo, que conoce la fecha y la hora del PC y lo que sabe de ti.
-
-En el teléfono:
-- **Hablar**: di «Vega, …» (o toca el rostro y habla sin decir el nombre).
-- **Silenciar el micrófono**: chip **● ESCUCHANDO** de arriba.
-- **Botones**: el panal (6 favoritos) y **MÁS** (todos, y el cambio de **VOZ**).
-- **Volver a Android**: botón **ANDROID**.
-- **Actualizar la app**: cuando el PC tiene una versión nueva aparece **ACTUALIZAR**.
-
-Arrancar con Windows (activado en el PC del autor desde el 22-10-2026):
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1          # activar
-powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1 -Remove  # desactivar
-```
+Conecta el teléfono por USB. El servidor lo enlaza y abre la app solo; tras reconectar
+el cable puede tardar hasta unos 30 s.
 
 ## Configuración
 
 | Archivo | Qué se cambia |
 |---|---|
-| `config/assistant.toml` | Nombre, modelo, instrucciones, voz por defecto, Whisper, USB |
-| `config/actions.toml` | Botones: qué hacen, cuáles son favoritos (`quick`), frases de voz (`say`), cuáles piden confirmación |
+| `config/assistant.toml` | Nombre, modelo, instrucciones, voz, acento y velocidad, Whisper, USB |
+| `config/actions.toml` | Botones: qué hacen, cuáles van en la fila principal (`quick`), frases de voz (`say`) y cuáles piden confirmación |
 
-**Seguridad de los botones:** solo existe lo que está en `config/actions.toml`; el
-servidor lo comprueba siempre. Apagar, reiniciar y suspender piden confirmación (un
-toque o decir «sí»), el apagado espera 15 s y se puede cancelar, y todo queda en
-`logs/audit.log`. El servidor solo escucha en `127.0.0.1` y pide un token
-(`config/token.txt`, fuera de git).
+## Seguridad
 
-## Instalación en un PC con Windows
+- **Botones:** solo existe lo que está en `config/actions.toml`, y el servidor lo
+  comprueba siempre.
+- **Confirmación:** apagar, reiniciar y suspender piden un segundo toque o que digas
+  «sí». El apagado espera 15 s y se puede cancelar.
+- **Registro:** todo lo que se ejecuta queda en `logs/audit.log`.
+- **Solo tu PC:** el servidor solo escucha en `127.0.0.1`, pide un token
+  (`config/token.txt`, fuera de git) y rechaza nombres de dominio extraños, para frenar
+  el *DNS rebinding*.
 
-Probado en Windows 11 con una RTX 4060 Ti de 8 GB y 32 GB de RAM.
+## Instalación (Windows)
 
-1. **Herramientas** (todas gratuitas):
-   ```powershell
-   winget install astral-sh.uv Ollama.Ollama Google.PlatformTools OpenJS.NodeJS.LTS Git.Git
-   ```
-   > Si usas la app de Claude en Windows: instala Python fuera de `AppData`
-   > (`UV_PYTHON_INSTALL_DIR=%USERPROFILE%\.uv\python`), porque la app aísla lo que se
-   > crea en carpetas nuevas de `AppData`.
-2. **Modelo de lenguaje:** `ollama pull qwen3.5:4b`
-3. **Python y dependencias:** `uv sync` (instala Python 3.12 solo para el proyecto,
-   Whisper con CUDA, Piper y Kokoro).
-4. **Voces** (no van en git):
-   - Kokoro → `models/kokoro/`: `kokoro-v1.0.onnx` y `voices-v1.0.bin` de
-     <https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0>
-   - Piper (opcional) → `models/piper/`: archivos `.onnx` + `.onnx.json` de
-     <https://huggingface.co/rhasspy/piper-voices> (p. ej. `es_MX-claude-high`).
-   - Whisper se descarga solo la primera vez en `models/whisper/`.
-5. **Arrancar una vez** (`scripts\start.ps1`) para crear `config/token.txt`.
-
-### La app del teléfono
-
-1. En el teléfono: **Ajustes → Sobre el teléfono** → toca 7 veces la versión del
-   sistema → **Opciones de desarrollador → Depuración USB**. Conecta el cable y acepta
-   «Permitir siempre».
-2. Compilar e instalar (necesita JDK 21 en `%USERPROFILE%\.jdks` y el Android SDK en
-   `%USERPROFILE%\Android\Sdk`):
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts\android-install.ps1
-   ```
-   En Xiaomi sin SIM no se puede instalar por cable («Instalar vía USB» exige SIM):
-   copia `android\app\build\outputs\apk\release\app-release.apk` al teléfono e
-   instálalo desde el gestor de archivos. Las versiones siguientes se instalan con
-   el botón **ACTUALIZAR** de la app.
-3. Opcional: `scripts\android-debloat.ps1` quita la publicidad de HyperOS
-   (reversible con `-Restore`).
+1. Herramientas (gratuitas):
+   `winget install astral-sh.uv Ollama.Ollama Google.PlatformTools OpenJS.NodeJS.LTS Git.Git`
+2. Modelo de lenguaje: `ollama pull qwen3.5:4b`
+3. Python y dependencias: `uv sync`. Instala Whisper con CUDA, Kokoro y Piper.
+4. Voces, que no van en git:
+   - Kokoro → `models/kokoro/`: `kokoro-v1.0.onnx` y `voices-v1.0.bin`, de
+     [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0).
+   - Piper (opcional) → `models/piper/`: archivos `.onnx` y `.onnx.json`.
+   - Whisper se descarga solo la primera vez.
+5. Arranca una vez (`scripts\start.ps1`) para crear `config/token.txt`.
+6. App del teléfono: activa la depuración USB y ejecuta `scripts\android-install.ps1`.
+   Necesita JDK 21 y el Android SDK.
+   - En Xiaomi sin SIM no se puede instalar por cable: copia el APK de
+     `android\app\build\outputs\apk\release\` e instálalo desde el gestor de archivos.
+   - Las versiones siguientes se instalan con **Actualizar**.
+   - Opcional: `scripts\android-debloat.ps1` quita publicidad de HyperOS (reversible
+     con `-Restore`).
 
 ## Desarrollo
 
 ```powershell
-uv run pytest            # pruebas del servidor
-uv run ruff check server; uv run mypy
-cd ui; npm test; npm run lint; npx tsc -b       # interfaz web
-cd android; .\gradlew.bat testDebugUnitTest assembleRelease   # app (JAVA_HOME = JDK 21)
+uv run pytest; uv run ruff check server; uv run mypy        # servidor
+cd android; .\gradlew.bat testDebugUnitTest assembleRelease  # app (JAVA_HOME = JDK 21)
 ```
 
-Herramientas de prueba: `tools/ws_chat.py` (hablar con el servidor desde la consola,
-guarda la voz en `logs/ultima_voz.wav`), `tools/wake_test.py` (simula un micrófono
-continuo con archivos WAV) y `tools/bench_stt.py` (velocidad de Whisper).
+- Las pruebas de la app incluyen **capturas de pantalla dibujadas en el PC**
+  (Robolectric + Roborazzi), en `android/app/build/capturas/`. Sirven para revisar el
+  diseño sin instalarlo.
+- Herramientas:
+  - `tools/ws_chat.py`: hablar con Vega desde la consola y guardar su voz.
+  - `tools/wake_test.py`: simular el micrófono con archivos WAV.
+  - `tools/bench_stt.py`: medir la velocidad de Whisper.
 
-El plan original y las decisiones están en `docs/plan-inicial.md`.
+El plan original y las decisiones de partida están en `docs/plan-inicial.md`.
