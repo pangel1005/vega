@@ -4,13 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,18 +43,21 @@ fun Deck(
             }
             Pill("Cerrar", Vega.Ink2, onClose)
         }
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 96.dp),
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(actions, key = { it.id }) { a ->
-                Key(
-                    label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled,
-                    confirming = pending?.id == a.id, secondsLeft = secondsLeft, onClick = { onPress(a.id) },
-                    modifier = Modifier.height(72.dp),
-                )
+        // Cuadrícula sencilla (no perezosa): con ~16 botones, construirla de una vez es más barato
+        // que la lista perezosa, que daba tirones al abrir la hoja (medido: hasta 81 ms).
+        val perRow = 6
+        Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            actions.chunked(perRow).forEach { row ->
+                Row(Modifier.fillMaxWidth().height(72.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { a ->
+                        Key(
+                            label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled,
+                            confirming = pending?.id == a.id, secondsLeft = secondsLeft, onClick = { onPress(a.id) },
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                        )
+                    }
+                    repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+                }
             }
         }
     }

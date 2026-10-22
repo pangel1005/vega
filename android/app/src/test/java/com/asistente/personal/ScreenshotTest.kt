@@ -15,7 +15,9 @@ import com.asistente.personal.ui.ScreenActions
 import com.asistente.personal.ui.ScreenModel
 import com.asistente.personal.ui.VegaScreen
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
 import org.junit.Test
@@ -43,7 +45,7 @@ class ScreenshotTest {
         DeckAction("play", "Play / pausa", "再生", "play", "orange", false, quick = true),
         DeckAction("silencio", "Silenciar", "消音", "mute", "orange", false, quick = true),
         DeckAction("reiniciar", "Reiniciar", "再起動", "restart", "red", true),
-    )
+    ) + (1..9).map { DeckAction("extra$it", "Botón $it", "", "app", "orange", false) }
     private val telemetry = Telemetry(
         cpu = 21, ramUsed = 23.6, ramTotal = 31.9, gpuTemp = 62, gpuUtil = 52, vramUsed = 7.0, vramTotal = 8.0,
         upcoming = listOf(
@@ -114,4 +116,14 @@ class ScreenshotTest {
     )
 
     @Test fun error() = shot("10_error", model(base.copy(notice = Notice(1, "No pude abrir Discord.", ok = false))))
+
+    // La hoja «Más» abierta, con 16 botones (como config/actions.toml).
+    @Test fun hoja_mas() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent { VegaScreen(model(base), ScreenActions()) }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Más").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(600)
+        compose.onRoot().captureRoboImage("build/capturas/11_hoja_mas.png")
+    }
 }
