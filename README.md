@@ -142,6 +142,9 @@ powershell -ExecutionPolicy Bypass -File scripts\stop.ps1            # parar y l
 powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1       # arrancar con Windows (-Remove para quitarlo)
 ```
 
+El arranque con Windows es una tarea programada «Vega (asistente)», que se lanza al
+iniciar sesión. Si algo falla al arrancar, queda anotado en `logs/arranque.log`.
+
 Conecta el teléfono por USB. El servidor lo enlaza y abre la app solo; tras reconectar
 el cable puede tardar hasta unos 30 s.
 
