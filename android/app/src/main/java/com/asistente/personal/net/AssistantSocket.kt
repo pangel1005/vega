@@ -38,6 +38,8 @@ class AssistantSocket(
     private val onStatus: (LinkStatus, Long?) -> Unit,
     /** Voz que llega del PC (PCM16). Se llama desde el hilo de red, no desde el principal. */
     private val onAudio: (ByteArray) -> Unit = {},
+    /** Frecuencia (Hz) de la próxima frase de voz. También desde el hilo de red. */
+    private val onAudioRate: (Int) -> Unit = {},
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
@@ -78,6 +80,9 @@ class AssistantSocket(
 
         override fun onMessage(webSocket: WebSocket, text: String) {
             val event = Protocol.parse(text) ?: return
+            // La frecuencia de la voz se fija aquí mismo (hilo de red), antes de que llegue su audio
+            // binario: si esperara al hilo principal, la frase podría sonar a la velocidad anterior.
+            if (event is ServerEvent.Audio && webSocket === ws) onAudioRate(event.rate)
             main.post {
                 if (webSocket !== ws) return@post
                 if (event is ServerEvent.Ready) {

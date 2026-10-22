@@ -13,7 +13,7 @@ from server.core.config import ROOT, ConfigError, Settings, load_settings
 from server.core.logs import setup_logging
 from server.core.token import load_or_create_token
 from server.speech.base import SttUnavailable
-from server.speech.tts import PiperTTS, TtsUnavailable
+from server.speech.tts import KokoroTTS, PiperTTS, TtsUnavailable, VoiceRouter
 from server.speech.whisper import WhisperSTT
 from server.tools.actions import ActionConfigError, ActionRunner, load_actions
 from server.tools.windows import WindowsExecutor
@@ -43,11 +43,17 @@ def build_stt(settings: Settings) -> WhisperSTT:
     return stt
 
 
-def build_tts(settings: Settings) -> PiperTTS | None:
+def build_tts(settings: Settings) -> VoiceRouter | None:
     s = settings.speech
     if not s.tts_enabled:
         return None
-    tts = PiperTTS(s.voices_path, s.tts_voice, ROOT / "data" / "prefs.json")
+    prefs = ROOT / "data" / "prefs.json"
+    tts = VoiceRouter(
+        KokoroTTS(ROOT / "models" / "kokoro"),
+        PiperTTS(s.voices_path, "es_MX-claude-high", prefs),
+        s.tts_voice,
+        prefs,
+    )
     if not tts.voices():
         log.warning("No hay voces en %s: el asistente responderá solo por escrito", s.voices_path)
         return None

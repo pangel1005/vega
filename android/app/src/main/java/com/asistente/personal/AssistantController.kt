@@ -84,11 +84,9 @@ class AssistantController(context: Context) {
     private val socket = AssistantSocket(
         url = SERVER_WS,
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
-        onEvent = { event ->
-            if (event is ServerEvent.Audio) audioRate = event.rate
-            dispatch(Action.Server(event))
-        },
+        onEvent = { dispatch(Action.Server(it)) },
         onAudio = { pcm -> player.enqueue(pcm, audioRate) },
+        onAudioRate = { audioRate = it },
         onStatus = { status, retry ->
             dispatch(Action.Link(status, retry))
             syncMic()

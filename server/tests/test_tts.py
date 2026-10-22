@@ -118,6 +118,30 @@ def test_voice_label() -> None:
     assert voice_label("raro") == "raro"
 
 
+def test_router_lists_both_engines_and_remembers(tmp_path: Path) -> None:
+    from server.speech.tts import KokoroTTS, VoiceRouter
+
+    kokoro_dir, piper_dir = tmp_path / "kokoro", tmp_path / "piper"
+    kokoro_dir.mkdir()
+    piper_dir.mkdir()
+    (kokoro_dir / "kokoro-v1.0.onnx").write_bytes(b"")
+    (kokoro_dir / "voices-v1.0.bin").write_bytes(b"")
+    (piper_dir / "es_MX-claude-high.onnx").write_bytes(b"")
+    (piper_dir / "es_MX-claude-high.onnx.json").write_text("{}", encoding="utf-8")
+    prefs = tmp_path / "prefs.json"
+
+    def router() -> VoiceRouter:
+        piper = PiperTTS(piper_dir, "es_MX-claude-high", prefs)
+        return VoiceRouter(KokoroTTS(kokoro_dir), piper, "kokoro:ef_dora", prefs)
+
+    r = router()
+    assert r.voice == "kokoro:ef_dora"
+    assert [v.id for v in r.voices()][:3] == ["kokoro:ef_dora", "kokoro:em_alex", "kokoro:em_santa"]
+    assert "es_MX-claude-high" in {v.id for v in r.voices()}
+    r.set_voice("es_MX-claude-high")
+    assert router().voice == "es_MX-claude-high"
+
+
 def test_chosen_voice_is_remembered(tmp_path: Path) -> None:
     voices = tmp_path / "voces"
     voices.mkdir()

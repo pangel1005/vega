@@ -45,5 +45,24 @@ def test_numbers_with_decimals_are_not_split() -> None:
     ]
 
 
+def test_first_clause_is_cut_early_to_start_speaking_sooner() -> None:
+    s = SentenceSplitter()
+    assert s.feed("Claro que sí, ahora mismo te lo explico") == ["Claro que sí,"]
+    # Solo la primera: después vuelve la regla normal (frases completas).
+    assert s.feed(", es muy sencillo. Fin del todo.") == ["ahora mismo te lo explico, es muy sencillo."]
+
+
+def test_long_first_sentence_without_comma_is_cut_at_a_conjunction() -> None:
+    s = SentenceSplitter()
+    first = s.feed("Los pulpos tienen tres corazones y pueden cambiar el color de su piel")
+    assert first == ["Los pulpos tienen tres corazones"]
+    assert s.feed(" para camuflarse. ") == ["y pueden cambiar el color de su piel para camuflarse."]
+
+
+def test_no_early_cut_when_disabled_or_short() -> None:
+    assert SentenceSplitter(eager_first=False).feed("Claro que sí, ahora mismo te lo explico") == []
+    assert SentenceSplitter().feed("Sí, claro") == []  # demasiado corto para cortar
+
+
 def test_clean_for_speech() -> None:
     assert clean_for_speech("**Hola** 😀 mira [esto](http://x.y) `ya`") == "Hola mira esto ya"

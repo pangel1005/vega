@@ -45,11 +45,14 @@ stt_compute = "int8_float16"
 # Máximo de una grabación, en segundos.
 max_seconds = 30
 
-# Texto a voz (Piper, en la CPU: no usa la GPU). Voces en models/piper.
-# Medido en este PC: ~28 veces más rápido que el tiempo real (Daniela: ~6 veces).
-# La voz se puede cambiar desde la app; la elegida se guarda en data/prefs.json.
+# Texto a voz, en la CPU (no usa la GPU). La voz se cambia desde la app (MÁS → VOZ);
+# la elegida se guarda en data/prefs.json y tiene prioridad sobre este valor.
+#   Kokoro (natural, models/kokoro): "kokoro:ef_dora", "kokoro:em_alex", "kokoro:em_santa"
+#     ~3,4 veces más rápido que el tiempo real en este PC.
+#   Piper (más robótica, models/piper): "es_MX-claude-high", "es_AR-daniela-high"…
+#     ~28 veces más rápido que el tiempo real.
 tts_enabled = true
-tts_voice = "es_MX-claude-high"
+tts_voice = "kokoro:ef_dora"
 
 [memory]
 # Historial de conversaciones (SQLite). Fuera de git.
