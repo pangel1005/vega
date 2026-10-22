@@ -50,7 +50,7 @@ def build_tts(settings: Settings) -> VoiceRouter | None:
         return None
     prefs = ROOT / "data" / "prefs.json"
     tts = VoiceRouter(
-        KokoroTTS(ROOT / "models" / "kokoro"),
+        KokoroTTS(ROOT / "models" / "kokoro", speed=s.tts_speed),
         PiperTTS(s.voices_path, "es_MX-claude-high", prefs),
         s.tts_voice,
         prefs,

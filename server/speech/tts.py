@@ -77,7 +77,8 @@ KOKORO_PREFIX = "kokoro:"
 class KokoroTTS:
     """Voces naturales de Kokoro (82 M parámetros, ONNX en la CPU)."""
 
-    def __init__(self, model_dir: Path) -> None:
+    def __init__(self, model_dir: Path, speed: float = 1.0) -> None:
+        self._speed = speed
         self._model = model_dir / "kokoro-v1.0.onnx"
         self._voices_file = model_dir / "voices-v1.0.bin"
         self._engine: Any = None
@@ -106,7 +107,9 @@ class KokoroTTS:
 
     def synthesize(self, text: str, voice_id: str) -> tuple[bytes, int]:
         with self._lock:
-            samples, rate = self._load().create(text, voice=voice_id.removeprefix(KOKORO_PREFIX), lang="es")
+            samples, rate = self._load().create(
+                text, voice=voice_id.removeprefix(KOKORO_PREFIX), speed=self._speed, lang="es"
+            )
         pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
         return pcm.tobytes(), int(rate)
 
