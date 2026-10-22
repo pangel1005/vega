@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import kotlin.math.min
 
 /** Color de un LED apagado: se ve la rejilla entera, como en un panel real. */
@@ -48,8 +49,10 @@ private class Grid(size: Size, cols: Int, rows: Int) {
  */
 @Composable
 fun LedMatrix(values: FloatArray, cols: Int, rows: Int, color: Color, tick: () -> Int, modifier: Modifier = Modifier, dot: Float = 0.62f) {
+    // Capa propia: cuando la cara cambia solo se vuelve a grabar esta capa, no toda la pantalla
+    // (medido en el teléfono: redibujar todo costaba ~11 ms por cuadro).
     Box(
-        modifier.drawWithCache {
+        modifier.graphicsLayer().drawWithCache {
             val g = Grid(size, cols, rows)
             val base = offBitmap(this, g, cols, rows, dot)
             val buckets = Array(LEVELS) { ArrayList<Offset>(cols * rows / 4) }
@@ -64,10 +67,10 @@ fun LedMatrix(values: FloatArray, cols: Int, rows: Int, color: Color, tick: () -
                     if (a < 0.04f) continue
                     val p = g.at(x, y)
                     buckets[min(LEVELS - 1, (a * LEVELS).toInt())].add(p)
-                    if (a > 0.55f) glow.add(p)
+                    if (a > 0.8f) glow.add(p)
                 }
                 if (glow.isNotEmpty()) {
-                    drawPoints(glow, PointMode.Points, color.copy(alpha = 0.16f), strokeWidth = g.pitch * 1.05f, cap = StrokeCap.Round)
+                    drawPoints(glow, PointMode.Points, color.copy(alpha = 0.16f), strokeWidth = g.pitch * 0.9f, cap = StrokeCap.Round)
                 }
                 for (i in 0 until LEVELS) {
                     if (buckets[i].isEmpty()) continue

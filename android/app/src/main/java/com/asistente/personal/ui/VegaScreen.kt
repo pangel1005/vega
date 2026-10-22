@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -193,7 +195,9 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     Modifier.weight(1f).fillMaxHeight()
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { a.attention() },
                 )
-                Column(Modifier.width(250.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Lo que casi no cambia se guarda como imagen (Offscreen): mientras la cara se anima,
+                // estas tarjetas no se vuelven a dibujar.
+                Column(Modifier.width(250.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ClockCard(m, a, Modifier.fillMaxWidth())
                     StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxWidth().weight(1f))
                 }
@@ -205,7 +209,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 enabled = canAct,
                 onPress = a.press,
                 onMore = { showMore = true },
-                modifier = Modifier.fillMaxWidth().height(66.dp),
+                modifier = Modifier.fillMaxWidth().height(66.dp).cached(),
             )
         }
         AnimatedVisibility(
@@ -230,6 +234,9 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         }
     }
 }
+
+/** Capa en caché: se dibuja una vez y se reutiliza hasta que su contenido cambia. */
+private fun Modifier.cached(): Modifier = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
 
 /** La cara de LED con su estado arriba y lo último que dijo abajo. */
 @Composable
@@ -260,7 +267,7 @@ private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, modifier: Modifie
             noticeKey = notice?.seq ?: 0,
             modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
         )
-        Subtitle(m, Modifier.fillMaxWidth().height(42.dp))
+        Subtitle(m, Modifier.fillMaxWidth().height(42.dp).cached())
     }
 }
 
