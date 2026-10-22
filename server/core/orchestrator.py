@@ -21,7 +21,9 @@ from typing import Any
 
 from server.core.clock import time_context
 from server.llm.base import ChatMessage, ChatModel, LlmUnavailable
+from server.memory.personal import PersonalMemory, Reminder
 from server.memory.store import ConversationStore
+from server.skills.router import SkillRouter
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
 from server.speech.listener import SpeechSegmenter, parse_wake, yes_or_no
 from server.speech.sentences import SentenceSplitter, clean_for_speech
@@ -36,6 +38,7 @@ from server.ws.protocol import (
     ErrorEvent,
     HistoryEvent,
     HistoryItem,
+    ReminderEvent,
     ServerEvent,
     State,
     StateEvent,
@@ -70,7 +73,11 @@ class Orchestrator:
         now_context: Callable[[], str] = time_context,
         tts: TextToSpeech | None = None,
         emit_audio: EmitAudio | None = None,
+        skills: SkillRouter | None = None,
+        memory: PersonalMemory | None = None,
     ) -> None:
+        self._skills = skills
+        self._memory = memory
         self._now_context = now_context
         self._tts = tts
         self._emit_audio = emit_audio
@@ -280,13 +287,48 @@ class Orchestrator:
                 elapsed_ms=round(result.elapsed_seconds * 1000),
             )
         )
-        action = self._actions.match(command) if self._actions else None
+        await self.handle_command(command, spoken=True)
+
+    async def handle_command(self, command: str, spoken: bool = False) -> None:
+        """Una orden (dicha o escrita): primero las habilidades (memoria, recordatorios,
+        notas, estado), luego los botones (solo por voz) y, si nada encaja, el modelo."""
+        if self._skills is not None:
+            reply = await asyncio.to_thread(self._skills.handle, command)
+            if reply is not None:
+                await self._skill_reply(command, reply.text)
+                return
+        action = self._actions.match(command) if (spoken and self._actions) else None
         if action is not None:
             pending = await self.request_action(action.id, client="voz")
             if pending:
                 self._voice_confirm = (pending, time.monotonic() + CONFIRM_SECONDS)
             return
         await self.handle_text(command)
+
+    async def _skill_reply(self, command: str, text: str) -> None:
+        """Respuesta de una habilidad: se muestra, se dice y se guarda en el historial."""
+        await self._set_state(State.SPEAKING)
+        await self._emit(TokenEvent(text=text))
+        await self._emit(DoneEvent(text=text))
+        conversation = await asyncio.to_thread(self._store.latest_conversation)
+        await asyncio.to_thread(
+            self._store.add_messages,
+            conversation,
+            [ChatMessage("user", command), ChatMessage("assistant", text)],
+        )
+        await self.speak(text)
+        await self._set_state(State.IDLE)
+
+    async def announce(self, reminder: Reminder, late: bool) -> None:
+        """Avisa de un recordatorio o temporizador vencido (lo llama el centro de avisos)."""
+        if reminder.kind == "timer":
+            spoken = f"¡Tiempo! Terminó el {reminder.text}."
+        elif late:
+            spoken = f"Mientras no estabas conectado tenía que recordarte: {reminder.text}."
+        else:
+            spoken = f"Te recuerdo: {reminder.text}."
+        await self._emit(ReminderEvent(kind=reminder.kind, text=spoken))
+        await self.speak(spoken)
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
         task = asyncio.create_task(coro)
@@ -380,7 +422,12 @@ class Orchestrator:
         conversation = await asyncio.to_thread(self._store.latest_conversation)
         previous = await asyncio.to_thread(self._store.recent, conversation, MAX_HISTORY)
         # El modelo no tiene reloj: en cada pregunta se le da la fecha y hora del PC.
-        system = ChatMessage("system", self._system.content + "\n" + self._now_context())
+        extra = [self._now_context()]
+        if self._memory is not None:
+            known = await asyncio.to_thread(self._memory.prompt_context)
+            if known:
+                extra.append(known)
+        system = ChatMessage("system", "\n".join([self._system.content, *extra]))
         context = [system, *(m.as_chat() for m in previous), question]
         await self._set_state(State.THINKING)
 

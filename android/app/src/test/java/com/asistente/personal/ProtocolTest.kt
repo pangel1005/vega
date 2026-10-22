@@ -35,6 +35,13 @@ class ProtocolTest {
         assertEquals("x", msg.getString("voice"))
     }
 
+    @Test fun `interpreta avisos de recordatorio`() {
+        assertEquals(
+            ServerEvent.Reminder("timer", "¡Tiempo!"),
+            Protocol.parse("""{"type":"reminder","kind":"timer","text":"¡Tiempo!"}"""),
+        )
+    }
+
     @Test fun `ignora lo desconocido o roto`() {
         assertNull(Protocol.parse("basura"))
         assertNull(Protocol.parse("""{"type":"desconocido"}"""))

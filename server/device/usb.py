@@ -169,6 +169,21 @@ class UsbWatcher:
                 ]
             )
 
+    def battery(self) -> int | None:
+        """Batería del teléfono enlazado (0-100), o None si no hay ninguno."""
+        serial = next(iter(sorted(self.status.linked)), None)
+        if serial is None:
+            return None
+        try:
+            out = self._run([self._adb, "-s", serial, "shell", "dumpsys", "battery"]).stdout
+        except (OSError, subprocess.SubprocessError):
+            return None
+        for line in out.splitlines():
+            key, _, value = line.strip().partition(":")
+            if key == "level" and value.strip().isdigit():
+                return int(value)
+        return None
+
     # --- Bucle con adb ---
 
     def poll_once(self) -> bool:

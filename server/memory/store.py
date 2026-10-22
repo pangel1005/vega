@@ -40,6 +40,29 @@ MIGRATIONS: list[str] = [
         INSERT INTO messages_fts(messages_fts, rowid, content) VALUES ('delete', old.id, old.content);
     END;
     """,
+    # v2: memoria personal (datos del usuario), notas y recordatorios/temporizadores.
+    """
+    CREATE TABLE facts (
+        id          INTEGER PRIMARY KEY,
+        text        TEXT NOT NULL,
+        created_at  TEXT NOT NULL
+    );
+    CREATE TABLE notes (
+        id          INTEGER PRIMARY KEY,
+        text        TEXT NOT NULL,
+        created_at  TEXT NOT NULL
+    );
+    CREATE TABLE reminders (
+        id            INTEGER PRIMARY KEY,
+        kind          TEXT NOT NULL CHECK (kind IN ('reminder', 'timer')),
+        text          TEXT NOT NULL,
+        due_at        TEXT NOT NULL,   -- hora local del PC, ISO 8601 sin zona
+        created_at    TEXT NOT NULL,
+        delivered_at  TEXT,            -- NULL = pendiente de avisar
+        cancelled     INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX reminders_pending ON reminders(delivered_at, cancelled, due_at);
+    """,
 ]
 
 
@@ -86,6 +109,18 @@ class ConversationStore:
     def close(self) -> None:
         with self._lock:
             self._db.close()
+
+    # Acceso genérico para otros módulos que comparten la base (memoria personal).
+
+    def query(self, sql: str, params: tuple[object, ...] = ()) -> list[sqlite3.Row]:
+        with self._lock:
+            return self._db.execute(sql, params).fetchall()
+
+    def execute(self, sql: str, params: tuple[object, ...] = ()) -> int:
+        """Ejecuta una orden; devuelve el id de la fila insertada o el número de filas cambiadas."""
+        with self._lock:
+            cur = self._db.execute(sql, params)
+            return int((cur.lastrowid or 0) if sql.lstrip().upper().startswith("INSERT") else cur.rowcount)
 
     def new_conversation(self) -> int:
         with self._lock:

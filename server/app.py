@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,10 +14,13 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from server import __version__
 from server.core.config import Settings
+from server.core.hub import Hub
 from server.device.usb import PhoneStatus
 from server.llm.base import ChatModel
 from server.llm.ollama import OllamaChat
+from server.memory.personal import PersonalMemory
 from server.memory.store import ConversationStore
+from server.skills.router import SkillRouter
 from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner
@@ -63,18 +67,32 @@ def create_app(
     actions: ActionRunner | None = None,
     tts: TextToSpeech | None = None,
     phone: PhoneStatus | None = None,
+    phone_battery: Callable[[], int | None] = lambda: None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
     model = chat_model or OllamaChat(settings.llm.url, settings.llm.model, settings.llm.keep_alive)
     history = store or ConversationStore(settings.memory.path)
+    memory = PersonalMemory(history)
+    skills = SkillRouter(memory, phone_battery=phone_battery)
+    hub = Hub(memory)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        hub.start()  # revisa los recordatorios cada segundo
+        yield
+        await hub.stop()
+
     # Sin páginas de documentación automática: menos superficie expuesta.
-    app = FastAPI(title=settings.assistant.name, version=__version__, docs_url=None, redoc_url=None)
+    app = FastAPI(
+        title=settings.assistant.name, version=__version__, docs_url=None, redoc_url=None, lifespan=lifespan
+    )
+    app.state.hub = hub
     app.state.settings = settings
     # Solo se atienden peticiones dirigidas a 127.0.0.1/localhost. Esto frena el
     # «DNS rebinding»: una web maliciosa que apunta su dominio a 127.0.0.1 para leer el token.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(TRUSTED_HOSTS))
-    register_ws(app, settings, model, history, token, stt, actions, tts)
+    register_ws(app, settings, model, history, token, stt, actions, tts, skills, memory, hub)
     register_ui(app, token, ui_dist)
 
     @app.get("/health")

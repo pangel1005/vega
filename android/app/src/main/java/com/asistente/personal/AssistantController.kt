@@ -84,7 +84,10 @@ class AssistantController(context: Context) {
     private val socket = AssistantSocket(
         url = SERVER_WS,
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
-        onEvent = { dispatch(Action.Server(it)) },
+        onEvent = { event ->
+            if (event is ServerEvent.Reminder) vibrate()
+            dispatch(Action.Server(event))
+        },
         onAudio = { pcm -> player.enqueue(pcm, audioRate) },
         onAudioRate = { audioRate = it },
         onStatus = { status, retry ->
@@ -123,6 +126,13 @@ class AssistantController(context: Context) {
         stopMic()
         player.stop()
         socket.stop()
+    }
+
+    private val vibrator = context.getSystemService(android.os.Vibrator::class.java)
+
+    /** Tres pulsos cortos: se nota aunque no estés mirando el teléfono. */
+    private fun vibrate() {
+        vibrator?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 180, 120, 180, 120, 180), -1))
     }
 
     /** Pasa a la siguiente voz disponible (el PC la recuerda y se presenta con ella). */

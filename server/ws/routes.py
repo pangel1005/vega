@@ -10,9 +10,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from server.core.config import Settings
+from server.core.hub import Hub
 from server.core.orchestrator import Orchestrator
 from server.llm.base import ChatModel
+from server.memory.personal import PersonalMemory
 from server.memory.store import ConversationStore
+from server.skills.router import SkillRouter
 from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner
@@ -57,6 +60,9 @@ def register_ws(
     stt: SpeechToText | None = None,
     actions: ActionRunner | None = None,
     tts: TextToSpeech | None = None,
+    skills: SkillRouter | None = None,
+    memory: PersonalMemory | None = None,
+    hub: Hub | None = None,
 ) -> None:
     origins = allowed_origins(settings)
 
@@ -70,11 +76,18 @@ def register_ws(
             return
         await websocket.accept()
 
-        async def emit(event: ServerEvent) -> None:
-            await websocket.send_text(event.model_dump_json())
+        # Un solo candado para todo lo que se envía: así la cabecera de una frase de voz y su
+        # audio salen juntos, sin que otro mensaje se cuele entre medias.
+        send_lock = asyncio.Lock()
 
-        async def emit_audio(pcm: bytes) -> None:
-            await websocket.send_bytes(pcm)
+        async def emit(event: ServerEvent) -> None:
+            async with send_lock:
+                await websocket.send_text(event.model_dump_json())
+
+        async def emit_audio(header: ServerEvent, pcm: bytes) -> None:
+            async with send_lock:
+                await websocket.send_text(header.model_dump_json())
+                await websocket.send_bytes(pcm)
 
         try:
             raw = await asyncio.wait_for(websocket.receive_text(), HELLO_TIMEOUT_S)
@@ -102,7 +115,11 @@ def register_ws(
             name=settings.assistant.name,
             tts=tts,
             emit_audio=emit_audio,
+            skills=skills,
+            memory=memory,
         )
+        if hub is not None:
+            hub.add(orchestrator)
         try:
             await orchestrator.send_actions()
             await orchestrator.send_voices()
@@ -121,7 +138,7 @@ def register_ws(
                     await emit(ErrorEvent(message="Mensaje no válido."))
                     continue
                 if isinstance(msg, ChatRequest):
-                    await orchestrator.handle_text(msg.text)
+                    await orchestrator.handle_command(msg.text)
                 elif isinstance(msg, Reset):
                     await orchestrator.reset()
                 elif isinstance(msg, ListenStart):
@@ -143,4 +160,6 @@ def register_ws(
         except WebSocketDisconnect:
             log.info("Cliente desconectado")
         finally:
+            if hub is not None:
+                hub.remove(orchestrator)
             await orchestrator.close()

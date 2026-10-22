@@ -43,6 +43,8 @@ sealed interface ServerEvent {
     /** Cabecera de una frase de voz: el audio llega justo después como mensaje binario. */
     data class Audio(val seq: Int, val rate: Int, val text: String) : ServerEvent
     data object AudioEnd : ServerEvent
+    /** Ha vencido un recordatorio o un temporizador. */
+    data class Reminder(val kind: String, val text: String) : ServerEvent
 }
 
 object Protocol {
@@ -89,6 +91,7 @@ object Protocol {
             }
             "audio" -> ServerEvent.Audio(o.getInt("seq"), o.getInt("rate"), o.getString("text"))
             "audio_end" -> ServerEvent.AudioEnd
+            "reminder" -> ServerEvent.Reminder(o.getString("kind"), o.getString("text"))
             else -> null
         }
     } catch (_: Exception) {

@@ -25,6 +25,7 @@ Servidor → cliente:
     {"type": "audio", "seq": 1, "rate": 22050, "text": "..."}  seguido de un mensaje
                                          BINARIO con la voz de esa frase (PCM16 mono)
     {"type": "audio_end"}                no hay más voz para esta respuesta
+    {"type": "reminder", "kind": "reminder|timer", "text": "..."}  ha vencido un recordatorio
     {"type": "state", "state": "idle|listening|thinking|speaking|acting|error"}
     {"type": "transcript", "text": "...", "audio_seconds": 3.9, "elapsed_ms": 180}
     {"type": "token", "text": "..."}     trozo de la respuesta, en cuanto llega
@@ -206,6 +207,12 @@ class AudioEnd(_Msg):
     type: Literal["audio_end"] = "audio_end"
 
 
+class ReminderEvent(_Msg):
+    type: Literal["reminder"] = "reminder"
+    kind: Literal["reminder", "timer"]
+    text: str
+
+
 ServerEvent = (
     Ready
     | HistoryEvent
@@ -220,4 +227,5 @@ ServerEvent = (
     | VoicesEvent
     | AudioEvent
     | AudioEnd
+    | ReminderEvent
 )

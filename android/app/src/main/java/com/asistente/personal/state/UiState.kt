@@ -105,5 +105,6 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         is ServerEvent.Voices -> s.copy(voices = e.items, voice = e.current)
         // La voz la gestiona el reproductor; el estado de la pantalla no cambia.
         is ServerEvent.Audio, ServerEvent.AudioEnd -> s
+        is ServerEvent.Reminder -> s.push(Role.NOTE, e.text).notify(e.text, ok = true)
     }
 }

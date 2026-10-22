@@ -36,6 +36,21 @@ powershell -ExecutionPolicy Bypass -File scripts\stop.ps1            # parar y l
 Conecta el teléfono por USB: el servidor lo enlaza y abre la app solo (tarda unos
 segundos; tras reconectar el cable, hasta ~30 s).
 
+Lo que entiende sin usar el modelo de lenguaje (rápido y fiable):
+
+| Dices «Vega, …» | Hace |
+|---|---|
+| «recuerda que me gusta el café sin azúcar» · «qué sabes de mí» · «olvida que…» | Memoria sobre ti (también la usa al conversar) |
+| «cómo se llama mi perro» | Lo responde desde su memoria si lo sabe |
+| «recuérdame llamar a mamá en 20 minutos / a las 6 / mañana a las 8» | Recordatorio: lo dice en voz alta y el teléfono vibra. Si el teléfono estaba desconectado, avisa al conectarlo |
+| «qué recordatorios tengo» · «cancela los recordatorios» | Lista / cancela |
+| «pon un temporizador de 5 minutos» · «cancela el temporizador» | Temporizador |
+| «apunta comprar leche» · «lee mis notas» · «borra mis notas» | Notas |
+| «cómo está el PC» | Procesador, memoria, gráfica (temperatura y uso) y batería del teléfono |
+| «apaga el PC», «sube el volumen», «abre Spotify»… | Botones del panel (`say` en `config/actions.toml`) |
+
+Lo demás va al modelo, que conoce la fecha y la hora del PC y lo que sabe de ti.
+
 En el teléfono:
 - **Hablar**: di «Vega, …» (o toca el rostro y habla sin decir el nombre).
 - **Silenciar el micrófono**: chip **● ESCUCHANDO** de arriba.

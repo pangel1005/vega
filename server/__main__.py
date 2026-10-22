@@ -112,6 +112,7 @@ def main() -> int:
             actions=actions,
             tts=build_tts(settings),
             phone=usb.status if usb else None,
+            phone_battery=usb.battery if usb else (lambda: None),
         ),
         host=settings.server.host,
         port=settings.server.port,

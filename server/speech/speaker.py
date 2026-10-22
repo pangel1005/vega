@@ -17,7 +17,8 @@ from server.ws.protocol import AudioEnd, AudioEvent, ServerEvent
 log = logging.getLogger(__name__)
 
 Emit = Callable[[ServerEvent], Awaitable[None]]
-EmitAudio = Callable[[bytes], Awaitable[None]]
+# Envía la cabecera de una frase (evento `audio`) y su voz en binario, juntas.
+EmitAudio = Callable[[ServerEvent, bytes], Awaitable[None]]
 
 
 class Speaker:
@@ -62,5 +63,4 @@ class Speaker:
             self._seq += 1
             if self.first_audio_after is None:
                 self.first_audio_after = loop.time() - self._started
-            await self._emit(AudioEvent(seq=self._seq, rate=rate, text=text))
-            await self._emit_audio(pcm)
+            await self._emit_audio(AudioEvent(seq=self._seq, rate=rate, text=text), pcm)

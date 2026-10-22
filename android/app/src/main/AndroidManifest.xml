@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Actualizarse a sí misma con el APK que sirve el PC (el usuario confirma cada vez). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Vibrar cuando vence un recordatorio o un temporizador. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Para encontrar la pantalla de inicio normal (botón «ANDROID»). -->
     <queries>
