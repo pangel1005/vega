@@ -52,6 +52,8 @@ Emit = Callable[[ServerEvent], Awaitable[None]]
 MAX_HISTORY = 20
 # Tras decir solo «Vega» (o tocar el rostro), tiempo para decir la orden sin repetir el nombre.
 FOLLOWUP_SECONDS = 8.0
+# Al detectar voz se precarga el modelo de lenguaje, como mucho una vez por este intervalo.
+PRELOAD_GAP_SECONDS = 60.0
 
 
 class Orchestrator:
@@ -80,6 +82,7 @@ class Orchestrator:
         self._followup_until = 0.0
         self._voice_task: asyncio.Task[None] | None = None
         self._voice_confirm: tuple[str, float] | None = None  # (código, caduca)
+        self._last_preload = -PRELOAD_GAP_SECONDS
         self._tasks: set[asyncio.Task[None]] = set()
         self._model = model
         self._system = ChatMessage("system", system_prompt)
@@ -182,7 +185,7 @@ class Orchestrator:
 
     async def _open_followup(self) -> None:
         self._followup_until = time.monotonic() + FOLLOWUP_SECONDS
-        self._preload = asyncio.create_task(self._model.preload())
+        self._preload_soon()
         await self._set_state(State.LISTENING)
 
         async def expire(until: float) -> None:
@@ -206,9 +209,22 @@ class Orchestrator:
             # Mientras responde o actúa no se escucha (evita oírse a sí mismo y frases a medias).
             self._segmenter.reset()
             return
-        for phrase in self._segmenter.feed(chunk):
+        was_speaking = self._segmenter.in_speech
+        phrases = self._segmenter.feed(chunk)
+        if self._segmenter.in_speech and not was_speaking:
+            self._preload_soon()
+        for phrase in phrases:
             self._voice_task = self._spawn(self._process_phrase(phrase))
             break  # una frase cada vez; lo que venga detrás se descarta mientras se procesa
+
+    def _preload_soon(self) -> None:
+        """Alguien empezó a hablar: si el modelo de lenguaje estaba fuera de la GPU, se va
+        cargando mientras termina la frase (si no, la primera respuesta tardaba ~4 s más).
+        Como mucho una vez por minuto: si ya está cargado, solo renueva su tiempo en memoria."""
+        now = time.monotonic()
+        if now - self._last_preload >= PRELOAD_GAP_SECONDS:
+            self._last_preload = now
+            self._spawn(self._model.preload())
 
     async def _process_phrase(self, pcm: bytes) -> None:
         if self._stt is None:

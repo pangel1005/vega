@@ -30,34 +30,56 @@ def pcm(path: Path) -> bytes:
 def main() -> int:
     token = TOKEN_FILE.read_text(encoding="utf-8").strip()
     quiet = bytes(CHUNK * 10)  # 1 s de silencio
-    audio = quiet + b"".join(pcm(Path(p)) + quiet + quiet for p in sys.argv[1:]) + quiet * 3
+    phrases = [pcm(Path(p)) for p in sys.argv[1:]]
     t0 = time.perf_counter()
+    phrase_end: list[float] = [0.0]  # cuándo terminó de «hablar» la última frase enviada
+    first_voice_reported = [True]
 
     with connect("ws://127.0.0.1:8000/ws") as ws:
         ws.send(json.dumps({"type": "hello", "token": token}))
-        for _ in range(3):
-            ws.recv()
         ws.send(json.dumps({"type": "wake_mode", "on": True}))
 
         def reader() -> None:
             try:
                 while True:
-                    event = json.loads(ws.recv())
-                    stamp = f"{time.perf_counter() - t0:5.2f} s"
+                    raw = ws.recv()
+                    if isinstance(raw, bytes):
+                        continue  # audio de la voz
+                    event = json.loads(raw)
+                    now = time.perf_counter() - t0
+                    stamp = f"{now:5.2f} s"
                     kind = event["type"]
+                    if kind in ("ready", "history", "actions", "voices"):
+                        continue
                     if kind == "token":
                         print(event["text"], end="", flush=True)
                     elif kind == "state":
                         print(f"\n[{stamp}] estado: {event['state']}", flush=True)
-                    else:
+                    elif kind == "audio" and not first_voice_reported[0]:
+                        first_voice_reported[0] = True
+                        print(
+                            f"\n[{stamp}] >>> PRIMERA VOZ a los {now - phrase_end[0]:.2f} s de terminar de hablar",
+                            flush=True,
+                        )
+                    elif kind != "audio":
                         print(f"\n[{stamp}] {kind}: { {k: v for k, v in event.items() if k != 'type'} }", flush=True)
             except Exception:
                 pass
 
         threading.Thread(target=reader, daemon=True).start()
-        for i in range(0, len(audio), CHUNK):
-            ws.send(audio[i : i + CHUNK])
-            time.sleep(0.1)
+
+        def send(audio: bytes) -> None:
+            for i in range(0, len(audio), CHUNK):
+                ws.send(audio[i : i + CHUNK])
+                time.sleep(0.1)
+
+        send(quiet)
+        for phrase in phrases:
+            send(phrase)
+            phrase_end[0] = time.perf_counter() - t0
+            first_voice_reported[0] = False
+            print(f"\n[{phrase_end[0]:5.2f} s] (fin de la frase)", flush=True)
+            send(quiet * 6)  # 6 s de silencio: tiempo para responder
         time.sleep(3)
     print()
     return 0

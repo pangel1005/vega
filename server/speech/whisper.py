@@ -118,6 +118,13 @@ class WhisperSTT:
                 vad_filter=True,  # Silero VAD: quita los silencios y evita «inventar» texto en ellos
                 condition_on_previous_text=False,
                 hotwords=self._hotwords,
+                # Un solo intento: con audio ruidoso, Whisper reintentaba hasta 6 veces con más
+                # «temperatura» y una frase de 4 s tardaba 7 s. Mejor rápido que perfecto.
+                temperature=0.0,
+                without_timestamps=True,
+                # Tope de palabras según la duración (~5 palabras/s habladas): corta las
+                # repeticiones sin fin que Whisper a veces genera con ruido.
+                max_new_tokens=int(seconds * 10) + 20,
             )
             text = " ".join(s.text.strip() for s in segments).strip()
             elapsed = time.perf_counter() - start

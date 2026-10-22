@@ -3,7 +3,7 @@
 Funciona así:
 1. `SpeechSegmenter` mira el volumen de cada trozo de 20 ms comparándolo con el ruido
    de fondo (que va aprendiendo). Cuando hay voz, empieza a guardar (con 300 ms de
-   margen previo); tras 0,7 s de silencio, entrega la frase completa.
+   margen previo); tras 0,5 s de silencio, entrega la frase completa.
    Así Whisper solo trabaja cuando alguien habla, no con el silencio.
 2. Whisper transcribe la frase y `parse_wake` comprueba si empieza por el nombre del
    asistente («Vega, …»). Lo que no empieza por el nombre se descarta y no se guarda.
@@ -26,7 +26,7 @@ FRAME_BYTES = FRAME_SAMPLES * BYTES_PER_SAMPLE
 @dataclass
 class SegmenterConfig:
     start_frames: int = 3  # 60 ms seguidos de voz para empezar
-    end_silence_frames: int = 35  # 0,7 s de silencio para terminar
+    end_silence_frames: int = 25  # 0,5 s de silencio para dar la frase por terminada
     preroll_frames: int = 15  # 300 ms de audio previo (para no cortar la primera sílaba)
     min_speech_frames: int = 15  # frases de menos de 0,3 s se descartan (golpes, clics)
     max_frames: int = 600  # 12 s como máximo por frase

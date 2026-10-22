@@ -36,8 +36,8 @@ def test_detects_one_phrase_with_preroll() -> None:
     phrases = feed_in_chunks(seg, audio)
     assert len(phrases) == 1
     seconds = len(phrases[0]) / 2 / RATE
-    # 1 s de voz + 0,3 s previos + 0,7 s de silencio final (± un poco por los 60 ms de arranque)
-    assert 1.8 <= seconds <= 2.1
+    # 1 s de voz + 0,3 s previos + 0,5 s de silencio final (± un poco por los 60 ms de arranque)
+    assert 1.6 <= seconds <= 1.9
 
 
 def test_silence_and_short_clicks_are_ignored() -> None:
