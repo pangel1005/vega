@@ -220,4 +220,28 @@ class ScreenshotTest {
         compose.mainClock.advanceTimeBy(800)
         compose.onRoot().captureRoboImage("build/capturas/18_letra.png")
     }
+
+    // Transición: al tocar «Letra», la carátula se encoge y viaja, y la letra entra deslizándose.
+    @Test fun transicion_a_letra() {
+        val art = fakeArt()
+        val lyrics = com.asistente.personal.net.Lyrics(
+            synced = true,
+            lines = listOf(190.0 to "Oops, I didn't know", 195.5 to "I musta been crazy", 199.0 to "To say exactly what I want")
+                .map { (t, text) -> com.asistente.personal.net.LyricLine(t, text) },
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            com.asistente.personal.ui.MusicScreen(
+                song, receivedAt = 1_000, now = { 1_000 }, art = art, accent = com.asistente.personal.ui.accentOf(art),
+                clock = "02:29", lyrics = lyrics, onControl = {}, onClose = {},
+            )
+        }
+        compose.mainClock.advanceTimeBy(300)
+        compose.onNodeWithText("Letra").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(200) // a mitad de camino
+        compose.onRoot().captureRoboImage("build/capturas/19_transicion_mitad.png")
+        compose.mainClock.advanceTimeBy(600)
+        compose.onRoot().captureRoboImage("build/capturas/20_transicion_final.png")
+        compose.onNodeWithText("I musta been crazy").assertExists()
+    }
 }

@@ -1,6 +1,17 @@
 package com.asistente.personal.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.BoundsTransform
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -229,6 +240,7 @@ fun NowPlayingCard(
  * fondo toma el color de la carátula. Con «Letra» se reorganiza: a la izquierda, compacto,
  * lo de la canción; a la derecha, la letra avanzando sola con la línea actual iluminada.
  */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun MusicScreen(
     media: MediaInfo,
@@ -243,6 +255,7 @@ fun MusicScreen(
     modifier: Modifier = Modifier,
     startWithLyrics: Boolean = false,
 ) {
+    val artImage = art
     val tint by animateColorAsState(accent, tween(600), label = "color de la carátula")
     val hasLyrics = lyrics != null && (lyrics.lines.isNotEmpty() || lyrics.instrumental)
     var showLyrics by remember { mutableStateOf(startWithLyrics) }
@@ -273,57 +286,97 @@ fun MusicScreen(
                 Pill("Volver", Vega.Ink2, onClose)
             }
             Spacer(Modifier.height(12.dp))
-            if (lyricsMode && lyrics != null) {
-                Row(Modifier.fillMaxSize()) {
-                    Column(Modifier.width(250.dp).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Art(art, tint, Modifier.size(84.dp), 14.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(media.title, maxLines = 2, style = Vega.body.copy(fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold))
-                                Text(media.artist, maxLines = 1, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink2))
+            // Al cambiar entre normal y letra, las piezas viajan a su sitio nuevo: la carátula se
+            // encoge y se va a la esquina, título y artista se achican a su lado, la barra y los
+            // botones se mueven a la columna izquierda, y la letra entra deslizándose.
+            SharedTransitionLayout(Modifier.fillMaxSize()) {
+                AnimatedContent(
+                    targetState = lyricsMode && lyrics != null,
+                    transitionSpec = { fadeIn(tween(MORPH_MS)) togetherWith fadeOut(tween(MORPH_MS / 2)) },
+                    label = "modo letra",
+                ) { withLyrics ->
+                    val scope = this
+                    val bounds = BoundsTransform { _, _ -> tween(MORPH_MS, easing = FastOutSlowInEasing) }
+                    // `staged`: primero se va lo viejo y después llega lo nuevo (botones y barra, que
+                    // cambian de forma); sin él, se funden a la vez (título y artista: mismo texto).
+                    @Composable
+                    fun Modifier.shared(key: String, staged: Boolean = false): Modifier = sharedBounds(
+                        rememberSharedContentState(key), scope,
+                        boundsTransform = bounds,
+                        enter = if (staged) fadeIn(tween(MORPH_MS / 2, delayMillis = MORPH_MS / 2)) else fadeIn(tween(MORPH_MS)),
+                        exit = if (staged) fadeOut(tween(MORPH_MS / 2)) else fadeOut(tween(MORPH_MS)),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                    )
+                    val art = Modifier.sharedElement(rememberSharedContentState("carátula"), scope, boundsTransform = bounds)
+                    if (withLyrics && lyrics != null) {
+                        Row(Modifier.fillMaxSize()) {
+                            Column(Modifier.width(250.dp).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Art(artImage, tint, art.size(84.dp), 14.dp)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(media.title, maxLines = 2, modifier = Modifier.shared("título"), style = Vega.body.copy(fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold))
+                                        Text(media.artist, maxLines = 1, modifier = Modifier.shared("artista"), style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink2))
+                                    }
+                                }
+                                Spacer(Modifier.height(16.dp))
+                                Column(Modifier.shared("progreso", staged = true)) {
+                                    Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 5.dp)
+                                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(clockTime(position), style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
+                                        Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    Modifier.fillMaxWidth().shared("botones", staged = true),
+                                    horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    TransportButton("previous", 44.dp, Vega.Ink, media.canPrevious, { onControl("previous") })
+                                    TransportButton(if (media.playing) "pause" else "play", 56.dp, tint, true, { onControl("play_pause") }, filled = true)
+                                    TransportButton("next", 44.dp, Vega.Ink, media.canNext, { onControl("next") })
+                                }
                             }
+                            Spacer(Modifier.width(24.dp))
+                            LyricsView(
+                                lyrics, position, tint,
+                                Modifier.weight(1f).fillMaxHeight().animateEnterExit(
+                                    enter = slideInHorizontally(tween(MORPH_MS, easing = FastOutSlowInEasing)) { it / 3 } + fadeIn(tween(MORPH_MS)),
+                                    exit = slideOutHorizontally(tween(MORPH_MS)) { it / 3 } + fadeOut(tween(MORPH_MS / 2)),
+                                ),
+                            )
                         }
-                        Spacer(Modifier.height(16.dp))
-                        Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 5.dp)
-                        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(clockTime(position), style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
-                            Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                            TransportButton("previous", 44.dp, Vega.Ink, media.canPrevious, { onControl("previous") })
-                            TransportButton(if (media.playing) "pause" else "play", 56.dp, tint, true, { onControl("play_pause") }, filled = true)
-                            TransportButton("next", 44.dp, Vega.Ink, media.canNext, { onControl("next") })
-                        }
-                    }
-                    Spacer(Modifier.width(24.dp))
-                    LyricsView(lyrics, position, tint, Modifier.weight(1f).fillMaxHeight())
-                }
-            } else {
-                Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                    Art(art, tint, Modifier.fillMaxHeight().aspectRatio(1f), 22.dp)
-                    Spacer(Modifier.width(28.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                        Text(media.title, maxLines = 2, style = Vega.body.copy(fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold))
-                        Spacer(Modifier.height(4.dp))
-                        Text(media.artist, maxLines = 1, style = Vega.body.copy(fontSize = 18.sp, color = Vega.Ink2))
-                        if (media.album.isNotEmpty() && media.album != media.title) {
-                            Text(media.album, maxLines = 1, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink3))
-                        }
-                        Spacer(Modifier.height(18.dp))
-                        Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 6.dp)
-                        Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(clockTime(position), style = Vega.label.copy(color = Vega.Ink2))
-                            Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(color = Vega.Ink2))
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                            TransportButton("previous", 56.dp, Vega.Ink, media.canPrevious, { onControl("previous") })
+                    } else {
+                        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                            Art(artImage, tint, art.fillMaxHeight().aspectRatio(1f), 22.dp)
                             Spacer(Modifier.width(28.dp))
-                            TransportButton(if (media.playing) "pause" else "play", 72.dp, tint, true, { onControl("play_pause") }, filled = true)
-                            Spacer(Modifier.width(28.dp))
-                            TransportButton("next", 56.dp, Vega.Ink, media.canNext, { onControl("next") })
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                                Text(media.title, maxLines = 2, modifier = Modifier.shared("título"), style = Vega.body.copy(fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold))
+                                Spacer(Modifier.height(4.dp))
+                                Text(media.artist, maxLines = 1, modifier = Modifier.shared("artista"), style = Vega.body.copy(fontSize = 18.sp, color = Vega.Ink2))
+                                if (media.album.isNotEmpty() && media.album != media.title) {
+                                    Text(media.album, maxLines = 1, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink3))
+                                }
+                                Spacer(Modifier.height(18.dp))
+                                Column(Modifier.shared("progreso", staged = true)) {
+                                    Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 6.dp)
+                                    Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(clockTime(position), style = Vega.label.copy(color = Vega.Ink2))
+                                        Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(color = Vega.Ink2))
+                                    }
+                                }
+                                Spacer(Modifier.height(10.dp))
+                                Row(
+                                    Modifier.fillMaxWidth().shared("botones", staged = true),
+                                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    TransportButton("previous", 56.dp, Vega.Ink, media.canPrevious, { onControl("previous") })
+                                    Spacer(Modifier.width(28.dp))
+                                    TransportButton(if (media.playing) "pause" else "play", 72.dp, tint, true, { onControl("play_pause") }, filled = true)
+                                    Spacer(Modifier.width(28.dp))
+                                    TransportButton("next", 56.dp, Vega.Ink, media.canNext, { onControl("next") })
+                                }
+                            }
                         }
                     }
                 }
@@ -331,6 +384,9 @@ fun MusicScreen(
         }
     }
 }
+
+/** Duración de la transición entre el modo normal y el modo letra. */
+private const val MORPH_MS = 450
 
 /** Línea de la letra que suena ahora (la última que ya empezó), o -1 antes de la primera. */
 fun currentLine(lines: List<LyricLine>, position: Double): Int {
