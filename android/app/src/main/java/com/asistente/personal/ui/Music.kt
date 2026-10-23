@@ -37,6 +37,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
@@ -50,6 +53,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.personal.net.MediaInfo
+import com.asistente.personal.net.LyricLine
+import com.asistente.personal.net.Lyrics
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.sin
@@ -62,16 +71,16 @@ fun clockTime(seconds: Double): String {
 
 /**
  * Posición actual: el PC la manda al cambiar algo y el teléfono la avanza solo mientras
- * suena (un tic por segundo, solo mientras suena).
+ * suena (un tic por segundo, o más a menudo con la letra a la vista).
  */
 @Composable
-fun livePosition(media: MediaInfo, receivedAt: Long, now: () -> Long): Double {
+fun livePosition(media: MediaInfo, receivedAt: Long, now: () -> Long, tickMs: Long = 1000): Double {
     var pos by remember(media, receivedAt) { mutableStateOf(media.position) }
-    LaunchedEffect(media, receivedAt) {
+    LaunchedEffect(media, receivedAt, tickMs) {
         while (media.playing) {
             val elapsed = (now() - receivedAt) / 1000.0
             pos = (media.position + elapsed).let { if (media.duration > 0) it.coerceAtMost(media.duration) else it }
-            delay(1000)
+            delay(tickMs)
         }
     }
     return pos
@@ -217,66 +226,183 @@ fun NowPlayingCard(
 
 /**
  * Pantalla «Sonando»: carátula grande, canción, artista, progreso y botones grandes. El
- * fondo toma el color de la carátula.
+ * fondo toma el color de la carátula. Con «Letra» se reorganiza: a la izquierda, compacto,
+ * lo de la canción; a la derecha, la letra avanzando sola con la línea actual iluminada.
  */
 @Composable
 fun MusicScreen(
     media: MediaInfo,
-    position: Double,
+    receivedAt: Long,
+    now: () -> Long,
     art: ImageBitmap?,
     accent: Color,
     clock: String,
+    lyrics: Lyrics?,
     onControl: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    startWithLyrics: Boolean = false,
 ) {
     val tint by animateColorAsState(accent, tween(600), label = "color de la carátula")
+    val hasLyrics = lyrics != null && (lyrics.lines.isNotEmpty() || lyrics.instrumental)
+    var showLyrics by remember { mutableStateOf(startWithLyrics) }
+    val lyricsMode = showLyrics && hasLyrics
+    // Con letra, la posición se actualiza 5 veces por segundo para que las líneas vayan a tiempo.
+    val position = livePosition(media, receivedAt, now, tickMs = if (lyricsMode) 200 else 1000)
     Box(
         modifier.fillMaxSize().background(Vega.Bg)
             .background(Brush.horizontalGradient(listOf(tint.copy(alpha = 0.30f), Color.Transparent))),
     ) {
-        Row(
-            Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 28.dp, vertical = 22.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Art(art, tint, Modifier.fillMaxHeight().aspectRatio(1f), 22.dp)
-            Spacer(Modifier.width(28.dp))
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Equalizer(media.playing, tint, Modifier.size(width = 18.dp, height = 13.dp))
-                    Spacer(Modifier.width(7.dp))
-                    Text(
-                        (if (media.playing) "Sonando en " else "En pausa · ") + media.app,
-                        maxLines = 1,
-                        style = Vega.label.copy(fontSize = 12.sp, color = tint),
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(clock, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 18.sp, color = Vega.Ink3))
-                    Spacer(Modifier.width(12.dp))
-                    Pill("Volver", Vega.Ink2, onClose)
+        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 24.dp, vertical = 16.dp)) {
+            // Cabecera común: qué suena, hora, Letra y Volver.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Equalizer(media.playing, tint, Modifier.size(width = 18.dp, height = 13.dp))
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    (if (media.playing) "Sonando en " else "En pausa · ") + media.app,
+                    maxLines = 1,
+                    style = Vega.label.copy(fontSize = 12.sp, color = tint),
+                )
+                Spacer(Modifier.weight(1f))
+                Text(clock, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 18.sp, color = Vega.Ink3))
+                Spacer(Modifier.width(12.dp))
+                if (hasLyrics) {
+                    Pill("Letra", tint, { showLyrics = !showLyrics }, filled = lyricsMode)
+                    Spacer(Modifier.width(8.dp))
                 }
-                Spacer(Modifier.height(14.dp))
-                Text(media.title, maxLines = 2, style = Vega.body.copy(fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold))
-                Spacer(Modifier.height(4.dp))
-                Text(media.artist, maxLines = 1, style = Vega.body.copy(fontSize = 18.sp, color = Vega.Ink2))
-                if (media.album.isNotEmpty() && media.album != media.title) {
-                    Text(media.album, maxLines = 1, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink3))
+                Pill("Volver", Vega.Ink2, onClose)
+            }
+            Spacer(Modifier.height(12.dp))
+            if (lyricsMode && lyrics != null) {
+                Row(Modifier.fillMaxSize()) {
+                    Column(Modifier.width(250.dp).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Art(art, tint, Modifier.size(84.dp), 14.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(media.title, maxLines = 2, style = Vega.body.copy(fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold))
+                                Text(media.artist, maxLines = 1, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink2))
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 5.dp)
+                        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(clockTime(position), style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
+                            Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                            TransportButton("previous", 44.dp, Vega.Ink, media.canPrevious, { onControl("previous") })
+                            TransportButton(if (media.playing) "pause" else "play", 56.dp, tint, true, { onControl("play_pause") }, filled = true)
+                            TransportButton("next", 44.dp, Vega.Ink, media.canNext, { onControl("next") })
+                        }
+                    }
+                    Spacer(Modifier.width(24.dp))
+                    LyricsView(lyrics, position, tint, Modifier.weight(1f).fillMaxHeight())
                 }
-                Spacer(Modifier.height(20.dp))
-                Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 6.dp)
-                Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(clockTime(position), style = Vega.label.copy(color = Vega.Ink2))
-                    Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(color = Vega.Ink2))
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    TransportButton("previous", 56.dp, Vega.Ink, media.canPrevious, { onControl("previous") })
+            } else {
+                Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                    Art(art, tint, Modifier.fillMaxHeight().aspectRatio(1f), 22.dp)
                     Spacer(Modifier.width(28.dp))
-                    TransportButton(if (media.playing) "pause" else "play", 72.dp, tint, true, { onControl("play_pause") }, filled = true)
-                    Spacer(Modifier.width(28.dp))
-                    TransportButton("next", 56.dp, Vega.Ink, media.canNext, { onControl("next") })
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                        Text(media.title, maxLines = 2, style = Vega.body.copy(fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold))
+                        Spacer(Modifier.height(4.dp))
+                        Text(media.artist, maxLines = 1, style = Vega.body.copy(fontSize = 18.sp, color = Vega.Ink2))
+                        if (media.album.isNotEmpty() && media.album != media.title) {
+                            Text(media.album, maxLines = 1, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink3))
+                        }
+                        Spacer(Modifier.height(18.dp))
+                        Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 6.dp)
+                        Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(clockTime(position), style = Vega.label.copy(color = Vega.Ink2))
+                            Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(color = Vega.Ink2))
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            TransportButton("previous", 56.dp, Vega.Ink, media.canPrevious, { onControl("previous") })
+                            Spacer(Modifier.width(28.dp))
+                            TransportButton(if (media.playing) "pause" else "play", 72.dp, tint, true, { onControl("play_pause") }, filled = true)
+                            Spacer(Modifier.width(28.dp))
+                            TransportButton("next", 56.dp, Vega.Ink, media.canNext, { onControl("next") })
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+/** Línea de la letra que suena ahora (la última que ya empezó), o -1 antes de la primera. */
+fun currentLine(lines: List<LyricLine>, position: Double): Int {
+    var current = -1
+    for (i in lines.indices) {
+        if (lines[i].t <= position + 0.25) current = i else break // un pelín antes: se lee a tiempo
+    }
+    return current
+}
+
+/**
+ * La letra: sincronizada, la línea actual va grande y clara, y la lista se desplaza sola
+ * para dejarla en el primer tercio. Sin sincronizar, se puede leer deslizando el dedo.
+ */
+@Composable
+private fun LyricsView(lyrics: Lyrics, position: Double, accent: Color, modifier: Modifier = Modifier) {
+    if (lyrics.instrumental) {
+        Box(modifier, contentAlignment = Alignment.Center) {
+            Text("Instrumental ♪", style = Vega.body.copy(fontSize = 22.sp, color = Vega.Ink2))
+        }
+        return
+    }
+    val lines = lyrics.lines
+    val current = if (lyrics.synced) currentLine(lines, position) else -1
+    val state = rememberLazyListState()
+    LaunchedEffect(current) {
+        if (current >= 0) state.animateScrollToItem((current - 2).coerceAtLeast(0))
+    }
+    Box(modifier) {
+        LazyColumn(
+            state = state,
+            // La letra entra y sale difuminada arriba y abajo, respetando el fondo de color (una
+            // máscara, no una franja negra encima).
+            modifier = Modifier.fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent, 0.12f to Color.Black, 0.88f to Color.Black, 1f to Color.Transparent,
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
+            contentPadding = PaddingValues(vertical = 40.dp),
+        ) {
+            itemsIndexed(lines) { i, line ->
+                val now = i == current
+                val color by animateColorAsState(
+                    when {
+                        !lyrics.synced -> Vega.Ink2
+                        now -> Vega.Ink
+                        i < current -> Vega.Ink3
+                        else -> Vega.Ink3.copy(alpha = 0.75f)
+                    },
+                    tween(250),
+                    label = "línea",
+                )
+                Text(
+                    line.text.ifEmpty { "♪" },
+                    style = Vega.body.copy(
+                        fontSize = if (now) 24.sp else 19.sp,
+                        lineHeight = if (now) 29.sp else 24.sp,
+                        fontWeight = if (now) FontWeight.Bold else FontWeight.Normal,
+                        color = if (line.text.isEmpty() && now) accent else color,
+                    ),
+                    modifier = Modifier.padding(vertical = 5.dp),
+                )
+            }
+        }
+        if (!lyrics.synced) {
+            Text("Letra sin sincronizar", style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink3), modifier = Modifier.align(Alignment.BottomEnd))
         }
     }
 }

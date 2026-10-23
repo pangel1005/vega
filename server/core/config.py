@@ -103,6 +103,12 @@ class MemorySettings(_Section):
         return self.file if self.file.is_absolute() else ROOT / self.file
 
 
+class MediaSettings(_Section):
+    # Letras de canciones desde lrclib.net (lo único que usa internet: título, artista,
+    # álbum y duración de la canción). False = sin modo letra.
+    lyrics: bool = True
+
+
 class Settings(_Section):
     assistant: AssistantSettings
     server: ServerSettings = ServerSettings()
@@ -111,6 +117,7 @@ class Settings(_Section):
     memory: MemorySettings = MemorySettings()
     speech: SpeechSettings = SpeechSettings()
     device: DeviceSettings = DeviceSettings()
+    media: MediaSettings = MediaSettings()
 
     @property
     def system_prompt(self) -> str:

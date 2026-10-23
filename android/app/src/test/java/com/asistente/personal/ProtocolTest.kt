@@ -74,6 +74,19 @@ class ProtocolTest {
         assertEquals("3:17", com.asistente.personal.ui.clockTime(197.4))
     }
 
+    @Test fun `interpreta la letra y sabe qué línea suena`() {
+        val l = com.asistente.personal.net.Lyrics.parse(
+            """{"synced":true,"instrumental":false,"lines":[{"t":10.0,"text":"uno"},{"t":15.5,"text":"dos"},{"t":20.0,"text":""}]}""",
+        )!!
+        assertEquals(3, l.lines.size)
+        assertEquals("dos", l.lines[1].text)
+        assertEquals(-1, com.asistente.personal.ui.currentLine(l.lines, 5.0)) // antes de la primera
+        assertEquals(0, com.asistente.personal.ui.currentLine(l.lines, 12.0))
+        assertEquals(1, com.asistente.personal.ui.currentLine(l.lines, 15.3)) // un pelín antes, para leerla a tiempo
+        assertEquals(2, com.asistente.personal.ui.currentLine(l.lines, 300.0))
+        assertNull(com.asistente.personal.net.Lyrics.parse("basura"))
+    }
+
     @Test fun `cuenta atrás legible`() {
         assertEquals("04:59", com.asistente.personal.ui.countdown(299))
         assertEquals("1:00:05", com.asistente.personal.ui.countdown(3605))

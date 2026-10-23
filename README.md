@@ -4,7 +4,7 @@ Vega es un asistente al que le hablas («Vega, …») y que a la vez es una **bo
 (apagar el PC, música, abrir apps, grabar…), como una mezcla de Alexa y Stream Deck.
 
 - **El cerebro está en tu PC.** Entiende la voz, piensa la respuesta y habla con modelos
-  de IA que corren en tu propio equipo: sin servicios de pago, sin nube y sin internet.
+  de IA que corren en tu propio equipo: sin servicios de pago, sin nube y sin internet (salvo, si quieres, las letras de canciones).
 - **El cuerpo es un teléfono Android** conectado por **cable USB**. Pone la cara de LED,
   el micrófono, el altavoz y las teclas.
 
@@ -89,7 +89,8 @@ conversación. Tocar la cara tiene el mismo efecto.
 - **Datos en vivo:** estado del PC, batería y el próximo aviso con cuenta atrás.
 - **Lo que suena en el PC** (Spotify, el navegador…): canción, artista, carátula y
   progreso en un mini reproductor, con anterior, pausa y siguiente. Al tocarlo se abre
-  la pantalla «Sonando», en grande y con el color de la carátula.
+  la pantalla «Sonando», en grande y con el color de la carátula. Con el botón **Letra**
+  muestra la letra sincronizada, con la línea que suena resaltada.
 - **Se actualiza sola desde el PC:** aparece el botón **Actualizar**.
 - Puede ser la **pantalla de inicio** del teléfono. El botón **Android** vuelve a
   HyperOS.
@@ -177,6 +178,10 @@ el cable puede tardar hasta unos 30 s.
 - **Solo tu PC:** el servidor solo escucha en `127.0.0.1`, pide un token
   (`config/token.txt`, fuera de git) y rechaza nombres de dominio extraños, para frenar
   el *DNS rebinding*.
+- **Internet:** lo único que sale a internet es la búsqueda de letras en
+  [lrclib.net](https://lrclib.net) (gratis, sin cuenta). Solo se manda el título, el
+  artista, el álbum y la duración de la canción, y cada letra se guarda en `data/lyrics/`
+  para no volver a pedirla. Se apaga con `lyrics = false` en `[media]`.
 
 ## Instalación (Windows)
 

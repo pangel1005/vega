@@ -46,6 +46,26 @@ data class MediaInfo(
     val canNext: Boolean,
 )
 
+/** Una línea de la letra: `t` = segundo en que empieza (-1 si la letra no está sincronizada). */
+data class LyricLine(val t: Double, val text: String)
+
+/** Letra de la canción que suena (de lrclib.net, a través del PC). */
+data class Lyrics(val synced: Boolean, val lines: List<LyricLine>, val instrumental: Boolean = false) {
+    companion object {
+        fun parse(raw: String): Lyrics? = try {
+            val o = JSONObject(raw)
+            val arr = o.getJSONArray("lines")
+            Lyrics(
+                synced = o.optBoolean("synced"),
+                instrumental = o.optBoolean("instrumental"),
+                lines = List(arr.length()) { i -> arr.getJSONObject(i).let { LyricLine(it.getDouble("t"), it.getString("text")) } },
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
+
 /** Recordatorio o temporizador pendiente; `dueIn` en segundos desde que llegó la lectura. */
 data class Upcoming(val kind: String, val text: String, val dueIn: Int)
 

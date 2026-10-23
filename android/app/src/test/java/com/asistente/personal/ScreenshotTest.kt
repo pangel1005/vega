@@ -193,4 +193,31 @@ class ScreenshotTest {
         compose.mainClock.advanceTimeBy(500)
         compose.onRoot().captureRoboImage("build/capturas/17_sonando.png")
     }
+
+    // Modo letra: a la izquierda la canción compacta; a la derecha la letra con la línea actual.
+    @Test fun pantalla_letra() {
+        val art = fakeArt()
+        val lyrics = com.asistente.personal.net.Lyrics(
+            synced = true,
+            lines = listOf(
+                0.0 to "Help me, I've broken apart my insides",
+                184.0 to "Did I say something true?",
+                190.0 to "Oops, I didn't know I couldn't talk about sex",
+                195.5 to "I musta been crazy",
+                199.0 to "To say exactly what I want from a guy",
+                204.0 to "I'm not your bitch, don't hang your shit on me",
+                209.0 to "",
+                214.0 to "Express yourself, don't repress yourself",
+            ).map { (t, text) -> com.asistente.personal.net.LyricLine(t, text) },
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            com.asistente.personal.ui.MusicScreen(
+                song, receivedAt = 1_000, now = { 1_000 }, art = art, accent = com.asistente.personal.ui.accentOf(art),
+                clock = "02:29", lyrics = lyrics, onControl = {}, onClose = {}, startWithLyrics = true,
+            )
+        }
+        compose.mainClock.advanceTimeBy(800)
+        compose.onRoot().captureRoboImage("build/capturas/18_letra.png")
+    }
 }

@@ -13,8 +13,9 @@ from fastapi import FastAPI
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from server import __version__
-from server.core.config import Settings
+from server.core.config import ROOT, Settings
 from server.core.hub import Hub
+from server.device.lyrics import LyricsFinder
 from server.device.media import MediaWatcher
 from server.device.usb import PhoneStatus
 from server.llm.base import ChatModel
@@ -26,7 +27,7 @@ from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner
 from server.tools.app_icons import AppIcons
-from server.web import UI_DIST, register_app_icons, register_media_art, register_ui
+from server.web import UI_DIST, register_app_icons, register_lyrics, register_media_art, register_ui
 from server.ws.routes import register_ws
 
 log = logging.getLogger(__name__)
@@ -108,6 +109,7 @@ def create_app(
     if app_icons is not None:
         register_app_icons(app, app_icons)
     register_media_art(app, hub.media_art)
+    register_lyrics(app, LyricsFinder(ROOT / "data" / "lyrics", enabled=settings.media.lyrics))
 
     @app.get("/health")
     async def health() -> dict[str, object]:

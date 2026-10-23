@@ -68,6 +68,11 @@ usb_watcher = true
 adb_path = ""
 open_app_on_connect = true
 
+[media]
+# Modo letra de la pantalla «Sonando»: busca la letra en lrclib.net (gratis, sin cuenta).
+# Es lo único que usa internet: manda solo título, artista, álbum y duración de la canción.
+lyrics = true
+
 [memory]
 # Historial de conversaciones (SQLite). Fuera de git.
 file = "data/history.sqlite"

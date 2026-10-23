@@ -106,7 +106,10 @@ class AssistantController(context: Context) {
         onEvent = { event ->
             if (event is ServerEvent.Reminder) vibrate()
             if (event is ServerEvent.Actions) loadIcons(event.items)
-            if (event is ServerEvent.Media) loadMediaArt(event.media?.art)
+            if (event is ServerEvent.Media) {
+                loadMediaArt(event.media?.art)
+                loadLyrics(event.media)
+            }
             if (event is ServerEvent.Stats) {
                 dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
             } else if (event is ServerEvent.Media) {
@@ -191,6 +194,23 @@ class AssistantController(context: Context) {
                 mediaArt = art
                 mediaAccent = com.asistente.personal.ui.accentOf(art)
             }
+        }
+    }
+
+    /** Letra de la canción que suena (null mientras no hay o no se encontró). */
+    var lyrics by mutableStateOf<com.asistente.personal.net.Lyrics?>(null)
+        private set
+    private var lyricsFor: String? = null
+
+    private fun loadLyrics(media: com.asistente.personal.net.MediaInfo?) {
+        val key = media?.let { "${it.artist}|${it.title}" }
+        if (key == lyricsFor) return
+        lyricsFor = key
+        lyrics = null
+        if (media == null) return
+        scope.launch {
+            val found = updater.lyrics(media)
+            if (lyricsFor == key) lyrics = found
         }
     }
 

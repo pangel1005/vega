@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from server.core.config import ROOT
+from server.device.lyrics import LyricsFinder
 from server.tools.app_icons import AppIcons
 
 log = logging.getLogger(__name__)
@@ -86,6 +87,21 @@ def register_media_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None
         if data is None:
             return Response(status_code=404)
         return Response(data, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
+
+def register_lyrics(app: FastAPI, finder: LyricsFinder) -> None:
+    """Letra de una canción (sincronizada si se puede) para el modo letra del teléfono."""
+
+    @app.get("/app/media/lyrics", include_in_schema=False)
+    async def lyrics(
+        artist: str = "", title: str = "", album: str = "", duration: float = 0
+    ) -> dict[str, object]:
+        found = await finder.find(artist, title, album, duration)
+        return {
+            "synced": found.synced,
+            "instrumental": found.instrumental,
+            "lines": [{"t": line.time, "text": line.text} for line in found.lines],
+        }
 
 
 def register_app_icons(app: FastAPI, icons: AppIcons) -> None:

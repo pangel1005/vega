@@ -99,6 +99,7 @@ data class ScreenModel(
     val mediaArt: ImageBitmap? = null,
     val mediaAccent: Color = Vega.Coral,
     val clockMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
+    val lyrics: com.asistente.personal.net.Lyrics? = null,
 )
 
 class ScreenActions(
@@ -369,7 +370,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         ) {
             if (playing != null) {
                 MusicScreen(
-                    playing, livePosition(playing, ui.mediaAt, m.clockMs), m.mediaArt, m.mediaAccent, m.clock,
+                    playing, ui.mediaAt, m.clockMs, m.mediaArt, m.mediaAccent, m.clock, m.lyrics,
                     onControl = a.mediaControl, onClose = { showMusic = false },
                 )
             }

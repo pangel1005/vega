@@ -62,6 +62,22 @@ class Updater(private val context: Context) {
         }
     }
 
+    /** Letra de una canción (el PC la busca en lrclib.net y la guarda), o null. */
+    suspend fun lyrics(media: com.asistente.personal.net.MediaInfo): com.asistente.personal.net.Lyrics? = withContext(Dispatchers.IO) {
+        try {
+            val url = okhttp3.HttpUrl.Builder().scheme("http").host("127.0.0.1").port(8000)
+                .addPathSegments("app/media/lyrics")
+                .addQueryParameter("artist", media.artist).addQueryParameter("title", media.title)
+                .addQueryParameter("album", media.album).addQueryParameter("duration", media.duration.toString())
+                .build()
+            http.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+                if (!resp.isSuccessful) null else com.asistente.personal.net.Lyrics.parse(resp.body.string())
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Descarga e inicia la instalación. Devuelve un mensaje de error para el usuario, o null si fue bien. */
     suspend fun downloadAndInstall(): String? {
         if (!context.packageManager.canRequestPackageInstalls()) {
