@@ -290,7 +290,7 @@ class Orchestrator:
         else:
             wake = parse_wake(text, self._name)
             if not wake.woke:
-                # Solo en modo depuración: en el registro normal no se guarda lo que se dice cerca del micrófono.
+                # Solo en modo depuración: el registro normal no guarda lo que se dice cerca del micro.
                 log.debug("Frase sin «%s» (descartada): «%s»", self._name, text)
                 return
             command = wake.command

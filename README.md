@@ -87,6 +87,9 @@ conversación. Tocar la cara tiene el mismo efecto.
 - **Teclas que actúan al tocar**, sin esperar a soltar, con una vibración corta. Las
   apps llevan **su icono real**, que el PC saca del `.exe`.
 - **Datos en vivo:** estado del PC, batería y el próximo aviso con cuenta atrás.
+- **Lo que suena en el PC** (Spotify, el navegador…): canción, artista, carátula y
+  progreso en un mini reproductor, con anterior, pausa y siguiente. Al tocarlo se abre
+  la pantalla «Sonando», en grande y con el color de la carátula.
 - **Se actualiza sola desde el PC:** aparece el botón **Actualizar**.
 - Puede ser la **pantalla de inicio** del teléfono. El botón **Android** vuelve a
   HyperOS.
@@ -150,7 +153,9 @@ powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1       # arrancar 
 ```
 
 El arranque con Windows es una tarea programada «Vega (asistente)», que se lanza al
-iniciar sesión. Si algo falla al arrancar, queda anotado en `logs/arranque.log`.
+iniciar sesión. Si algo falla al arrancar, queda anotado en `logs/arranque.log`. Otra
+tarea, «Vega (vigilante)», mira cada 5 minutos si Vega responde y, si se colgó, la reinicia
+(`logs/vigilante.log`).
 
 Conecta el teléfono por USB. El servidor lo enlaza y abre la app solo; tras reconectar
 el cable puede tardar hasta unos 30 s.
