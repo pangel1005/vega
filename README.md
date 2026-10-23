@@ -218,4 +218,5 @@ cd android; .\gradlew.bat testDebugUnitTest assembleRelease  # app (JAVA_HOME = 
   - `tools/wake_test.py`: simular el micrófono con archivos WAV.
   - `tools/bench_stt.py`: medir la velocidad de Whisper.
 
+Cómo ha evolucionado el proyecto y por qué cambió de rumbo: [docs/evolucion.md](docs/evolucion.md).
 El plan original y las decisiones de partida están en `docs/plan-inicial.md`.
