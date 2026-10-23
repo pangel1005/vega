@@ -3,6 +3,7 @@ package com.asistente.personal
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import com.asistente.personal.net.AssistantState
 import com.asistente.personal.net.DeckAction
 import com.asistente.personal.net.LinkStatus
@@ -54,5 +55,27 @@ class TouchTest {
         assertEquals(1, updates)
         compose.onNodeWithText("Oyendo").performTouchInput { down(center); up() }
         assertEquals(1, mic)
+    }
+
+    @Test fun `se cambia entre estado del PC y musica con el selector y deslizando`() {
+        val song = com.asistente.personal.net.MediaInfo("Spotify", "Human Nature", "Madonna", "", true, 10.0, 200.0, "", true, true)
+        val ui = UiState(link = LinkStatus.OPEN, assistant = "Vega", media = song, mediaAt = 0)
+        val m = ScreenModel(
+            ui = ui, clock = "02:29", date = "jueves 22 oct", state = AssistantState.IDLE, listening = true, micOn = true,
+            battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0f, nowMs = 0,
+            clockMs = { 0 },
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent { VegaScreen(m, ScreenActions()) }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Human Nature").assertExists() // con música, empieza en el reproductor
+        compose.onNodeWithText("PC").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(600)
+        compose.onNodeWithText("Procesador").assertExists()
+        compose.onNodeWithText("Human Nature").assertDoesNotExist()
+        // Deslizar a la izquierda sobre la tarjeta vuelve a la música.
+        compose.onNodeWithText("Procesador").performTouchInput { swipeLeft(startX = right, endX = left - 200f) }
+        compose.mainClock.advanceTimeBy(600)
+        compose.onNodeWithText("Human Nature").assertExists()
     }
 }

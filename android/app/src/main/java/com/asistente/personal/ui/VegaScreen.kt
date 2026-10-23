@@ -1,6 +1,13 @@
 package com.asistente.personal.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import kotlin.math.abs
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -260,16 +267,46 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     // estas tarjetas no se vuelven a dibujar.
                     Column(Modifier.width(250.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         ClockCard(m, a, Modifier.fillMaxWidth())
-                        // Mientras suena algo en el PC, el mini reproductor ocupa el sitio del estado del PC.
+                        // Mientras suena algo en el PC hay dos páginas: estado del PC y reproductor. Se
+                        // cambia deslizando el dedo o con el selector; al empezar la música pasa sola a ella.
                         val media = ui.media
-                        if (media != null) {
-                            NowPlayingCard(
-                                media, livePosition(media, ui.mediaAt, m.clockMs), m.mediaArt, m.mediaAccent,
-                                onControl = a.mediaControl, onOpen = { showMusic = true },
-                                modifier = Modifier.fillMaxWidth().weight(1f),
-                            )
-                        } else {
-                            StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxWidth().weight(1f))
+                        var musicPage by remember { mutableStateOf(media != null) }
+                        LaunchedEffect(media != null) { musicPage = media != null }
+                        if (media != null) PageSwitch(musicPage) { musicPage = it }
+                        Box(
+                            Modifier.fillMaxWidth().weight(1f).pointerInput(media != null) {
+                                if (media == null) return@pointerInput
+                                var dx = 0f
+                                detectHorizontalDragGestures(
+                                    onDragStart = { dx = 0f },
+                                    onDragEnd = { if (abs(dx) > 40.dp.toPx()) musicPage = dx < 0 },
+                                ) { change, amount ->
+                                    change.consume()
+                                    dx += amount
+                                }
+                            },
+                        ) {
+                            AnimatedContent(
+                                targetState = musicPage && media != null,
+                                transitionSpec = {
+                                    // La música entra por la derecha; el estado del PC, por la izquierda.
+                                    val dir = if (targetState) 1 else -1
+                                    (slideInHorizontally(tween(260)) { it * dir } + fadeIn(tween(200))) togetherWith
+                                        (slideOutHorizontally(tween(260)) { -it * dir } + fadeOut(tween(160)))
+                                },
+                                label = "páginas",
+                            ) { showPlayer ->
+                                val playing = ui.media
+                                if (showPlayer && playing != null) {
+                                    NowPlayingCard(
+                                        playing, livePosition(playing, ui.mediaAt, m.clockMs), m.mediaArt, m.mediaAccent,
+                                        onControl = a.mediaControl, onOpen = { showMusic = true },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else {
+                                    StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxSize())
+                                }
+                            }
                         }
                     }
                 }
@@ -411,6 +448,27 @@ private fun SleepScreen(m: ScreenModel, modifier: Modifier = Modifier) {
                     "Teléfono ${m.battery} %" + if (m.charging) " · cargando" else "",
                     style = Vega.label.copy(color = if (m.battery <= 15 && !m.charging) Vega.Red else Vega.Ink3),
                 )
+            }
+        }
+    }
+}
+
+/** Selector «PC | Música» (solo mientras suena algo). Salta al tocar. */
+@Composable
+private fun PageSwitch(music: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(24.dp).background(Vega.Card, RoundedCornerShape(50)).padding(2.dp),
+    ) {
+        for ((label, isMusic) in listOf("PC" to false, "Música" to true)) {
+            val pressed = remember { mutableStateOf(false) }
+            val selected = music == isMusic
+            Box(
+                Modifier.weight(1f).fillMaxHeight()
+                    .background(if (selected) Vega.CardHi else Color.Transparent, RoundedCornerShape(50))
+                    .instantPress(enabled = true, pressed = pressed) { onChange(isMusic) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, style = Vega.label.copy(color = if (selected) Vega.Ink else Vega.Ink3))
             }
         }
     }
