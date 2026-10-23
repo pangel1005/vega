@@ -49,6 +49,19 @@ class Updater(private val context: Context) {
         }
     }
 
+    /** Carátula de lo que suena en el PC (JPEG), o null. */
+    suspend fun mediaArt(id: String): androidx.compose.ui.graphics.ImageBitmap? = withContext(Dispatchers.IO) {
+        try {
+            http.newCall(Request.Builder().url("$SERVER_HTTP/app/media/art/$id.jpg").build()).execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                val bytes = resp.body.bytes()
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Descarga e inicia la instalación. Devuelve un mensaje de error para el usuario, o null si fue bien. */
     suspend fun downloadAndInstall(): String? {
         if (!context.packageManager.canRequestPackageInstalls()) {

@@ -161,6 +161,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             noticeExpired = c::noticeExpired,
             nextFaceColor = c::nextFaceColor,
             sleepChanged = sleepChanged,
+            mediaControl = c::mediaControl,
         )
     }
     VegaScreen(
@@ -190,6 +191,8 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             appVersion = BuildConfig.VERSION_CODE,
             icons = c.icons,
             faceColor = c.faceColor,
+            mediaArt = c.mediaArt,
+            mediaAccent = c.mediaAccent,
         ),
         actions,
     )

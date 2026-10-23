@@ -32,6 +32,20 @@ data class DeckAction(
 
 data class Voice(val id: String, val label: String)
 
+/** Lo que suena en el PC (Spotify, el navegador…). `art` = id de la carátula en el PC. */
+data class MediaInfo(
+    val app: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val playing: Boolean,
+    val position: Double,
+    val duration: Double,
+    val art: String,
+    val canPrevious: Boolean,
+    val canNext: Boolean,
+)
+
 /** Recordatorio o temporizador pendiente; `dueIn` en segundos desde que llegó la lectura. */
 data class Upcoming(val kind: String, val text: String, val dueIn: Int)
 
@@ -65,6 +79,8 @@ sealed interface ServerEvent {
     /** Ha vencido un recordatorio o un temporizador. */
     data class Reminder(val kind: String, val text: String) : ServerEvent
     data class Stats(val telemetry: Telemetry) : ServerEvent
+    /** Lo que suena en el PC; null = nada. */
+    data class Media(val media: MediaInfo?) : ServerEvent
 }
 
 object Protocol {
@@ -112,6 +128,14 @@ object Protocol {
             "audio" -> ServerEvent.Audio(o.getInt("seq"), o.getInt("rate"), o.getString("text"))
             "audio_end" -> ServerEvent.AudioEnd
             "reminder" -> ServerEvent.Reminder(o.getString("kind"), o.getString("text"))
+            "media" -> ServerEvent.Media(
+                if (!o.optBoolean("active")) null else MediaInfo(
+                    app = o.optString("app"), title = o.optString("title"), artist = o.optString("artist"),
+                    album = o.optString("album"), playing = o.optBoolean("playing"),
+                    position = o.optDouble("position", 0.0), duration = o.optDouble("duration", 0.0),
+                    art = o.optString("art"), canPrevious = o.optBoolean("can_previous"), canNext = o.optBoolean("can_next"),
+                ),
+            )
             "telemetry" -> {
                 val arr = o.optJSONArray("upcoming")
                 fun optInt(k: String) = if (o.isNull(k)) null else o.getInt(k)
@@ -137,6 +161,8 @@ object Protocol {
     fun chat(text: String): String = JSONObject().put("type", "chat").put("text", text).toString()
     fun simple(type: String): String = JSONObject().put("type", type).toString()
     fun action(id: String): String = JSONObject().put("type", "action").put("id", id).toString()
+    fun mediaControl(command: String): String =
+        JSONObject().put("type", "media_control").put("command", command).toString()
     fun setVoice(id: String): String = JSONObject().put("type", "set_voice").put("voice", id).toString()
     fun confirm(nonce: String): String = JSONObject().put("type", "action_confirm").put("nonce", nonce).toString()
 }

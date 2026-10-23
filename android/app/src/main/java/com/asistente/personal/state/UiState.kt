@@ -53,6 +53,9 @@ data class UiState(
      * enlace, Vega se duerme en vez de mostrar «reconectando». Se borra al volver el enlace.
      */
     val pcOff: String? = null,
+    /** Lo que suena en el PC (null = nada) y cuándo llegó (reloj del teléfono, ms). */
+    val media: com.asistente.personal.net.MediaInfo? = null,
+    val mediaAt: Long = 0,
 )
 
 sealed interface Action {
@@ -63,6 +66,7 @@ sealed interface Action {
     data class ConfirmExpired(val nonce: String) : Action
     data class NoticeExpired(val seq: Int) : Action
     data class Telemetry(val data: com.asistente.personal.net.Telemetry, val at: Long) : Action
+    data class Media(val media: com.asistente.personal.net.MediaInfo?, val at: Long) : Action
 }
 
 private fun UiState.notify(text: String, ok: Boolean, reminder: Boolean = false) =
@@ -85,6 +89,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         val next = s.copy(
             link = action.status, retryInMs = action.retryInMs,
             telemetry = if (action.status == LinkStatus.OPEN) s.telemetry else null,
+            media = if (action.status == LinkStatus.OPEN) s.media else null,
             pcOff = if (action.status == LinkStatus.OPEN) null else s.pcOff,
         )
         val open = next.lastStreaming()
@@ -96,6 +101,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
     is Action.ConfirmExpired -> if (s.pending?.nonce == action.nonce) s.copy(pending = null) else s
     is Action.NoticeExpired -> if (s.notice?.seq == action.seq) s.copy(notice = null) else s
     is Action.Telemetry -> s.copy(telemetry = action.data, telemetryAt = action.at)
+    is Action.Media -> s.copy(media = action.media, mediaAt = action.at)
     is Action.Server -> when (val e = action.event) {
         is ServerEvent.Ready -> s.copy(assistant = e.assistant, model = e.model)
         is ServerEvent.History -> e.messages.fold(s.copy(messages = emptyList())) { acc, m ->
@@ -138,5 +144,6 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         is ServerEvent.Reminder -> s.push(Role.NOTE, e.text).notify(e.text, ok = true, reminder = true)
         // Llega sin hora local; AssistantController la reenvía como Action.Telemetry con la hora.
         is ServerEvent.Stats -> s.copy(telemetry = e.telemetry)
+        is ServerEvent.Media -> s.copy(media = e.media)
     }
 }

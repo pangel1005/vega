@@ -88,6 +88,10 @@ data class ScreenModel(
     /** Iconos reales de las apps del panel, por id de botón. */
     val icons: Map<String, ImageBitmap> = emptyMap(),
     val faceColor: FaceColor = FaceColor.WARM,
+    /** Carátula de lo que suena y su color; reloj del teléfono para avanzar la canción. */
+    val mediaArt: ImageBitmap? = null,
+    val mediaAccent: Color = Vega.Coral,
+    val clockMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
 )
 
 class ScreenActions(
@@ -102,6 +106,7 @@ class ScreenActions(
     val nextFaceColor: () -> Unit = {},
     /** Vega se duerme o se despierta: la actividad baja o devuelve el brillo de la pantalla. */
     val sleepChanged: (Boolean) -> Unit = {},
+    val mediaControl: (String) -> Unit = {},
 )
 
 /** Qué cara pone Vega según lo que está pasando de verdad. */
@@ -167,6 +172,9 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     val ui = m.ui
     val canAct = ui.link == LinkStatus.OPEN
     var showMore by remember { mutableStateOf(false) }
+    var showMusic by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = showMusic) { showMusic = false }
+    if (ui.media == null && showMusic) showMusic = false
     androidx.activity.compose.BackHandler(enabled = showMore) { showMore = false }
 
     // Cuenta atrás de la confirmación (compartida por las teclas y la hoja «Más»).
@@ -252,7 +260,17 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     // estas tarjetas no se vuelven a dibujar.
                     Column(Modifier.width(250.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         ClockCard(m, a, Modifier.fillMaxWidth())
-                        StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxWidth().weight(1f))
+                        // Mientras suena algo en el PC, el mini reproductor ocupa el sitio del estado del PC.
+                        val media = ui.media
+                        if (media != null) {
+                            NowPlayingCard(
+                                media, livePosition(media, ui.mediaAt, m.clockMs), m.mediaArt, m.mediaAccent,
+                                onControl = a.mediaControl, onOpen = { showMusic = true },
+                                modifier = Modifier.fillMaxWidth().weight(1f),
+                            )
+                        } else {
+                            StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxWidth().weight(1f))
+                        }
                     }
                 }
                 KeyRow(
@@ -305,6 +323,20 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
             }
         }
         if (sleepFade > 0f) SleepScreen(m, Modifier.graphicsLayer { alpha = sleepFade })
+        // Pantalla «Sonando» (se abre tocando el mini reproductor).
+        val playing = ui.media
+        AnimatedVisibility(
+            visible = showMusic && playing != null && sleepFade == 0f,
+            enter = fadeIn(tween(220)) + androidx.compose.animation.scaleIn(tween(260), initialScale = 0.96f),
+            exit = fadeOut(tween(180)) + androidx.compose.animation.scaleOut(tween(180), targetScale = 0.96f),
+        ) {
+            if (playing != null) {
+                MusicScreen(
+                    playing, livePosition(playing, ui.mediaAt, m.clockMs), m.mediaArt, m.mediaAccent, m.clock,
+                    onControl = a.mediaControl, onClose = { showMusic = false },
+                )
+            }
+        }
     }
 }
 

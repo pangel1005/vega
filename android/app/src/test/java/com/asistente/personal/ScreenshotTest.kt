@@ -156,4 +156,41 @@ class ScreenshotTest {
         compose.mainClock.advanceTimeBy(600)
         compose.onRoot().captureRoboImage("build/capturas/14_hoja_mas_colores.png")
     }
+
+    private val song = com.asistente.personal.net.MediaInfo(
+        app = "Spotify", title = "Human Nature", artist = "Madonna", album = "Bedtime Stories",
+        playing = true, position = 197.0, duration = 293.9, art = "abc", canPrevious = true, canNext = true,
+    )
+
+    /** Carátula de prueba: un degradado morado-azul (en el teléfono es la de verdad). */
+    private fun fakeArt() = android.graphics.Bitmap.createBitmap(300, 300, android.graphics.Bitmap.Config.ARGB_8888).also { bmp ->
+        val paint = android.graphics.Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, 300f, 300f, 0xFF6A3DE8.toInt(), 0xFF2EC5FF.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        }
+        android.graphics.Canvas(bmp).drawRect(0f, 0f, 300f, 300f, paint)
+    }.asImageBitmap()
+
+    // Algo suena en el PC: el mini reproductor ocupa el sitio del estado del PC.
+    @Test fun mini_reproductor() {
+        val art = fakeArt()
+        shot(
+            "16_mini_reproductor",
+            model(base.copy(media = song, mediaAt = 1_000)).copy(mediaArt = art, mediaAccent = com.asistente.personal.ui.accentOf(art), clockMs = { 1_000 }),
+        )
+    }
+
+    @Test fun pantalla_sonando() {
+        val art = fakeArt()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            VegaScreen(
+                model(base.copy(media = song, mediaAt = 1_000)).copy(mediaArt = art, mediaAccent = com.asistente.personal.ui.accentOf(art), clockMs = { 1_000 }),
+                ScreenActions(),
+            )
+        }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Human Nature").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(500)
+        compose.onRoot().captureRoboImage("build/capturas/17_sonando.png")
+    }
 }

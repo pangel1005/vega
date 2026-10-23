@@ -59,6 +59,21 @@ class ProtocolTest {
         assertNull(noGpu.telemetry.vramTotal)
     }
 
+    @Test fun `interpreta lo que suena en el PC`() {
+        val e = Protocol.parse(
+            """{"type":"media","active":true,"app":"Spotify","title":"Human Nature","artist":"Madonna",""" +
+                """"album":"Bedtime Stories","playing":true,"position":197.0,"duration":293.9,"art":"abc",""" +
+                """"can_previous":true,"can_next":true}""",
+        ) as ServerEvent.Media
+        assertEquals("Human Nature", e.media?.title)
+        assertEquals(197.0, e.media!!.position, 0.01)
+        assertNull((Protocol.parse("""{"type":"media","active":false}""") as ServerEvent.Media).media)
+        val msg = org.json.JSONObject(Protocol.mediaControl("next"))
+        assertEquals("media_control", msg.getString("type"))
+        assertEquals("next", msg.getString("command"))
+        assertEquals("3:17", com.asistente.personal.ui.clockTime(197.4))
+    }
+
     @Test fun `cuenta atrás legible`() {
         assertEquals("04:59", com.asistente.personal.ui.countdown(299))
         assertEquals("1:00:05", com.asistente.personal.ui.countdown(3605))

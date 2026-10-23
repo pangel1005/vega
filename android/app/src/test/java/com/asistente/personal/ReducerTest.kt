@@ -98,6 +98,15 @@ class ReducerTest {
         assertNull(s.pcOff) // el PC volvió: se despierta
     }
 
+    @Test fun `lo que suena se guarda y se quita al perder el enlace`() {
+        val song = com.asistente.personal.net.MediaInfo("Spotify", "T", "A", "", true, 10.0, 200.0, "x", true, true)
+        var s = reduce(UiState(link = LinkStatus.OPEN), Action.Media(song, at = 7))
+        assertEquals(song, s.media)
+        assertEquals(7L, s.mediaAt)
+        s = reduce(s, Action.Link(LinkStatus.RECONNECTING, 1000))
+        assertNull(s.media)
+    }
+
     @Test fun `cierra la respuesta a medias si se corta la conexión`() {
         val s = run(server(ServerEvent.Token("Medio")), Action.Link(LinkStatus.RECONNECTING, 500))
         assertFalse(s.messages.last().streaming)

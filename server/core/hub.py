@@ -14,9 +14,10 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Protocol
 
+from server.device.media import Command, MediaWatcher, NowPlaying
 from server.memory.personal import PersonalMemory, Reminder
 from server.skills.status import PcSample, sample_pc
-from server.ws.protocol import TelemetryEvent, Upcoming
+from server.ws.protocol import MediaEvent, TelemetryEvent, Upcoming
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +31,8 @@ class Listener(Protocol):
 
     async def send_telemetry(self, event: TelemetryEvent) -> None: ...
 
+    async def send_media(self, event: MediaEvent) -> None: ...
+
 
 class Hub:
     def __init__(
@@ -37,15 +40,20 @@ class Hub:
         memory: PersonalMemory,
         now: Callable[[], datetime] = datetime.now,
         sample: Callable[[], PcSample] = sample_pc,
+        media: MediaWatcher | None = None,
     ) -> None:
         self._memory = memory
         self._now = now
         self._sample = sample
+        self._media = media
+        self._media_sent: NowPlaying | None = None
+        self._media_known = False  # ¿ya se mandó algo (aunque sea «nada suena»)?
         self._clients: set[Listener] = set()
         self._task: asyncio.Task[None] | None = None
 
     def add(self, client: Listener) -> None:
         self._clients.add(client)
+        self._media_known = False  # el que llega recibe lo que suena en la próxima vuelta
 
     def remove(self, client: Listener) -> None:
         self._clients.discard(client)
@@ -96,6 +104,46 @@ class Hub:
             except Exception:
                 log.debug("No pude mandar la telemetría a un cliente", exc_info=True)
 
+    async def send_media(self) -> None:
+        """Manda lo que suena si cambió (canción, pausa, carátula o un salto de posición)."""
+        if self._media is None or not self._clients:
+            return
+        now = await self._media.snapshot()
+        if self._media_known and (now.same_as(self._media_sent) if now else self._media_sent is None):
+            return
+        self._media_sent, self._media_known = now, True
+        event = (
+            MediaEvent(active=False)
+            if now is None
+            else MediaEvent(
+                active=True,
+                app=now.app,
+                title=now.title,
+                artist=now.artist,
+                album=now.album,
+                playing=now.playing,
+                position=now.position,
+                duration=now.duration,
+                art=now.art_id,
+                can_previous=now.can_previous,
+                can_next=now.can_next,
+            )
+        )
+        for client in list(self._clients):
+            try:
+                await client.send_media(event)
+            except Exception:
+                log.debug("No pude mandar lo que suena a un cliente", exc_info=True)
+
+    async def media_control(self, command: Command) -> None:
+        if self._media is not None and await self._media.control(command):
+            self._media_known = False  # que el teléfono vea el cambio enseguida
+            await asyncio.sleep(0.3)  # la app tarda un instante en reflejarlo
+            await self.send_media()
+
+    def media_art(self, art_id: str) -> bytes | None:
+        return self._media.art(art_id) if self._media else None
+
     def start(self) -> None:
         if self._task is None:
             self._task = asyncio.create_task(self._loop())
@@ -111,6 +159,10 @@ class Hub:
                 await self.deliver_due()
             except Exception:
                 log.exception("Fallo al revisar recordatorios")
+            try:
+                await self.send_media()
+            except Exception:
+                log.exception("Fallo al leer lo que suena")
             if tick % TELEMETRY_EVERY == 0:
                 try:
                     await self.send_telemetry()

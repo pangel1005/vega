@@ -6,6 +6,7 @@ import asyncio
 import html
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -74,6 +75,17 @@ def register_app_updates(app: FastAPI, apk_dir: Path = APK_DIR) -> None:
         if not files:
             return Response(status_code=404)
         return FileResponse(files[0], media_type="application/vnd.android.package-archive")
+
+
+def register_media_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None:
+    """Carátula de lo que suena en el PC (JPEG), para la pantalla «Sonando» del teléfono."""
+
+    @app.get("/app/media/art/{art_id}.jpg", include_in_schema=False)
+    async def media_art(art_id: str) -> Response:
+        data = art(art_id)
+        if data is None:
+            return Response(status_code=404)
+        return Response(data, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 
 
 def register_app_icons(app: FastAPI, icons: AppIcons) -> None:

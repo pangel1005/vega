@@ -18,6 +18,11 @@ dependencies = [
     "nvidia-ml-py>=13.615.71",
     "icoextract>=0.3.0",
     "pillow>=13.0.0",
+    "winrt-runtime>=3.2.1",
+    "winrt-windows-media-control>=3.2.1",
+    "winrt-windows-storage-streams>=3.2.1",
+    "winrt-windows-foundation>=3.2.1",
+    "winrt-windows-foundation-collections>=3.2.1",
 ]
 
 [dependency-groups]

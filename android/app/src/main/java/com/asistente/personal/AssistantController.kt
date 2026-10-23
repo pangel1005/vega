@@ -106,8 +106,11 @@ class AssistantController(context: Context) {
         onEvent = { event ->
             if (event is ServerEvent.Reminder) vibrate()
             if (event is ServerEvent.Actions) loadIcons(event.items)
+            if (event is ServerEvent.Media) loadMediaArt(event.media?.art)
             if (event is ServerEvent.Stats) {
                 dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
+            } else if (event is ServerEvent.Media) {
+                dispatch(Action.Media(event.media, android.os.SystemClock.elapsedRealtime()))
             } else {
                 dispatch(Action.Server(event))
             }
@@ -166,6 +169,35 @@ class AssistantController(context: Context) {
     }
 
     private var updateJob: kotlinx.coroutines.Job? = null
+
+    /** Carátula de lo que suena en el PC y su color principal (para la pantalla «Sonando»). */
+    var mediaArt by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+        private set
+    var mediaAccent by mutableStateOf(com.asistente.personal.ui.Vega.Coral)
+        private set
+    private var mediaArtId: String? = null
+
+    private fun loadMediaArt(id: String?) {
+        if (id == mediaArtId) return
+        mediaArtId = id
+        if (id.isNullOrEmpty()) {
+            mediaArt = null
+            mediaAccent = com.asistente.personal.ui.Vega.Coral
+            return
+        }
+        scope.launch {
+            val art = updater.mediaArt(id)
+            if (mediaArtId == id) {
+                mediaArt = art
+                mediaAccent = com.asistente.personal.ui.accentOf(art)
+            }
+        }
+    }
+
+    /** Pausa/continúa, siguiente o anterior en lo que suena en el PC. */
+    fun mediaControl(command: String) {
+        socket.send(Protocol.mediaControl(command))
+    }
 
     /** Iconos reales de las apps (Spotify, Discord…), descargados del PC una vez. */
     val icons = androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()

@@ -102,6 +102,13 @@ class Attention(_Msg):
     type: Literal["attention"] = "attention"
 
 
+class MediaControl(_Msg):
+    """Pausa/continúa, siguiente o anterior en lo que suena en el PC."""
+
+    type: Literal["media_control"] = "media_control"
+    command: Literal["play_pause", "next", "previous"]
+
+
 class PlaybackDone(_Msg):
     """El teléfono terminó de reproducir la voz de la respuesta (el PC no lo sabe por sí solo)."""
 
@@ -126,6 +133,7 @@ AnyClientMessage = (
     | Attention
     | SetVoice
     | PlaybackDone
+    | MediaControl
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
@@ -226,6 +234,24 @@ class Upcoming(BaseModel):
     due_in: int  # segundos que faltan (el teléfono hace la cuenta atrás entre lecturas)
 
 
+class MediaEvent(_Msg):
+    """Lo que suena en el PC (o `active = false` si nada). La carátula está en
+    /app/media/art/<art>.jpg; la posición la avanza el teléfono mientras suena."""
+
+    type: Literal["media"] = "media"
+    active: bool
+    app: str = ""
+    title: str = ""
+    artist: str = ""
+    album: str = ""
+    playing: bool = False
+    position: float = 0.0
+    duration: float = 0.0
+    art: str = ""
+    can_previous: bool = False
+    can_next: bool = False
+
+
 class TelemetryEvent(_Msg):
     """Cada pocos segundos: estado del PC y próximos avisos, para el panel del teléfono."""
 
@@ -256,4 +282,5 @@ ServerEvent = (
     | AudioEnd
     | ReminderEvent
     | TelemetryEvent
+    | MediaEvent
 )

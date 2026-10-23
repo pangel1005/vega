@@ -29,6 +29,7 @@ from server.ws.protocol import (
     ListenCancel,
     ListenStart,
     ListenStop,
+    MediaControl,
     PlaybackDone,
     Ready,
     Reset,
@@ -160,6 +161,8 @@ def register_ws(
                     await orchestrator.set_voice(msg.voice)
                 elif isinstance(msg, PlaybackDone):
                     await orchestrator.playback_done()
+                elif isinstance(msg, MediaControl) and hub is not None:
+                    await hub.media_control(msg.command)
         except WebSocketDisconnect:
             log.info("Cliente desconectado")
         finally:

@@ -38,6 +38,7 @@ from server.ws.protocol import (
     ErrorEvent,
     HistoryEvent,
     HistoryItem,
+    MediaEvent,
     ReminderEvent,
     ServerEvent,
     State,
@@ -289,7 +290,8 @@ class Orchestrator:
         else:
             wake = parse_wake(text, self._name)
             if not wake.woke:
-                log.info("Frase sin «%s» (descartada): «%s»", self._name, text)
+                # Solo en modo depuración: en el registro normal no se guarda lo que se dice cerca del micrófono.
+                log.debug("Frase sin «%s» (descartada): «%s»", self._name, text)
                 return
             command = wake.command
             if not command:
@@ -349,6 +351,9 @@ class Orchestrator:
         await self.speak(spoken)
 
     async def send_telemetry(self, event: TelemetryEvent) -> None:
+        await self._emit(event)
+
+    async def send_media(self, event: MediaEvent) -> None:
         await self._emit(event)
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
