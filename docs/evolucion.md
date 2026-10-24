@@ -113,7 +113,7 @@ lo lento en el procesador.
 - **Transición:** al entrar o salir del modo letra, la carátula, el título y los botones
   viajan a su sitio.
 
-## 9. Hacia la IA en el teléfono (en estudio)
+## 9. Hacia la IA en el teléfono (23-10)
 
 **Objetivo:** que Vega funcione sin el PC. Medido en el Redmi 15C (detalle en
 [ia-en-el-telefono.md](ia-en-el-telefono.md)):
@@ -121,7 +121,83 @@ lo lento en el procesador.
 - Whisper base: ~2,2 s por frase;
 - voz Piper: más rápida que el tiempo real.
 
-**Plan:** habilidades, escucha y voz en el teléfono, y el modelo pequeño como extra.
+## 10. La IA en el teléfono, construida (24-10)
+
+**Por qué:** el usuario quería jugar sin que Vega ocupara la gráfica.
+
+**Qué se hizo** («IA: teléfono», en «Más»):
+- **Escucha:** el teléfono transcribe con Whisper (sherpa-onnx, dentro de la app) y
+  reconoce «Vega».
+- **Respuestas con el PC encendido:** el PC resuelve las habilidades y los botones sin modelo
+  de lenguaje y saca el modelo de la gráfica (0 MB de vídeo).
+- **Respuestas sin PC:** el teléfono tiene sus habilidades: hora, cuentas, chistes,
+  recordatorios, notas y memoria. Lo que guarda pasa al PC al volver.
+- **Voz:** se midió Kokoro en el Redmi y era 2,7–4 veces más lenta que hablar, así que se
+  descartó allí. Con el PC encendido, el teléfono le pide al PC su voz Dora.
+- **Charla sin PC:** llama.cpp compilado para Android, con un puente propio en C++ y el modelo
+  Qwen 3.5 de 0.8B. Dice cada frase en cuanto la escribe.
+
+**Lo que salió mal y se corrigió:**
+- **Bucle de voces:** en los segundos de seguimiento tomaba como orden su propio eco o la tele,
+  contestaba «no sé» y volvía a empezar, a veces con voces distintas. Ahora en ese momento se
+  calla si no entiende, filtra su propio eco y descarta la voz del PC si llega tarde.
+- **Tras «¿Sí?» ignoraba la pregunta** si no repetías «Vega». Corregido.
+- **«Actualizar» no hacía nada:** con el PC muy ocupado, el APK tardaba más de 60 s en bajar.
+  Ahora la app espera hasta 10 minutos.
+
+**Lo que se aprendió probándolo de verdad:** el teléfono solo funciona, pero claramente peor
+que el PC.
+- Le cuesta oír «Vega»: la reconoció 1 de cada 4 veces.
+- La charla tarda ~6,4 s y responde con frases muy cortas.
+
+**Siguiente paso propuesto:** con el PC encendido, que escuche y piense el PC **solo con el
+procesador** (Whisper y el modelo de 4B, sin gráfica); el teléfono solo, cuando el PC está
+apagado. En marcha: un detector propio de «Vega» entrenado con frases generadas
+(`tools/wake/`).
+
+## 11. Notificaciones del PC (24-10)
+
+- **Panel lateral:** las notificaciones de Windows (WhatsApp, Discord, correo…) aparecen en una
+  barra a un lado de la pantalla, que se abre sola unos segundos cuando llega una.
+- **Descartar:** se pueden quitar desde el teléfono y desaparecen también en el PC. «Borrar
+  todo» las quita una a una: la orden de Windows para borrarlas todas de golpe no hace nada
+  desde una app de escritorio.
+- **Por voz:** «¿qué notificaciones tengo?» y «léeme el último mensaje (de Discord)».
+- **Privacidad:** su contenido solo viaja por el cable y no se guarda.
+
+## 12. Más personalidad en el diseño (24-10)
+
+El usuario rechazó tres diseños nuevos: «no tienen personalidad». Se evolucionó el que ya
+había, con una idea: **todo está hecho de luz de LED, como la cara**.
+- **Iconos de las teclas:** rejillas de LED, incluidos los iconos reales de las apps, con sus
+  colores.
+- **Tira de luz en cada tecla:** se enciende al pulsar.
+- **Vega mira lo que pasa:** las teclas al pulsarlas, los avisos cuando llegan y la música
+  cuando cambia.
+- **Los bordes de la pantalla toman el color de su ánimo**: escuchando, pensando o hablando.
+- **Subtítulo de conversación:** lo que dijiste y su respuesta, escrita letra a letra.
+- **Cuenta atrás del temporizador** en la boca de la cara.
+- **Vibración ajustable** al tocar: fuerte, suave o ninguna.
+
+**Estilo «Cristal» (prototipo):** una aurora del color de su ánimo detrás, y tarjetas y teclas
+de cristal ahumado. Se midió en el Redmi hasta que fue tan fluido como el estilo de siempre:
+
+| Versión | Tiempo por cuadro | Tirones en 10 s |
+|---|---|---|
+| «Noche» (referencia) | 21 ms | 0 |
+| Cristal pintado en cada cuadro | 29–34 ms | 1–10 |
+| Cristal repintado 4 veces por segundo | 22–23 ms | 30 |
+| **Cristal pintado una vez en imagen pequeña, aurora quieta** | **18–23 ms** | **0** |
+
+## 13. Más robusto (24-10)
+
+- **Sin ventanas de terminal:** el vigilante abría una ventana de PowerShell cada 5 minutos;
+  ahora las tareas arrancan con `conhost --headless`.
+- **Chivato de cuelgues:** si el servidor deja de atender más de 20 s, escribe en
+  `logs/cuelgues/` en qué línea estaba cada parte. La causa del cuelgue de aquella noche
+  sigue sin conocerse; la próxima vez quedará rastro.
+- **Apagado limpio:** `stop.ps1` pide al servidor que se cierre solo y solo lo fuerza si no lo
+  hace. Cerrarlo a la fuerza dejó una vez el proceso medio muerto 2 minutos.
 
 ## Lo que se mantuvo desde el principio
 
@@ -134,5 +210,5 @@ lo lento en el procesador.
   - lo peligroso pide confirmación;
   - todo queda registrado.
 
-**Cifras al cierre de esta etapa:** 201 pruebas del servidor y 50 de la app, incluidas
+**Cifras al cierre de esta etapa (24-10):** 222 pruebas del servidor y 91 de la app, incluidas
 capturas de pantalla dibujadas en el PC para revisar el diseño sin instalarlo.
