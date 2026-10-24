@@ -58,6 +58,8 @@ class LocalAssistant(
      * true si ya empezó a sonar; false si hay que hablar con la voz del teléfono (Piper).
      */
     private val pcVoice: (String) -> Boolean = { false },
+    /** Charla libre con el modelo pequeño del teléfono, para lo que no resuelve nada más (o null). */
+    private val talker: Talker? = null,
     /** Registro de cada paso (en el teléfono, logcat «Vega»); nunca lleva lo que se dijo. */
     private val log: (String) -> Unit = {},
     private val runner: (Runnable) -> Unit = Executors.newSingleThreadExecutor { Thread(it, "vega-local") }::execute,
@@ -193,7 +195,48 @@ class LocalAssistant(
             return
         }
         events(ServerEvent.Transcript(text, seconds, elapsed))
-        reply(answer ?: Skills.UNKNOWN)
+        when {
+            answer != null -> reply(answer)
+            talker != null -> talk(command)
+            else -> reply(Skills.UNKNOWN)
+        }
+    }
+
+    /**
+     * Charla con el modelo del teléfono: dice cada frase en cuanto está escrita (no espera a
+     * la respuesta entera) y corta a las tres frases, que en voz ya es mucho.
+     */
+    private fun talk(question: String) {
+        val started = clock()
+        var pending = ""
+        var spoken = 0
+        val full = try {
+            talker?.reply(question) { piece ->
+                events(ServerEvent.Token(piece))
+                pending += piece
+                val cut = lastSentenceEnd(pending)
+                if (cut > 0) {
+                    val sentence = pending.substring(0, cut).trim()
+                    pending = pending.substring(cut)
+                    if (sentence.isNotEmpty()) {
+                        if (spoken == 0) log("charla: primera frase en ${clock() - started} ms")
+                        voice(sentence)
+                        spoken++
+                    }
+                }
+                spoken < MAX_TALK_SENTENCES
+            }
+        } catch (e: Exception) {
+            null
+        }
+        if (full == null && spoken == 0) {
+            reply(Skills.UNKNOWN)
+            return
+        }
+        if (pending.isNotBlank() && spoken < MAX_TALK_SENTENCES) voice(pending.trim())
+        log("charla: terminada en ${clock() - started} ms")
+        events(ServerEvent.Done(full ?: ""))
+        events(ServerEvent.State(AssistantState.IDLE))
     }
 
     /** Lo último que dijo (palabras normalizadas) y hasta cuándo puede volver como eco. */
@@ -214,8 +257,20 @@ class LocalAssistant(
     }
 
     private fun speak(text: String) {
-        // Como se oye (speakable: «15:00» suena «tres de la tarde») y como se escribe.
-        lastSaid = normalize(speakable(text) + " " + text).split(' ').filter { it.length > 1 }.toSet()
+        try {
+            voice(text)
+        } finally {
+            events(ServerEvent.State(AssistantState.IDLE))
+        }
+    }
+
+    /** Dice un texto (sin volver a reposo al acabar: la charla dice varias frases seguidas). */
+    private fun voice(raw: String) {
+        val text = raw.replace(MARKDOWN, "") // el modelo a veces escribe **negritas** o # títulos
+        // Como se oye (speakable: «15:00» suena «tres de la tarde») y como se escribe. Se suma
+        // a lo anterior si sigue hablando (charla de varias frases).
+        val words = normalize(speakable(text) + " " + text).split(' ').filter { it.length > 1 }.toSet()
+        lastSaid = if (clock() < lastSaidUntil) lastSaid + words else words
         lastSaidUntil = clock() + ECHO_MEMORY_MS + text.length * 80L // lo que tarda en decirlo, y un poco más
         events(ServerEvent.State(AssistantState.SPEAKING))
         try {
@@ -231,13 +286,18 @@ class LocalAssistant(
             for (sentence in sentences(speakable(text))) mouth.say(sentence, audio)
         } catch (e: Exception) {
             events(ServerEvent.Error("No pude hablar: ${e.message}"))
-        } finally {
-            events(ServerEvent.State(AssistantState.IDLE))
         }
     }
 }
 
 private val SENTENCE_END = Regex("(?<=[.!?…])\\s+")
+private val MARKDOWN = Regex("[*#_`]+")
+
+/** Como mucho, cuántas frases dice en una charla. */
+const val MAX_TALK_SENTENCES = 3
+
+/** Dónde acaba la última frase completa de `text` (0 si aún no hay ninguna). */
+fun lastSentenceEnd(text: String): Int = SENTENCE_END.findAll(text).lastOrNull()?.range?.last?.plus(1) ?: 0
 
 /** Corta en frases («Vale. Te recuerdo: …» → dos), sin dejar trozos vacíos. */
 fun sentences(text: String): List<String> = text.split(SENTENCE_END).map { it.trim() }.filter { it.isNotEmpty() }

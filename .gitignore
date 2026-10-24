@@ -31,3 +31,6 @@ android/local.properties
 
 # IA del teléfono: la librería sherpa-onnx (50 MB) se baja con tools/android_sherpa.ps1
 android/app/libs/*.aar
+
+# Modelo de lenguaje del teléfono: lo compila tools/android_llama.ps1
+android/app/src/main/jniLibs/

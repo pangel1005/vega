@@ -35,7 +35,12 @@ class LocalAssistantTest {
         return out
     }
 
-    private inner class Rig(heard: List<String>, private val pcAnswers: Map<String, String> = emptyMap(), pcSpeaks: Boolean = false) {
+    private inner class Rig(
+        heard: List<String>,
+        private val pcAnswers: Map<String, String> = emptyMap(),
+        pcSpeaks: Boolean = false,
+        talker: com.asistente.personal.local.Talker? = null,
+    ) {
         val pcSaid = mutableListOf<String>()
         val heardSizes = mutableListOf<Int>()
         val askedPc = mutableListOf<String>()
@@ -57,6 +62,7 @@ class LocalAssistantTest {
             runner = { it.run() }, // sin hilo: la prueba ve el resultado al momento
             pc = { askedPc += it; pcAnswers[it] },
             pcVoice = { if (pcSpeaks) pcSaid += it; pcSpeaks },
+            talker = talker,
         )
 
         /** Alguien habla 5 s seguidos (charla, la tele…). */
@@ -203,5 +209,40 @@ class LocalAssistantTest {
         rig.vega.attention()
         rig.phrase()
         assertEquals(Skills.UNKNOWN, (rig.events.last { it is ServerEvent.Done } as ServerEvent.Done).text)
+    }
+
+    /** Modelo de mentira: escribe el texto trozo a trozo, como llama.cpp. */
+    private fun fakeTalker(text: String?) = com.asistente.personal.local.Talker { _, onText ->
+        if (text == null) return@Talker null
+        val out = StringBuilder()
+        for (piece in Regex("\\S+\\s*").findAll(text).map { it.value }) {
+            out.append(piece)
+            if (!onText(piece)) break
+        }
+        out.toString()
+    }
+
+    @Test fun charlaConElModeloDelTelefonoFraseAFrase() {
+        val rig = Rig(
+            listOf("Vega, ¿qué es un volcán?"),
+            talker = fakeTalker("Un volcán es una montaña que expulsa lava. Sale del interior de la Tierra. Hay muchos en Chile. Y en Japón."),
+        )
+        rig.phrase()
+        // Dice cada frase según la escribe, y corta a las tres.
+        assertEquals(listOf("Un volcán es una montaña que expulsa lava.", "Sale del interior de la Tierra.", "Hay muchos en Chile."), rig.said)
+        assertTrue(rig.events.any { it is ServerEvent.Token })
+        assertEquals(ServerEvent.State(AssistantState.IDLE), rig.events.last())
+    }
+
+    @Test fun siElModeloNoPuedeLoDice() {
+        val rig = Rig(listOf("Vega, ¿qué es un volcán?"), talker = fakeTalker(null))
+        rig.phrase()
+        assertEquals(Skills.UNKNOWN, (rig.events.last { it is ServerEvent.Done } as ServerEvent.Done).text)
+    }
+
+    @Test fun lasHabilidadesVanAntesQueLaCharla() {
+        val rig = Rig(listOf("Vega, ¿qué hora es?"), talker = fakeTalker("No lo sé."))
+        rig.phrase()
+        assertEquals(listOf("Son las tres de la tarde."), rig.said)
     }
 }

@@ -23,7 +23,7 @@ fun missingModels(dir: File, files: List<ModelFile>): List<ModelFile> =
     files.filter { File(dir, it.path).let { f -> !f.isFile || f.length() != it.size } }
 
 /**
- * Modelos de la IA del teléfono (~230 MB: Whisper base y la voz Piper). Se bajan del PC una
+ * Modelos de la IA del teléfono (~760 MB: Whisper base, la voz Piper y el modelo de charla). Se bajan del PC una
  * sola vez por el cable, como las actualizaciones, y luego funcionan sin él.
  */
 class ModelStore(val dir: File, private val server: String = "http://127.0.0.1:8000") {
@@ -31,6 +31,8 @@ class ModelStore(val dir: File, private val server: String = "http://127.0.0.1:8
 
     val whisper: File get() = File(dir, "whisper-base")
     val piper: File get() = File(dir, "piper-es_MX")
+    /** Modelo de lenguaje pequeño (Qwen 3.5 0.8B, Q4_K_M, ~530 MB) para charlar sin PC. */
+    val llm: File get() = File(dir, "llm/qwen35-08b-q4.gguf")
 
     /** Hay algo descargado: se puede intentar arrancar sin el PC. */
     fun present(): Boolean = File(whisper, "base-encoder.int8.onnx").isFile && File(piper, "es_MX-claude-high.onnx").isFile

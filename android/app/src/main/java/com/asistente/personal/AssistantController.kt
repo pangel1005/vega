@@ -180,6 +180,8 @@ class AssistantController(context: Context) {
                         pc = ::askPc,
                         pcVoice = ::speakWithPc,
                         log = { android.util.Log.i("Vega", it) },
+                        // Charla sin PC: el modelo se carga en segundo plano (~4 s), sin retrasar el resto.
+                        talker = models.llm.takeIf { it.isFile }?.let { com.asistente.personal.local.PhoneLlm(it) },
                     )
                 } catch (e: Throwable) {
                     android.util.Log.e("Vega", "No arranca la IA del teléfono", e)
