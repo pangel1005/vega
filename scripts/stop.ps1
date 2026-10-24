@@ -2,14 +2,29 @@
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\stop.ps1
 
+$root = Split-Path -Parent $PSScriptRoot
 $server = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
-if ($server) {
-    Stop-Process -Id $server.OwningProcess -Force
-    # Espera a que el puerto quede libre: si no, un start.ps1 justo después creía que seguía en marcha.
-    for ($i = 0; $i -lt 50 -and (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue); $i++) {
-        Start-Sleep -Milliseconds 200
+function Wait-PortFree($tenths) {
+    for ($i = 0; $i -lt $tenths -and (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue); $i++) {
+        Start-Sleep -Milliseconds 100
     }
-    Write-Host 'Servidor detenido.' -ForegroundColor Green
+    -not (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue)
+}
+if ($server) {
+    # Primero se le pide que se apague solo (suelta bien lo de Windows). Cerrarlo a la fuerza
+    # dejó una vez el proceso medio muerto 2 minutos con el puerto ocupado.
+    $clean = $false
+    try {
+        $token = (Get-Content (Join-Path $root 'config\token.txt') -Raw).Trim()
+        Invoke-RestMethod 'http://127.0.0.1:8000/admin/apagar' -Method Post -Headers @{ 'x-token' = $token } -TimeoutSec 5 | Out-Null
+        $clean = Wait-PortFree 80
+    } catch { }
+    if (-not $clean) {
+        Stop-Process -Id $server.OwningProcess -Force -ErrorAction SilentlyContinue
+        # Espera a que el puerto quede libre: si no, un start.ps1 justo después creía que seguía en marcha.
+        Wait-PortFree 50 | Out-Null
+    }
+    Write-Host ('Servidor detenido' + $(if ($clean) { '.' } else { ' (a la fuerza).' })) -ForegroundColor Green
 } else {
     Write-Host 'El servidor no estaba en marcha.'
 }

@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import secrets
+import signal
+import threading
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from server import __version__
 from server.core.config import ROOT, Settings
 from server.core.hub import Hub
+from server.core.stallwatch import StallWatch
 from server.device.lyrics import LyricsFinder
 from server.device.media import MediaWatcher
 from server.device.notifications import NotificationReader
@@ -105,7 +110,10 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         hub.start()  # revisa los recordatorios cada segundo
+        watch = StallWatch(ROOT / "logs" / "cuelgues")
+        watch.start(asyncio.get_running_loop())
         yield
+        watch.stop()
         await hub.stop()
 
     # Sin páginas de documentación automática: menos superficie expuesta.
@@ -125,6 +133,17 @@ def create_app(
     register_phone_models(app)
     register_notification_icons(app, hub.notification_icon)
     register_lyrics(app, LyricsFinder(ROOT / "data" / "lyrics", enabled=settings.media.lyrics))
+
+    @app.post("/admin/apagar", include_in_schema=False)
+    async def shutdown(request: Request) -> Response:
+        """Apagado limpio (lo usa scripts/stop.ps1): cerrar a la fuerza dejó una vez el proceso
+        medio muerto 2 minutos, con el puerto ocupado. Pide el token del servidor."""
+        if not secrets.compare_digest(request.headers.get("x-token", ""), token):
+            return Response(status_code=403)
+        log.info("Apagado pedido por scripts/stop.ps1")
+        # Un poco después, para que la respuesta llegue antes de cerrar (Ctrl+C: uvicorn se apaga ordenado).
+        threading.Timer(0.2, signal.raise_signal, [signal.SIGINT]).start()
+        return Response(status_code=202)
 
     @app.get("/health")
     async def health() -> dict[str, object]:

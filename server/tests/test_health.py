@@ -110,3 +110,19 @@ def test_phone_models_are_listed_and_served(tmp_path: Path) -> None:
 
 def test_no_auto_docs() -> None:
     assert client_with().get("/docs").status_code == 404
+
+
+def test_clean_shutdown_needs_the_token(monkeypatch: object) -> None:
+    import signal
+    import time
+
+    import server.app as app_module
+
+    raised: list[int] = []
+    monkeypatch.setattr(app_module.signal, "raise_signal", raised.append)  # type: ignore[attr-defined]
+    client = client_with()
+    assert client.post("/admin/apagar").status_code == 403
+    assert client.post("/admin/apagar", headers={"x-token": "otro"}).status_code == 403
+    assert client.post("/admin/apagar", headers={"x-token": TOKEN}).status_code == 202
+    time.sleep(0.4)
+    assert raised == [signal.SIGINT]
