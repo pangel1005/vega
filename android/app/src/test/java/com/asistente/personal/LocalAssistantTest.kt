@@ -176,4 +176,32 @@ class LocalAssistantTest {
         rig.phrase()
         assertEquals(1, rig.heardSizes.size) // una sola pasada: sin retraso extra
     }
+
+    @Test fun enElSeguimientoLoQueNoEntiendeSeCalla() {
+        // Tras contestar, oye la tele: no es una orden y no debe decir «no sé» (abría un bucle).
+        val rig = Rig(listOf("Vega, ¿qué hora es?", "y el partido terminó empatado"))
+        rig.phrase()
+        rig.vega.playbackDone()
+        rig.phrase()
+        assertEquals(1, rig.said.size)
+        assertTrue(rig.events.none { it is ServerEvent.Done && it.text == Skills.UNKNOWN })
+    }
+
+    @Test fun noSeContestaASiMisma() {
+        // Su respuesta vuelve por el micrófono justo después de decirla.
+        // El PC «resolvería» lo que le llegue: sin el filtro de eco, se contestaría a sí misma.
+        val rig = Rig(listOf("Vega, ¿qué hora es?", "son las tres de la tarde"), mapOf("son las tres de la tarde" to "Hecho."))
+        rig.phrase()
+        rig.vega.playbackDone()
+        rig.phrase()
+        assertEquals(1, rig.said.size)
+        assertEquals(listOf("¿qué hora es?"), rig.askedPc) // el eco ni siquiera llega al PC
+    }
+
+    @Test fun siTocasLaCaraYNoEntiendeLoDice() {
+        val rig = Rig(listOf("¿cuál es la capital de Francia?"))
+        rig.vega.attention()
+        rig.phrase()
+        assertEquals(Skills.UNKNOWN, (rig.events.last { it is ServerEvent.Done } as ServerEvent.Done).text)
+    }
 }

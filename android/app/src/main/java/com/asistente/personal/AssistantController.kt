@@ -169,6 +169,7 @@ class AssistantController(context: Context) {
                         clock = { android.os.SystemClock.elapsedRealtime() },
                         pc = ::askPc,
                         pcVoice = ::speakWithPc,
+                        log = { android.util.Log.i("Vega", it) },
                     )
                 } catch (e: Throwable) {
                     android.util.Log.e("Vega", "No arranca la IA del teléfono", e)
@@ -224,6 +225,9 @@ class AssistantController(context: Context) {
         }
     }
 
+    /** La voz del PC llegó tarde y ya habló el teléfono: se ignora hasta que termine. */
+    @Volatile private var dropPcAudio = false
+
     @Volatile private var pcVoiceStarted: java.util.concurrent.CompletableFuture<Boolean>? = null
 
     /**
@@ -234,9 +238,15 @@ class AssistantController(context: Context) {
         if (ui.link != LinkStatus.OPEN) return false
         val started = java.util.concurrent.CompletableFuture<Boolean>()
         pcVoiceStarted = started
+        dropPcAudio = false
         try {
             if (!socket.send(JSONObject().put("type", "say").put("text", text).toString())) return false
             return started.get(3, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (_: java.util.concurrent.TimeoutException) {
+            // Habla el teléfono; si la voz del PC llega después, no debe sonar encima.
+            dropPcAudio = true
+            android.util.Log.i("Vega", "la voz del PC no llegó en 3 s: habla el teléfono")
+            return false
         } catch (_: Exception) {
             return false
         } finally {
@@ -281,7 +291,10 @@ class AssistantController(context: Context) {
         onEvent = { event ->
             if (event is ServerEvent.PhoneReply) pcAnswer?.complete(event)
             if (event is ServerEvent.Audio) pcVoiceStarted?.complete(true)
-            if (event is ServerEvent.AudioEnd) pcVoiceStarted?.complete(false) // el PC no tiene voz
+            if (event is ServerEvent.AudioEnd) {
+                pcVoiceStarted?.complete(false) // el PC no tiene voz
+                dropPcAudio = false
+            }
             if (event is ServerEvent.Notifications) loadNoteIcons(event.items)
             if (event is ServerEvent.Reminder) {
                 vibrate()
@@ -305,7 +318,7 @@ class AssistantController(context: Context) {
                 dispatch(Action.Server(event))
             }
         },
-        onAudio = { pcm -> player.enqueue(pcm, audioRate) },
+        onAudio = { pcm -> if (!dropPcAudio) player.enqueue(pcm, audioRate) },
         onAudioRate = { audioRate = it },
         onStatus = { status, retry ->
             dispatch(Action.Link(status, retry))

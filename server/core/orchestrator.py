@@ -233,6 +233,7 @@ class Orchestrator:
         if self._skills is not None:
             reply = await asyncio.to_thread(self._skills.handle, text)
             if reply is not None:
+                log.info("Orden del teléfono: la resuelve una habilidad")
                 conversation = await asyncio.to_thread(self._store.latest_conversation)
                 await asyncio.to_thread(
                     self._store.add_messages,
@@ -243,8 +244,10 @@ class Orchestrator:
                 return
         action = self._actions.match(text) if self._actions else None
         if action is None or self._actions is None:
+            log.info("Orden del teléfono: no es cosa del PC")
             await self._emit(PhoneReplyEvent(handled=False))
             return
+        log.info("Orden del teléfono: botón «%s»", action.id)
         outcome = await asyncio.to_thread(self._actions.request, action.id, "voz")
         pending = await self._handle_outcome(outcome, action.id)
         if pending:
@@ -516,7 +519,9 @@ class Orchestrator:
         if self._speaker() is None:
             await self._emit(AudioEnd())
             return
+        start = time.perf_counter()
         await self.speak(text)
+        log.info("Voz para el teléfono: %d letras en %.1f s", len(text), time.perf_counter() - start)
 
     async def send_voices(self) -> None:
         if self._tts is not None:

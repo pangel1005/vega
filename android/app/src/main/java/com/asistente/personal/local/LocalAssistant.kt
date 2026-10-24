@@ -19,6 +19,9 @@ fun interface Mouth {
 /** Tras oír su voz, cuánto tiempo se le puede seguir hablando sin decir «Vega» (como en el PC). */
 const val FOLLOW_UP_MS = 8_000L
 
+/** Tras hablar, cuánto tiempo puede volver su voz como eco por el micrófono. */
+const val ECHO_MEMORY_MS = 6_000L
+
 /** Frases de más de 3,5 s: primero se mira si empiezan por «Vega» (2,2 s, con el margen previo de 0,3 s). */
 const val PEEK_IF_LONGER = 16_000 * 7 / 2
 const val PEEK_SAMPLES = 16_000 * 11 / 5
@@ -55,6 +58,8 @@ class LocalAssistant(
      * true si ya empezó a sonar; false si hay que hablar con la voz del teléfono (Piper).
      */
     private val pcVoice: (String) -> Boolean = { false },
+    /** Registro de cada paso (en el teléfono, logcat «Vega»); nunca lleva lo que se dijo. */
+    private val log: (String) -> Unit = {},
     private val runner: (Runnable) -> Unit = Executors.newSingleThreadExecutor { Thread(it, "vega-local") }::execute,
 ) {
     private val segmenter = Segmenter()
@@ -152,15 +157,23 @@ class LocalAssistant(
         }
         val elapsed = (clock() - started).toInt()
         val wake = parseWake(text, name)
+        val asked = wake.woke || attentive // la llamaste o tocaste la cara: una orden seguro
+        log("frase de ${samples.size / 16} ms → texto en $elapsed ms; nombre: ${wake.woke}, seguimiento: $following")
         if (!wake.woke && !following) return // no era para Vega: no se guarda
+        // Su propia voz que vuelve por el micrófono (eco de la sala): se ignora. Sin esto se
+        // contestaba a sí misma en bucle.
+        if (!wake.woke && isEcho(text)) {
+            log("era su eco: se ignora")
+            return
+        }
         attentive = false
-        listening = false
         val command = if (wake.woke) wake.command else text
         if (command.isEmpty() && !wake.woke) return
+        listening = false
         val seconds = samples.size / 16_000.0
-        events(ServerEvent.Transcript(text, seconds, elapsed))
         if (command.isEmpty()) {
             // Solo «Vega»: contesta y espera la orden sin pedir otra vez el nombre.
+            events(ServerEvent.Transcript(text, seconds, elapsed))
             reply("¿Sí?")
             return
         }
@@ -170,7 +183,29 @@ class LocalAssistant(
         } catch (_: Exception) {
             null
         }
-        reply(fromPc ?: skills.handle(command) ?: Skills.UNKNOWN)
+        val answer = fromPc ?: skills.handle(command)
+        log("respuesta: ${if (fromPc != null) "del PC" else if (answer != null) "del teléfono" else "ninguna"}")
+        if (answer == null && !asked) {
+            // En los segundos de seguimiento (sin «Vega») se oye de todo: la tele, gente hablando.
+            // Lo que no entiende no es una orden: se calla en vez de decir «no sé» (eso abría
+            // otro seguimiento y Vega hablaba sin parar).
+            events(ServerEvent.State(AssistantState.IDLE))
+            return
+        }
+        events(ServerEvent.Transcript(text, seconds, elapsed))
+        reply(answer ?: Skills.UNKNOWN)
+    }
+
+    /** Lo último que dijo (palabras normalizadas) y hasta cuándo puede volver como eco. */
+    @Volatile private var lastSaid: Set<String> = emptySet()
+    @Volatile private var lastSaidUntil = 0L
+
+    /** ¿Lo oído es casi todo palabras de lo que ella acaba de decir? */
+    private fun isEcho(heard: String): Boolean {
+        if (clock() > lastSaidUntil) return false
+        val words = normalize(heard).split(' ').filter { it.length > 1 }
+        if (words.isEmpty()) return true
+        return words.count { it in lastSaid } >= words.size * 0.6
     }
 
     private fun reply(text: String) {
@@ -179,6 +214,9 @@ class LocalAssistant(
     }
 
     private fun speak(text: String) {
+        // Como se oye (speakable: «15:00» suena «tres de la tarde») y como se escribe.
+        lastSaid = normalize(speakable(text) + " " + text).split(' ').filter { it.length > 1 }.toSet()
+        lastSaidUntil = clock() + ECHO_MEMORY_MS + text.length * 80L // lo que tarda en decirlo, y un poco más
         events(ServerEvent.State(AssistantState.SPEAKING))
         try {
             // Kokoro va 2,7 veces más lento que hablar en el Redmi (medido): con PC, su voz;
@@ -188,6 +226,7 @@ class LocalAssistant(
             } catch (_: Exception) {
                 false
             }
+            log("voz: ${if (fromPc) "la del PC" else "la del teléfono"}")
             if (fromPc) return
             for (sentence in sentences(speakable(text))) mouth.say(sentence, audio)
         } catch (e: Exception) {
