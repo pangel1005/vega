@@ -81,3 +81,23 @@ def test_error_inside_stream() -> None:
     )
     with pytest.raises(LlmUnavailable, match="sin memoria"):
         collect(chat)
+
+
+def test_unload_frees_the_model_now() -> None:
+    """Con el cerebro en el teléfono, el modelo sale de la gráfica ya (keep_alive 0)."""
+    seen: list[tuple[str, dict[str, object]]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json={"done": True})
+
+    chat = OllamaChat("http://ollama", "qwen3.5:4b", transport=httpx.MockTransport(handler))
+    asyncio.run(chat.unload())
+    assert seen == [("/api/generate", {"model": "qwen3.5:4b", "keep_alive": 0})]
+
+
+def test_unload_never_fails() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("Ollama apagado")
+
+    asyncio.run(OllamaChat("http://ollama", "m", transport=httpx.MockTransport(handler)).unload())

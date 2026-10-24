@@ -27,6 +27,8 @@ private const val PREFS = "asistente"
 private const val KEY_TOKEN = "token"
 private const val KEY_LISTEN = "escucha_continua"
 private const val KEY_FACE_COLOR = "color_cara"
+private const val KEY_BRAIN = "cerebro_telefono"
+private const val KEY_TOUCH = "vibracion_toque"
 private const val ECHO_GUARD_MS = 500L
 
 /**
@@ -68,6 +70,18 @@ class AssistantController(context: Context) {
     var faceColor by mutableStateOf(com.asistente.personal.ui.FaceColor.from(prefs.getString(KEY_FACE_COLOR, null)))
         private set
 
+    /** Vibración al tocar (fuerte, suave o ninguna); se recuerda entre reinicios. */
+    var touchFeel by mutableStateOf(
+        com.asistente.personal.ui.TouchFeel.from(prefs.getString(KEY_TOUCH, null)).also { com.asistente.personal.ui.TouchFeel.current = it },
+    )
+        private set
+
+    fun nextTouchFeel() {
+        touchFeel = touchFeel.next()
+        com.asistente.personal.ui.TouchFeel.current = touchFeel
+        prefs.edit().putString(KEY_TOUCH, touchFeel.name).apply()
+    }
+
     fun nextFaceColor() {
         faceColor = faceColor.next()
         prefs.edit().putString(KEY_FACE_COLOR, faceColor.name).apply()
@@ -83,6 +97,166 @@ class AssistantController(context: Context) {
     @Volatile private var audioRate = 22_050
     @Volatile private var voiceEndedAt = 0L
 
+    // --- IA del teléfono: Vega escucha, entiende y habla sin el PC (y el PC suelta la gráfica) ---
+
+    /** El usuario eligió que Vega piense en el teléfono (se recuerda entre aperturas). */
+    var brainOnPhone by mutableStateOf(prefs.getBoolean(KEY_BRAIN, false))
+        private set
+    /** Qué pasa con la IA del teléfono, para la pastilla de la tarjeta de la hora. */
+    var brainStatus by mutableStateOf("")
+        private set
+    private val models = com.asistente.personal.local.ModelStore(
+        context.getExternalFilesDir("modelos") ?: java.io.File(context.filesDir, "modelos"),
+    )
+    private val phoneMemory = com.asistente.personal.local.LocalMemory(java.io.File(context.filesDir, "memoria-telefono.json"))
+    @Volatile private var local: com.asistente.personal.local.LocalAssistant? = null
+    private var localJob: kotlinx.coroutines.Job? = null
+    private var tickJob: kotlinx.coroutines.Job? = null
+
+    val brainLabel: String get() = when {
+        !brainOnPhone -> "IA: PC"
+        brainStatus.isNotEmpty() -> brainStatus
+        else -> "IA: teléfono"
+    }
+
+    /** Cambia entre pensar en el PC y en el teléfono. */
+    fun toggleBrain() {
+        brainOnPhone = !brainOnPhone
+        prefs.edit().putBoolean(KEY_BRAIN, brainOnPhone).apply()
+        if (brainOnPhone) {
+            socket.send(JSONObject().put("type", "wake_mode").put("on", false).toString())
+            socket.send(brainMessage())
+            startLocal()
+        } else {
+            stopLocal()
+            socket.send(brainMessage())
+            if (micOn) socket.send(JSONObject().put("type", "wake_mode").put("on", true).toString())
+        }
+        syncMic()
+    }
+
+    private fun brainMessage(): String =
+        JSONObject().put("type", "brain").put("where", if (brainOnPhone) "phone" else "pc").toString()
+
+    /** Baja los modelos del PC si faltan (una vez, ~230 MB) y carga Whisper y Piper. */
+    private fun startLocal() {
+        if (local != null || localJob?.isActive == true) return
+        localJob = scope.launch {
+            val error = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                models.download { f -> mainThread.post { brainStatus = "Bajando IA ${(f * 100).toInt()} %" } }
+            }
+            if (error != null && !models.present()) {
+                brainStatus = "IA: sin modelos"
+                dispatch(Action.LocalError(error))
+                return@launch
+            }
+            brainStatus = "Cargando IA…"
+            val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    com.asistente.personal.local.LocalAssistant(
+                        name = ui.assistant.ifEmpty { "Vega" },
+                        skills = com.asistente.personal.local.Skills(phoneMemory, battery = { battery.takeIf { it >= 0 } }),
+                        memory = phoneMemory,
+                        ears = com.asistente.personal.local.WhisperEars(models.whisper),
+                        mouth = com.asistente.personal.local.PiperMouth(models.piper),
+                        events = { event ->
+                            mainThread.post {
+                                if (event is ServerEvent.Reminder) vibrate()
+                                dispatch(Action.Server(event))
+                            }
+                        },
+                        audio = { pcm, rate -> player.enqueue(pcm, rate) },
+                        clock = { android.os.SystemClock.elapsedRealtime() },
+                        pc = ::askPc,
+                        pcVoice = ::speakWithPc,
+                    )
+                } catch (e: Throwable) {
+                    android.util.Log.e("Vega", "No arranca la IA del teléfono", e)
+                    null
+                }
+            }
+            if (!brainOnPhone) return@launch // se cambió de idea mientras cargaba
+            if (loaded == null) {
+                brainStatus = "IA: error"
+                dispatch(Action.LocalError("No pude arrancar la IA del teléfono."))
+                return@launch
+            }
+            local = loaded
+            brainStatus = ""
+            tickJob?.cancel()
+            tickJob = scope.launch {
+                while (true) {
+                    local?.tick()
+                    localTimerEndsAt = phoneMemory.pending().firstOrNull { it.kind == "timer" }?.let {
+                        val left = java.time.Duration.between(java.time.LocalDateTime.now(), it.dueAt).toMillis()
+                        // Redondeado al segundo: así no cambia (ni redibuja) en cada vuelta.
+                        (android.os.SystemClock.elapsedRealtime() + left) / 1000 * 1000
+                    }
+                    kotlinx.coroutines.delay(1_000)
+                }
+            }
+            syncMic()
+        }
+    }
+
+    /** Fin del temporizador del teléfono (reloj `elapsedRealtime`), para la cuenta atrás en la cara. */
+    var localTimerEndsAt by mutableStateOf<Long?>(null)
+        private set
+
+    @Volatile private var pcAnswer: java.util.concurrent.CompletableFuture<ServerEvent.PhoneReply>? = null
+
+    /**
+     * Pasa al PC una orden que ya entendió el teléfono (sus habilidades y botones, sin modelo).
+     * Se llama desde el hilo de la IA local y espera la respuesta como mucho 4 s.
+     */
+    private fun askPc(text: String): String? {
+        if (ui.link != LinkStatus.OPEN) return null
+        val answer = java.util.concurrent.CompletableFuture<ServerEvent.PhoneReply>()
+        pcAnswer = answer
+        try {
+            if (!socket.send(Protocol.phoneCommand(text))) return null
+            val reply = answer.get(4, java.util.concurrent.TimeUnit.SECONDS)
+            return if (reply.handled) reply.text.ifEmpty { "Hecho." } else null
+        } catch (_: Exception) {
+            return null
+        } finally {
+            pcAnswer = null
+        }
+    }
+
+    @Volatile private var pcVoiceStarted: java.util.concurrent.CompletableFuture<Boolean>? = null
+
+    /**
+     * Pide al PC que diga el texto con su voz (Kokoro, en su procesador). Espera a que empiece
+     * a llegar el audio (como mucho 3 s); si no llega, habla el teléfono con la suya.
+     */
+    private fun speakWithPc(text: String): Boolean {
+        if (ui.link != LinkStatus.OPEN) return false
+        val started = java.util.concurrent.CompletableFuture<Boolean>()
+        pcVoiceStarted = started
+        try {
+            if (!socket.send(JSONObject().put("type", "say").put("text", text).toString())) return false
+            return started.get(3, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (_: Exception) {
+            return false
+        } finally {
+            pcVoiceStarted = null
+        }
+    }
+
+    /** Lo que el teléfono guardó sin PC pasa al PC en cuanto hay enlace. */
+    private fun handOverMemory() {
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) { phoneMemory.exportForPc { socket.send(it) } }
+    }
+
+    private fun stopLocal() {
+        localTimerEndsAt = null
+        localJob?.cancel()
+        tickJob?.cancel()
+        local = null
+        brainStatus = ""
+    }
+
     private val player: Player = Player(
         onLevel = { level ->
             mainThread.post {
@@ -94,7 +268,8 @@ class AssistantController(context: Context) {
             if (!now) {
                 // Avisa al PC de que terminó de sonar: así sigue escuchando sin tener que decir «Vega».
                 voiceEndedAt = android.os.SystemClock.elapsedRealtime()
-                socket.send(Protocol.simple("playback_done"))
+                val brain = local
+                if (brainOnPhone && brain != null) brain.playbackDone() else socket.send(Protocol.simple("playback_done"))
             }
             mainThread.post { speaking = now }
         },
@@ -104,7 +279,15 @@ class AssistantController(context: Context) {
         url = SERVER_WS,
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
         onEvent = { event ->
-            if (event is ServerEvent.Reminder) vibrate()
+            if (event is ServerEvent.PhoneReply) pcAnswer?.complete(event)
+            if (event is ServerEvent.Audio) pcVoiceStarted?.complete(true)
+            if (event is ServerEvent.AudioEnd) pcVoiceStarted?.complete(false) // el PC no tiene voz
+            if (event is ServerEvent.Notifications) loadNoteIcons(event.items)
+            if (event is ServerEvent.Reminder) {
+                vibrate()
+                // Con la IA en el teléfono, el PC no habla: el aviso lo dice el teléfono.
+                if (brainOnPhone) local?.say(event.text)
+            }
             if (event is ServerEvent.Actions) loadIcons(event.items)
             if (event is ServerEvent.Media) {
                 loadMediaArt(event.media?.art)
@@ -114,6 +297,10 @@ class AssistantController(context: Context) {
                 dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
             } else if (event is ServerEvent.Media) {
                 dispatch(Action.Media(event.media, android.os.SystemClock.elapsedRealtime()))
+            } else if (event is ServerEvent.Notifications) {
+                val before = ui.freshNotes
+                dispatch(Action.Server(event))
+                if ((ui.freshNotes - before).isNotEmpty()) tick()
             } else {
                 dispatch(Action.Server(event))
             }
@@ -123,6 +310,9 @@ class AssistantController(context: Context) {
         onStatus = { status, retry ->
             dispatch(Action.Link(status, retry))
             syncMic()
+            // El PC debe saber dónde piensa Vega cada vez que se conecta (p. ej. tras reiniciarse).
+            if (status == LinkStatus.OPEN && brainOnPhone) socket.send(brainMessage())
+            if (status == LinkStatus.OPEN) handOverMemory()
             if (status == LinkStatus.OPEN) watchUpdates() else updateJob?.cancel()
         },
     )
@@ -131,7 +321,8 @@ class AssistantController(context: Context) {
         // Mientras Vega habla no se manda el micrófono: así no se escucha a sí misma.
         // Medio segundo más: el altavoz aún suena un poco tras el último trozo y se oía a sí misma.
         if (player.speaking || android.os.SystemClock.elapsedRealtime() - voiceEndedAt < ECHO_GUARD_MS) return@Microphone
-        socket.sendAudio(pcm, length)
+        val brain = local
+        if (brainOnPhone) brain?.hear(pcm, length) else socket.sendAudio(pcm, length)
         // La boca solo sigue tu voz mientras Vega te está atendiendo (no con el ruido de la sala:
         // así no se redibuja todo el rato).
         if (ui.state == AssistantState.LISTENING) {
@@ -155,6 +346,7 @@ class AssistantController(context: Context) {
 
     fun start() {
         socket.start()
+        if (brainOnPhone) startLocal()
         batteryJob?.cancel()
         batteryJob = scope.launch {
             while (true) {
@@ -214,6 +406,23 @@ class AssistantController(context: Context) {
         }
     }
 
+    /** Iconos de las apps que mandan notificaciones en el PC (por id de icono). */
+    val noteIcons = androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
+    private val noteIconsAsked = mutableSetOf<String>()
+
+    private fun loadNoteIcons(items: List<com.asistente.personal.net.PcNote>) {
+        val missing = items.map { it.icon }.filter { it.isNotEmpty() && noteIconsAsked.add(it) }.distinct()
+        if (missing.isEmpty()) return
+        scope.launch {
+            for (id in missing) updater.noteIcon(id)?.let { noteIcons[id] = it } ?: noteIconsAsked.remove(id)
+        }
+    }
+
+    /** Quita una notificación (o todas, con null) también del PC. */
+    fun dismissNote(id: Long?) {
+        socket.send(Protocol.dismissNotification(id))
+    }
+
     /** Pausa/continúa, siguiente o anterior en lo que suena en el PC. */
     fun mediaControl(command: String) {
         socket.send(Protocol.mediaControl(command))
@@ -261,6 +470,11 @@ class AssistantController(context: Context) {
         charging = bm.isCharging
     }
 
+    /** Un toque muy corto: ha llegado una notificación del PC. */
+    private fun tick() {
+        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(35, 120))
+    }
+
     /** Tres pulsos cortos: se nota aunque no estés mirando el teléfono. */
     private fun vibrate() {
         vibrator?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 180, 120, 180, 120, 180), -1))
@@ -297,11 +511,13 @@ class AssistantController(context: Context) {
 
     /** Abre o cierra el micrófono según el enlace, el permiso y el botón de silencio. */
     private fun syncMic() {
-        val want = listenEnabled && micAllowed && ui.link == LinkStatus.OPEN
+        // Con la IA en el teléfono se escucha aunque el PC no esté.
+        val ready = if (brainOnPhone) local != null else ui.link == LinkStatus.OPEN
+        val want = listenEnabled && micAllowed && ready
         if (want && !micOn) {
             if (mic.start()) {
                 micOn = true
-                socket.send(JSONObject().put("type", "wake_mode").put("on", true).toString())
+                if (!brainOnPhone) socket.send(JSONObject().put("type", "wake_mode").put("on", true).toString())
             } else {
                 dispatch(Action.LocalError("No pude abrir el micrófono. ¿Lo está usando otra app?"))
             }
@@ -320,7 +536,8 @@ class AssistantController(context: Context) {
     /** Tocar el rostro: la próxima frase es una orden aunque no digas «Vega». */
     fun attention() {
         if (!micOn) syncMic()
-        socket.send(Protocol.simple("attention"))
+        val brain = local
+        if (brainOnPhone) brain?.attention() else socket.send(Protocol.simple("attention"))
     }
 
     /**

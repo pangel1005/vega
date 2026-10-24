@@ -14,6 +14,9 @@ android {
         // Minutos desde 2026-01-01: cada compilación es «más nueva» y la app puede actualizarse sola.
         versionCode = ((System.currentTimeMillis() - 1_767_225_600_000L) / 60_000).toInt()
         versionName = "0.1.0"
+        // Solo el procesador del Redmi (arm64): las librerías de la IA del teléfono pesan
+        // ~30 MB por cada tipo de procesador.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     buildTypes {
@@ -22,7 +25,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Misma firma que la de depuración: así se actualiza encima sin desinstalar.
             // PROTOTIPO: para repartirla a otras personas habría que crear una clave propia.
             signingConfig = signingConfigs.getByName("debug")
@@ -54,6 +57,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
+    // IA del teléfono: Whisper (voz a texto) y Piper (voz) sin PC. Ver tools/android_sherpa.ps1.
+    implementation(files("libs/sherpa-onnx-1.13.8.aar"))
 
     testImplementation("junit:junit:4.13.2")
     // org.json real para las pruebas locales (el de Android es solo un esqueleto fuera del teléfono).

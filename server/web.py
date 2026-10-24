@@ -23,6 +23,8 @@ UI_DIST = ROOT / "web" / "dist"
 # Versión optimizada (release) de la app: la que se instala y actualiza en el teléfono.
 APK_DIR = ROOT / "android" / "app" / "build" / "outputs" / "apk" / "release"
 TOKEN_PLACEHOLDER = "__ASSISTANT_TOKEN__"
+# Modelos de la IA del teléfono (Whisper base y la voz Piper): la app los baja una vez.
+PHONE_MODELS = ROOT / "data" / "telefono"
 # Archivos sueltos de web/public que se sirven en la raíz.
 ROOT_FILES = ("manifest.webmanifest", "icon.svg")
 
@@ -76,6 +78,41 @@ def register_app_updates(app: FastAPI, apk_dir: Path = APK_DIR) -> None:
         if not files:
             return Response(status_code=404)
         return FileResponse(files[0], media_type="application/vnd.android.package-archive")
+
+
+def register_phone_models(app: FastAPI, models: Path = PHONE_MODELS) -> None:
+    """Modelos de la IA del teléfono: la lista (`/app/models`) y cada archivo. La app baja por
+    el cable lo que le falte y después funciona sin el PC."""
+
+    @app.get("/app/models", include_in_schema=False)
+    async def manifest() -> Response:
+        if not models.is_dir():
+            return Response(status_code=404)
+        files = [
+            {"path": p.relative_to(models).as_posix(), "size": p.stat().st_size}
+            for p in sorted(models.rglob("*"))
+            if p.is_file()
+        ]
+        return Response(json.dumps({"files": files}), media_type="application/json")
+
+    @app.get("/app/models/{path:path}", include_in_schema=False)
+    async def model_file(path: str) -> Response:
+        target = (models / path).resolve()
+        # Solo archivos dentro de data/telefono (nada de «../» para salir de la carpeta).
+        if not target.is_file() or not target.is_relative_to(models.resolve()):
+            return Response(status_code=404)
+        return FileResponse(target, media_type="application/octet-stream")
+
+
+def register_notification_icons(app: FastAPI, icon: Callable[[str], bytes | None]) -> None:
+    """Icono de la app que mandó cada notificación del PC (PNG)."""
+
+    @app.get("/app/notifications/icon/{icon_id}.png", include_in_schema=False)
+    async def notification_icon(icon_id: str) -> Response:
+        data = icon(icon_id)
+        if data is None:
+            return Response(status_code=404)
+        return Response(data, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
 
 
 def register_media_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None:

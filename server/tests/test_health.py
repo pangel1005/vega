@@ -89,5 +89,24 @@ def test_app_update_endpoints(tmp_path: Path) -> None:
     assert resp.content == b"PK" and resp.headers["content-type"] == "application/vnd.android.package-archive"
 
 
+def test_phone_models_are_listed_and_served(tmp_path: Path) -> None:
+    from fastapi import FastAPI
+
+    from server.web import register_phone_models
+
+    app = FastAPI()
+    register_phone_models(app, tmp_path / "telefono")
+    client = TestClient(app)
+    assert client.get("/app/models").status_code == 404  # aún no hay modelos en el PC
+
+    (tmp_path / "telefono" / "whisper-base").mkdir(parents=True)
+    (tmp_path / "telefono" / "whisper-base" / "tokens.txt").write_bytes(b"abc")
+    (tmp_path / "secreto.txt").write_text("token", encoding="utf-8")
+    assert client.get("/app/models").json() == {"files": [{"path": "whisper-base/tokens.txt", "size": 3}]}
+    assert client.get("/app/models/whisper-base/tokens.txt").content == b"abc"
+    assert client.get("/app/models/../secreto.txt").status_code == 404
+    assert client.get("/app/models/%2E%2E/secreto.txt").status_code == 404
+
+
 def test_no_auto_docs() -> None:
     assert client_with().get("/docs").status_code == 404

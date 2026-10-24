@@ -17,6 +17,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable, Coroutine
+from datetime import datetime
 from typing import Any
 
 from server.core.clock import time_context
@@ -33,12 +34,16 @@ from server.tools.actions import CONFIRM_SECONDS, ActionRunner, Outcome
 from server.ws.protocol import (
     ActionResultEvent,
     ActionsEvent,
+    AudioEnd,
     ConfirmEvent,
     DoneEvent,
     ErrorEvent,
     HistoryEvent,
     HistoryItem,
     MediaEvent,
+    MemoryImport,
+    NotificationsEvent,
+    PhoneReplyEvent,
     ReminderEvent,
     ServerEvent,
     State,
@@ -89,6 +94,7 @@ class Orchestrator:
         self._name = name
         # Escucha continua
         self._wake_on = False
+        self._brain_phone = False  # la IA está en el teléfono: aquí ni modelo ni voz
         self._segmenter = SpeechSegmenter()
         self._followup_until = 0.0
         self._reply_was_spoken = (
@@ -192,6 +198,80 @@ class Orchestrator:
         self._segmenter.reset()
         self._followup_until = 0.0
         log.info("Escucha continua %s", "activada" if on else "desactivada")
+
+    async def set_brain(self, where: str) -> None:
+        """«phone»: el teléfono escucha y contesta solo; aquí se apaga la escucha continua y se
+        saca el modelo de la gráfica (con 1 capa eran ~700 MB que estorbaban al jugar).
+        «pc»: se vuelve a cargar para que la primera respuesta no espere."""
+        self._brain_phone = where == "phone"
+        if where == "phone":
+            await self.set_wake_mode(False)
+            await self._model.unload()
+            log.info("Vega piensa en el teléfono: modelo fuera de la gráfica")
+        else:
+            self._last_preload = time.monotonic()
+            self._spawn(self._model.preload())
+            log.info("Vega piensa en el PC")
+
+    async def phone_command(self, text: str) -> None:
+        """IA en el teléfono: el teléfono ya entendió la frase y pregunta si es cosa del PC
+        (sus habilidades: memoria, notas, recordatorios, estado; o sus botones). Nunca usa el
+        modelo de lenguaje ni la voz del PC: devuelve el texto y lo dice el teléfono."""
+        if self._voice_confirm and time.monotonic() < self._voice_confirm[1] and self._actions:
+            answer = yes_or_no(text)
+            if answer is not None:
+                nonce = self._voice_confirm[0]
+                self._voice_confirm = None
+                if answer:
+                    outcome = await asyncio.to_thread(self._actions.confirm, nonce, "voz")
+                    await self._handle_outcome(outcome, "")
+                    await self._emit(PhoneReplyEvent(handled=True, text=outcome.message))
+                else:
+                    await self._emit(ActionResultEvent(id="", ok=True, message="Cancelado."))
+                    await self._emit(PhoneReplyEvent(handled=True, text="Cancelado."))
+                return
+        if self._skills is not None:
+            reply = await asyncio.to_thread(self._skills.handle, text)
+            if reply is not None:
+                conversation = await asyncio.to_thread(self._store.latest_conversation)
+                await asyncio.to_thread(
+                    self._store.add_messages,
+                    conversation,
+                    [ChatMessage("user", text), ChatMessage("assistant", reply.text)],
+                )
+                await self._emit(PhoneReplyEvent(handled=True, text=reply.text))
+                return
+        action = self._actions.match(text) if self._actions else None
+        if action is None or self._actions is None:
+            await self._emit(PhoneReplyEvent(handled=False))
+            return
+        outcome = await asyncio.to_thread(self._actions.request, action.id, "voz")
+        pending = await self._handle_outcome(outcome, action.id)
+        if pending:
+            self._voice_confirm = (pending, time.monotonic() + CONFIRM_SECONDS)
+        say = outcome.message.replace("Pulsa de nuevo", "Di sí") if pending else outcome.message
+        await self._emit(PhoneReplyEvent(handled=True, text=say))
+
+    async def import_memory(self, data: MemoryImport) -> None:
+        """Suma lo que el teléfono guardó sin el PC (datos, notas y recordatorios)."""
+        if self._memory is None:
+            return
+        for fact in data.facts:
+            await asyncio.to_thread(self._memory.remember, fact)
+        for note in data.notes:
+            await asyncio.to_thread(self._memory.add_note, note)
+        for r in data.reminders:
+            try:
+                due = datetime.fromisoformat(r.due_at)
+            except ValueError:
+                continue
+            await asyncio.to_thread(self._memory.add_reminder, r.kind, r.text, due)
+        log.info(
+            "Del teléfono: %d datos, %d notas y %d recordatorios",
+            len(data.facts),
+            len(data.notes),
+            len(data.reminders),
+        )
 
     async def playback_done(self) -> None:
         """El teléfono terminó de decir la respuesta. Si era una conversación por voz, se sigue
@@ -348,12 +428,16 @@ class Orchestrator:
         else:
             spoken = f"Te recuerdo: {reminder.text}."
         await self._emit(ReminderEvent(kind=reminder.kind, text=spoken))
-        await self.speak(spoken)
+        if not self._brain_phone:  # con la IA en el teléfono, lo dice el teléfono con su voz
+            await self.speak(spoken)
 
     async def send_telemetry(self, event: TelemetryEvent) -> None:
         await self._emit(event)
 
     async def send_media(self, event: MediaEvent) -> None:
+        await self._emit(event)
+
+    async def send_notifications(self, event: NotificationsEvent) -> None:
         await self._emit(event)
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
@@ -424,6 +508,15 @@ class Orchestrator:
             return
         speaker.say(clean_for_speech(text))
         await speaker.finish()
+
+    async def say_for_phone(self, text: str) -> None:
+        """IA en el teléfono: dice el texto con la voz del PC (Kokoro va en el procesador, sin
+        gráfica: ~1 s por frase). Sin voz en el PC, avisa con «audio_end» para que hable el
+        teléfono con la suya."""
+        if self._speaker() is None:
+            await self._emit(AudioEnd())
+            return
+        await self.speak(text)
 
     async def send_voices(self) -> None:
         if self._tts is not None:

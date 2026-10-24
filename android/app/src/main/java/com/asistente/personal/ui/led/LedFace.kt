@@ -62,6 +62,7 @@ object LedFace {
         lookX: Float = 0f, lookY: Float = 0f,
         blinkL: Float = 0f, blinkR: Float = 0f,
         level: Float = 0f,
+        countdown: String? = null,
     ) {
         f.clear()
         val dx = (lookX * 3).roundToInt()
@@ -71,7 +72,9 @@ object LedFace {
                 // Respira: el brillo sube y baja muy despacio.
                 val a = 0.86f + 0.14f * sin(t * 1.3f)
                 eyes(f, dx, dy, h = 10, top = 3, blinkL = blinkL, blinkR = blinkR, a = a)
-                smile(f, 20 + dx / 2, 15, 8, depth = 1, a = a * 0.9f)
+                // Con un temporizador en marcha, la boca es la cuenta atrás («4:59»).
+                if (countdown != null) LedFont.draw(f, countdown, (f.cols - LedFont.width(countdown)) / 2, 14)
+                else smile(f, 20 + dx / 2, 15, 8, depth = 1, a = a * 0.9f)
             }
             Mood.LISTEN -> {
                 eyes(f, dx / 2, 0, h = 12, top = 2, blinkL = blinkL * 0.5f, blinkR = blinkR * 0.5f, w = EYE_W + 1)
@@ -223,6 +226,12 @@ object LedFace {
 }
 
 /** Letras de 3 × 5 puntos para escribir en la matriz (mayúsculas, sin tildes). */
+/** Segundos que faltan → «4:59» (o «1:05:00» si pasa de una hora). */
+fun countdownText(seconds: Long): String {
+    val s = seconds.coerceAtLeast(0)
+    return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s % 3600 / 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
+}
+
 object LedFont {
     private val glyphs: Map<Char, Array<String>> = mapOf(
         'A' to arrayOf("###", "#.#", "###", "#.#", "#.#"), 'B' to arrayOf("##.", "#.#", "##.", "#.#", "##."),
@@ -318,6 +327,19 @@ class LedFaceAnimator(private val random: Random = Random.Default) {
 
     val showingText: Boolean get() = text != null
 
+    /**
+     * Mira hacia algo un momento (x, y entre −1 y 1): las teclas al pulsar una, el lado de los
+     * avisos cuando llega uno, la música cuando cambia la canción. Luego vuelve a pasear la vista.
+     */
+    fun glance(x: Float, y: Float, hold: Float = 1.3f) {
+        goalX = x.coerceIn(-1f, 1f)
+        goalY = y.coerceIn(-1f, 1f)
+        lookTimer = hold
+    }
+
+    /** Cuenta atrás del temporizador («4:59»), o null si no hay ninguno en marcha. */
+    var countdown: String? = null
+
     /** Avanza `dt` segundos. Devuelve true si algún punto cambió lo bastante como para redibujar. */
     fun step(dt: Float, t: Float, mood: Mood, level: Float): Boolean {
         val msg = text
@@ -329,7 +351,7 @@ class LedFaceAnimator(private val random: Random = Random.Default) {
         } else {
             val shownMood = idleQuirk(dt, mood)
             moveEyes(dt, shownMood)
-            LedFace.draw(target, shownMood, t, lookX, lookY, blinkL, blinkR, level)
+            LedFace.draw(target, shownMood, t, lookX, lookY, blinkL, blinkR, level, countdown)
         }
         val fall = if (msg != null) 22f else 7f // el texto no deja estela (se leería borroso)
         var changed = false

@@ -73,6 +73,12 @@ open_app_on_connect = true
 # Es lo único que usa internet: manda solo título, artista, álbum y duración de la canción.
 lyrics = true
 
+[notifications]
+# Ver en el teléfono las notificaciones del PC (Discord, WhatsApp, correo…). Solo viajan
+# por el cable al teléfono; no se guardan. Windows debe permitirlo en Configuración →
+# Privacidad y seguridad → Notificaciones.
+enabled = true
+
 [memory]
 # Historial de conversaciones (SQLite). Fuera de git.
 file = "data/history.sqlite"

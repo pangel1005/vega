@@ -109,6 +109,11 @@ class MediaSettings(_Section):
     lyrics: bool = True
 
 
+class NotificationSettings(_Section):
+    # Ver en el teléfono las notificaciones del PC (solo viajan por el cable; no se guardan).
+    enabled: bool = True
+
+
 class Settings(_Section):
     assistant: AssistantSettings
     server: ServerSettings = ServerSettings()
@@ -118,6 +123,7 @@ class Settings(_Section):
     speech: SpeechSettings = SpeechSettings()
     device: DeviceSettings = DeviceSettings()
     media: MediaSettings = MediaSettings()
+    notifications: NotificationSettings = NotificationSettings()
 
     @property
     def system_prompt(self) -> str:

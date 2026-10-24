@@ -156,3 +156,17 @@ def test_chosen_voice_is_remembered(tmp_path: Path) -> None:
     assert tts.voice == "es_MX-claude-high"
     tts.set_voice("es_AR-daniela-high")
     assert PiperTTS(voices, "es_MX-claude-high", prefs).voice == "es_AR-daniela-high"
+
+
+def test_phone_brain_can_borrow_the_pc_voice() -> None:
+    """Con la IA en el teléfono, este pide al PC que diga sus respuestas con su voz (más natural)."""
+    tts = FakeTTS()
+    with session(FakeChat(), tts) as ws:
+        start(ws)
+        ws.send_json({"type": "brain", "where": "phone"})
+        ws.send_json({"type": "say", "text": "Son las tres de la tarde."})
+        out: list[dict[str, Any] | bytes] = []
+        while not out or out[-1] != {"type": "audio_end"}:
+            out.append(receive(ws))
+    assert any(isinstance(o, bytes) for o in out)
+    assert tts.said == ["Son las tres de la tarde."]

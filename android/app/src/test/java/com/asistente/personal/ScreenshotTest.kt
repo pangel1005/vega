@@ -128,6 +128,40 @@ class ScreenshotTest {
         compose.onRoot().captureRoboImage("build/capturas/11_hoja_mas.png")
     }
 
+    // IA en el teléfono: se indica junto al nombre, y la pastilla de «Más» lo cambia.
+    @Test fun ia_en_el_telefono() {
+        val m = model(base.copy(messages = listOf(Message(1, Role.USER, "Vega, ¿qué hora es?"), Message(2, Role.ASSISTANT, "Son las 02:29."))))
+            .copy(brainLabel = "IA: teléfono", brainOnPhone = true)
+        shot("21_ia_telefono", m)
+    }
+
+    @Test fun hoja_mas_ia_telefono() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent { VegaScreen(model(base).copy(brainLabel = "Bajando IA 42 %", brainOnPhone = true), ScreenActions()) }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Más").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(600)
+        compose.onRoot().captureRoboImage("build/capturas/22_hoja_mas_ia.png")
+    }
+
+    // Notificaciones del PC: plegadas a un lado y abiertas (con una recién llegada).
+    private val notes = listOf(
+        com.asistente.personal.net.PcNote(3, "WhatsApp", "Ana", "¿Vienes a cenar esta noche? Hay pizza", 1_761_300_000.0 - 40, ""),
+        com.asistente.personal.net.PcNote(2, "Discord", "#general", "Luis: ¿alguien para una partida?", 1_761_300_000.0 - 600, ""),
+        com.asistente.personal.net.PcNote(1, "Outlook", "Factura de octubre", "Tu factura ya está disponible", 1_761_300_000.0 - 7200, ""),
+    )
+
+    @Test fun avisos_plegados() = shot(
+        "23_avisos_plegados",
+        model(base.copy(pcNotes = notes, notesKnown = true)).copy(wallMs = 1_761_300_000_000),
+    )
+
+    @Test fun avisos_abiertos() = shot(
+        "24_avisos_abiertos",
+        model(base.copy(pcNotes = notes, freshNotes = setOf(3L), notesKnown = true)).copy(wallMs = 1_761_300_000_000),
+        afterMs = 900,
+    )
+
     // Cara en arcoíris y en violeta (opciones de «Más»); teclas con el icono real de la app.
     @Test fun arcoiris() = shot("12_arcoiris", model(base).copy(faceColor = com.asistente.personal.ui.FaceColor.RAINBOW, icons = fakeIcons()))
 

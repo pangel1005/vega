@@ -54,7 +54,7 @@ fun KeyRow(
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         favorites.take(6).forEach { a ->
             Key(
-                label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled, image = icons[a.id],
+                label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled, image = icons[a.id], id = a.id,
                 confirming = pending?.id == a.id, secondsLeft = secondsLeft, onClick = { onPress(a.id) },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
@@ -66,7 +66,10 @@ fun KeyRow(
     }
 }
 
-/** Una tecla: icono en su color, nombre debajo. Al pulsar se hunde y se ilumina. */
+/**
+ * Una tecla: icono de LED en su color, nombre y una tira de luz abajo. En reposo la tira brilla
+ * poco (dice de qué color es la tecla); al pulsar, la tecla se hunde y todo se enciende.
+ */
 @Composable
 fun Key(
     label: String,
@@ -78,9 +81,13 @@ fun Key(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     image: ImageBitmap? = null,
+    id: String = label,
 ) {
     val pressed = remember { mutableStateOf(false) }
     val down = pressed.value
+    // Se enciende al instante y se apaga despacio, como un LED.
+    val glow by animateFloatAsState(if (down) 1f else 0f, tween(if (down) 0 else 420), label = "brillo")
+    val glyph = remember(icon, image) { if (image != null) imageGlyph(id, image) else deckGlyph(icon) }
     // Muelle rápido: se hunde en el mismo cuadro del toque y rebota al soltar.
     val scale by animateFloatAsState(if (down) 0.92f else 1f, spring(dampingRatio = 0.5f, stiffness = 1500f), label = "pulsar")
     val fill by animateColorAsState(
@@ -102,7 +109,7 @@ fun Key(
             .background(fill, KeyShape)
             .border(1.dp, if (confirming) Vega.Red else if (down) color.copy(alpha = 0.6f) else Vega.Line, KeyShape)
             .instantPress(enabled = enabled, pressed = pressed, onPress = onClick)
-            .padding(horizontal = 6.dp, vertical = 6.dp),
+            .padding(horizontal = 6.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (confirming) {
@@ -115,19 +122,30 @@ fun Key(
                 )
             }
         } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                // Las apps llevan su icono real (del .exe del PC); lo demás, el dibujo de siempre.
-                if (image != null) {
-                    Image(image, contentDescription = null, modifier = Modifier.size(24.dp), filterQuality = FilterQuality.High)
-                } else {
-                    Canvas(Modifier.size(20.dp)) { drawDeckIcon(icon, color) }
-                }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                // Las apps llevan su icono real (del .exe del PC) hecho de LED de colores; lo demás,
+                // su dibujo en puntos del color de la tecla.
+                LedIcon(glyph, color, Modifier.size(32.dp), glow = glow)
                 Text(
                     label,
                     maxLines = 1,
                     style = TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Vega.Ink),
                 )
+                LightStrip(color, glow)
             }
+        }
+    }
+}
+
+/** Cinco LED en fila bajo el nombre de la tecla: tenues en reposo, encendidos al pulsar (del centro afuera). */
+@Composable
+private fun LightStrip(color: Color, glow: Float) {
+    Canvas(Modifier.size(width = 34.dp, height = 4.dp)) {
+        val pitch = size.width / 5
+        for (i in 0 until 5) {
+            val fromCenter = kotlin.math.abs(i - 2) / 2f
+            val on = (glow * 1.6f - fromCenter * 0.6f).coerceIn(0f, 1f)
+            drawCircle(color.copy(alpha = 0.22f + 0.78f * on), size.height / 2, androidx.compose.ui.geometry.Offset(pitch * (i + 0.5f), size.height / 2))
         }
     }
 }

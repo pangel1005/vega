@@ -81,6 +81,9 @@ data class Telemetry(
     val upcoming: List<Upcoming> = emptyList(),
 )
 
+/** Notificación del PC (Discord, WhatsApp…). `at` en segundos desde 1970; icono en /app/notifications/icon/<icon>.png. */
+data class PcNote(val id: Long, val app: String, val title: String, val body: String, val at: Double, val icon: String)
+
 sealed interface ServerEvent {
     data class Ready(val assistant: String, val model: String) : ServerEvent
     data class History(val messages: List<HistoryItem>) : ServerEvent
@@ -101,6 +104,10 @@ sealed interface ServerEvent {
     data class Stats(val telemetry: Telemetry) : ServerEvent
     /** Lo que suena en el PC; null = nada. */
     data class Media(val media: MediaInfo?) : ServerEvent
+    /** Las notificaciones del PC, de la más nueva a la más vieja. */
+    data class Notifications(val items: List<PcNote>) : ServerEvent
+    /** Respuesta del PC a una orden que entendió el teléfono (IA en el teléfono). */
+    data class PhoneReply(val handled: Boolean, val text: String) : ServerEvent
 }
 
 object Protocol {
@@ -156,6 +163,14 @@ object Protocol {
                     art = o.optString("art"), canPrevious = o.optBoolean("can_previous"), canNext = o.optBoolean("can_next"),
                 ),
             )
+            "notifications" -> {
+                val arr = o.getJSONArray("items")
+                ServerEvent.Notifications(List(arr.length()) { i ->
+                    val n = arr.getJSONObject(i)
+                    PcNote(n.getLong("id"), n.getString("app"), n.getString("title"), n.optString("body"), n.getDouble("at"), n.optString("icon"))
+                })
+            }
+            "phone_reply" -> ServerEvent.PhoneReply(o.getBoolean("handled"), o.optString("text"))
             "telemetry" -> {
                 val arr = o.optJSONArray("upcoming")
                 fun optInt(k: String) = if (o.isNull(k)) null else o.getInt(k)
@@ -185,4 +200,8 @@ object Protocol {
         JSONObject().put("type", "media_control").put("command", command).toString()
     fun setVoice(id: String): String = JSONObject().put("type", "set_voice").put("voice", id).toString()
     fun confirm(nonce: String): String = JSONObject().put("type", "action_confirm").put("nonce", nonce).toString()
+    fun phoneCommand(text: String): String = JSONObject().put("type", "phone_command").put("text", text).toString()
+    /** Quita una notificación del PC; con null, todas. */
+    fun dismissNotification(id: Long?): String =
+        JSONObject().put("type", "notification_dismiss").apply { if (id != null) put("id", id) }.toString()
 }

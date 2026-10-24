@@ -75,6 +75,7 @@ class FakeChat:
         self.fail = fail
         self.calls: list[list[ChatMessage]] = []
         self.preloads = 0
+        self.unloads = 0
 
     @property
     def name(self) -> str:
@@ -82,6 +83,9 @@ class FakeChat:
 
     async def preload(self) -> None:
         self.preloads += 1
+
+    async def unload(self) -> None:
+        self.unloads += 1
 
     async def stream(self, messages: Sequence[ChatMessage]) -> AsyncIterator[str]:
         self.calls.append(list(messages))

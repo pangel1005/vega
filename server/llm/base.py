@@ -34,3 +34,7 @@ class ChatModel(Protocol):
     async def preload(self) -> None:
         """Carga el modelo en memoria por adelantado (p. ej. mientras el usuario habla). Nunca falla."""
         ...
+
+    async def unload(self) -> None:
+        """Saca el modelo de la memoria (y de la gráfica) ya, sin esperar a `keep_alive`. Nunca falla."""
+        ...

@@ -13,6 +13,7 @@ from server.core.config import ROOT, ConfigError, Settings, load_settings
 from server.core.logs import setup_logging
 from server.core.token import load_or_create_token
 from server.device.media import MediaWatcher
+from server.device.notifications import NotificationReader
 from server.device.usb import UsbWatcher, find_adb
 from server.speech.base import SttUnavailable
 from server.speech.tts import KokoroTTS, PiperTTS, TtsUnavailable, VoiceRouter
@@ -117,6 +118,7 @@ def main() -> int:
             phone_battery=usb.battery if usb else (lambda: None),
             app_icons=AppIcons(actions.actions, ROOT / "data" / "icons"),
             media=MediaWatcher(),
+            notifications=NotificationReader(),
         ),
         host=settings.server.host,
         port=settings.server.port,

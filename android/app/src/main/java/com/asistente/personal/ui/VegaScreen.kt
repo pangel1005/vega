@@ -1,5 +1,7 @@
 package com.asistente.personal.ui
 
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.AnimatedVisibility
 import kotlin.math.abs
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -66,6 +68,8 @@ import com.asistente.personal.state.Role
 import com.asistente.personal.state.UiState
 import com.asistente.personal.ui.led.LedFaceView
 import com.asistente.personal.ui.led.LedFont
+import com.asistente.personal.ui.led.countdownText
+import com.asistente.personal.ui.led.Glance
 import com.asistente.personal.ui.led.LedOff
 import com.asistente.personal.ui.led.Mood
 import kotlinx.coroutines.delay
@@ -100,6 +104,16 @@ data class ScreenModel(
     val mediaAccent: Color = Vega.Coral,
     val clockMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
     val lyrics: com.asistente.personal.net.Lyrics? = null,
+    /** Dónde piensa Vega: «IA: PC», «IA: teléfono» o cómo va la descarga de sus modelos. */
+    val brainLabel: String = "IA: PC",
+    val brainOnPhone: Boolean = false,
+    /** Iconos de las apps que mandan notificaciones en el PC, por id de icono. */
+    val noteIcons: Map<String, ImageBitmap> = emptyMap(),
+    /** Hora real (ms desde 1970) para «hace 5 min» en las notificaciones. */
+    val wallMs: Long = System.currentTimeMillis(),
+    /** Fin del temporizador del teléfono (reloj `clockMs`), cuando Vega piensa sin el PC. */
+    val localTimerEndsAt: Long? = null,
+    val touchFeel: TouchFeel = TouchFeel.SOFT,
 )
 
 class ScreenActions(
@@ -115,6 +129,10 @@ class ScreenActions(
     /** Vega se duerme o se despierta: la actividad baja o devuelve el brillo de la pantalla. */
     val sleepChanged: (Boolean) -> Unit = {},
     val mediaControl: (String) -> Unit = {},
+    val toggleBrain: () -> Unit = {},
+    /** Quita una notificación del PC (null = todas). */
+    val dismissNote: (Long?) -> Unit = {},
+    val nextTouchFeel: () -> Unit = {},
 )
 
 /** Qué cara pone Vega según lo que está pasando de verdad. */
@@ -226,7 +244,9 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
             longOffline = true
         }
     }
-    val asleep = m.hasToken && ui.link != LinkStatus.OPEN && ui.link != LinkStatus.DENIED && (ui.pcOff != null || longOffline)
+    // Con la IA en el teléfono no se duerme: sigue escuchando y contestando sin el PC.
+    val asleep = !m.brainOnPhone && m.hasToken && ui.link != LinkStatus.OPEN && ui.link != LinkStatus.DENIED &&
+        (ui.pcOff != null || longOffline)
     // Al volver el PC se despierta contenta un momento.
     var waking by remember { mutableStateOf(false) }
     var wasAsleep by remember { mutableStateOf(false) }
@@ -247,8 +267,44 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     )
 
     val mood = if (waking && ui.link == LinkStatus.OPEN) Mood.HAPPY
-    else moodFor(m.state, ui.link, ui.pending, ui.notice, m.listening && m.micOn, m.hasToken)
+    else moodFor(m.state, if (m.brainOnPhone) LinkStatus.OPEN else ui.link, ui.pending, ui.notice, m.listening && m.micOn, m.hasToken)
+
+    // Barra de notificaciones: se abre al tocarla, y sola unos segundos cuando llega una nueva.
+    var notesOpen by remember { mutableStateOf(false) }
+    var notesPeek by remember { mutableStateOf(false) }
+    val newestFresh = ui.pcNotes.firstOrNull { it.id in ui.freshNotes }?.id
+    LaunchedEffect(newestFresh) {
+        if (newestFresh == null) return@LaunchedEffect
+        notesPeek = true
+        delay(NOTE_PEEK_MS)
+        notesPeek = false
+    }
+    if (ui.pcNotes.isEmpty() && notesOpen) notesOpen = false
+
+    // Vega mira lo que pasa: las teclas al pulsar, los avisos (a la izquierda) cuando llega uno,
+    // la música (a la derecha) cuando cambia la canción.
+    var glance by remember { mutableStateOf<Glance?>(null) }
+    fun look(x: Float, y: Float) {
+        glance = Glance((glance?.seq ?: 0) + 1, x, y)
+    }
+    LaunchedEffect(newestFresh) { if (newestFresh != null) look(-1f, -0.2f) }
+    val song = ui.media?.let { it.title + it.artist }
+    LaunchedEffect(song) { if (song != null) look(1f, -0.3f) }
+    val press: (String) -> Unit = { id ->
+        look(0f, 1f)
+        a.press(id)
+    }
+
     val color = moodColor(mood, m.faceColor.color)
+    // Su ánimo tiñe los bordes de la pantalla mientras escucha, piensa o habla.
+    val aura by animateColorAsState(
+        when (mood) {
+            Mood.LISTEN, Mood.THINK, Mood.TALK -> color.copy(alpha = 0.38f)
+            else -> Vega.Line
+        },
+        tween(450),
+        label = "aura",
+    )
     Box(modifier.fillMaxSize().background(Vega.Bg)) {
         if (sleepFade < 1f) Box(
             Modifier.fillMaxSize().graphicsLayer {
@@ -259,15 +315,29 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         ) {
             Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (ui.pcNotes.isNotEmpty()) {
+                        NotesRail(
+                            notes = ui.pcNotes,
+                            fresh = ui.freshNotes,
+                            icons = m.noteIcons,
+                            nowMs = m.wallMs,
+                            open = notesOpen || notesPeek,
+                            onToggle = {
+                                notesOpen = !(notesOpen || notesPeek)
+                                notesPeek = false
+                            },
+                            onDismiss = a.dismissNote,
+                        )
+                    }
                     FaceCard(
-                        mood, color, m,
+                        mood, color, m, glance, aura,
                         Modifier.weight(1f).fillMaxHeight()
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { a.attention() },
                     )
                     // Lo que casi no cambia se guarda como imagen (Offscreen): mientras la cara se anima,
                     // estas tarjetas no se vuelven a dibujar.
                     Column(Modifier.width(250.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ClockCard(m, a, Modifier.fillMaxWidth())
+                        ClockCard(m, a, Modifier.fillMaxWidth(), aura)
                         // Mientras suena algo en el PC hay dos páginas: estado del PC y reproductor. Se
                         // cambia deslizando el dedo o con el selector; al empezar la música pasa sola a ella.
                         val media = ui.media
@@ -305,7 +375,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 } else {
-                                    StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxSize())
+                                    StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxSize(), aura)
                                 }
                             }
                         }
@@ -316,8 +386,11 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     pending = ui.pending,
                     secondsLeft = secondsLeft,
                     enabled = canAct,
-                    onPress = a.press,
-                    onMore = { showMore = true },
+                    onPress = press,
+                    onMore = {
+                        look(0.6f, 1f)
+                        showMore = true
+                    },
                     modifier = Modifier.fillMaxWidth().height(66.dp).cached(),
                     icons = m.icons,
                 )
@@ -351,6 +424,11 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         onNextVoice = a.nextVoice,
                         faceColor = m.faceColor,
                         onNextFaceColor = a.nextFaceColor,
+                        brainLabel = m.brainLabel,
+                        brainOnPhone = m.brainOnPhone,
+                        onToggleBrain = a.toggleBrain,
+                        touchLabel = m.touchFeel.label,
+                        onNextTouch = a.nextTouchFeel,
                         // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.
                         modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                             awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
@@ -383,19 +461,37 @@ private fun Modifier.cached(): Modifier = graphicsLayer { compositingStrategy = 
 
 /** La cara de LED con su estado arriba y lo último que dijo abajo. */
 @Composable
-private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, modifier: Modifier = Modifier) {
+private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, glance: Glance?, aura: Color, modifier: Modifier = Modifier) {
     val border by animateColorAsState(
-        if (mood == Mood.ALERT || mood == Mood.ERROR) Vega.Red.copy(alpha = 0.7f) else Vega.Line,
+        if (mood == Mood.ALERT || mood == Mood.ERROR) Vega.Red.copy(alpha = 0.7f) else aura,
         tween(250),
         label = "borde",
     )
     val notice = m.ui.notice?.takeIf { it.reminder }
-    Column(modifier.card(border).padding(horizontal = 16.dp, vertical = 12.dp)) {
+    // Un halo muy suave del color de Vega detrás de la cara: da profundidad y cambia con su
+    // estado (escuchando, pensando, avisando…). Solo se redibuja cuando cambia el color.
+    val glow by animateColorAsState(if (notice != null) Vega.Amber else color, tween(700), label = "halo")
+    Column(
+        modifier.card(border).drawBehind {
+            drawRect(
+                Brush.radialGradient(
+                    listOf(glow.copy(alpha = 0.16f), glow.copy(alpha = 0.05f), Color.Transparent),
+                    center = Offset(size.width / 2, size.height * 0.47f),
+                    radius = size.minDimension * 0.78f,
+                ),
+            )
+        }.padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(color)
             Spacer(Modifier.width(7.dp))
             Text(moodLabel(mood, m.ui.assistant), maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = color))
             Spacer(Modifier.weight(1f))
+            // Con la IA en el teléfono (o mientras se prepara) se ve aquí, junto al nombre.
+            if (m.brainOnPhone) {
+                Text(m.brainLabel, maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Mint))
+                Spacer(Modifier.width(10.dp))
+            }
             Text(
                 m.ui.assistant.uppercase().ifEmpty { "VEGA" },
                 style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp, color = Vega.Ink3),
@@ -409,10 +505,33 @@ private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, modifier: Modifie
             notice = notice?.text,
             noticeKey = notice?.seq ?: 0,
             rainbow = notice == null && showsRainbow(mood, m.faceColor),
+            countdown = timerLeft(m)?.let(::countdownText),
+            glance = glance,
             modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
         )
         Subtitle(m, Modifier.fillMaxWidth().height(42.dp).cached())
     }
+}
+
+/**
+ * Segundos que le quedan al temporizador más próximo, contados cada segundo: el del PC (llega
+ * con la telemetría) o el del teléfono (IA sin PC). Null si no hay ninguno en marcha.
+ */
+@Composable
+private fun timerLeft(m: ScreenModel): Long? {
+    val pc = m.ui.telemetry?.upcoming?.firstOrNull { it.kind == "timer" }
+    val endsAt = when {
+        pc != null -> m.ui.telemetryAt + pc.dueIn * 1000L
+        else -> m.localTimerEndsAt
+    } ?: return null
+    var now by remember { mutableLongStateOf(m.clockMs()) }
+    LaunchedEffect(endsAt) {
+        while (true) {
+            now = m.clockMs()
+            delay(1000 - now % 1000)
+        }
+    }
+    return ((endsAt - now + 999) / 1000).takeIf { it > 0 }
 }
 
 private const val SLEEP_AFTER_MS = 20_000L
@@ -477,9 +596,9 @@ private fun PageSwitch(music: Boolean, onChange: (Boolean) -> Unit) {
 
 /** Hora en grande (tipografía de puntos), fecha y los botones del sistema. */
 @Composable
-private fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) {
+private fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier, border: Color = Vega.Line) {
     val ui = m.ui
-    Column(modifier.card().padding(horizontal = 14.dp, vertical = 10.dp)) {
+    Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(m.clock, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 36.sp, lineHeight = 36.sp, color = Vega.Ink))
             Spacer(Modifier.width(10.dp))
@@ -506,8 +625,11 @@ private fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Mod
 
 /** PC, gráfica y batería en barras de puntos, y el próximo aviso con cuenta atrás. */
 @Composable
-private fun StatusCard(t: Telemetry?, battery: Int, charging: Boolean, upcoming: List<Upcoming>, elapsed: Long, modifier: Modifier = Modifier) {
-    Column(modifier.card().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+private fun StatusCard(
+    t: Telemetry?, battery: Int, charging: Boolean, upcoming: List<Upcoming>, elapsed: Long, modifier: Modifier = Modifier,
+    border: Color = Vega.Line,
+) {
+    Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         val vram = if (t?.vramUsed != null && t.vramTotal != null && t.vramTotal > 0) (t.vramUsed / t.vramTotal).toFloat() else null
         StatRow("Procesador", t?.cpu?.let { "$it %" }, t?.cpu?.div(100f))
         // Temperatura de 30 °C (vacía) a 90 °C (llena).
@@ -573,30 +695,51 @@ private fun Subtitle(m: ScreenModel, modifier: Modifier = Modifier) {
     val ui = m.ui
     val pending = ui.pending
     val notice = ui.notice
-    val (who, text, color) = when {
+    val line = when {
         ui.link == LinkStatus.DENIED || !m.hasToken ->
-            Triple("Error", "Sin token válido: ábrela desde el PC con scripts/android-install.ps1", Vega.Red)
-        ui.link != LinkStatus.OPEN -> Triple(
+            Line("Error", "Sin token válido: ábrela desde el PC con scripts/android-install.ps1", Vega.Red)
+        ui.link != LinkStatus.OPEN && !m.brainOnPhone -> Line(
             "Conexión",
             "No llego al PC" + (ui.retryInMs?.let { " · reintento en ${(it + 999) / 1000} s" } ?: "") + ". Revisa el cable USB.",
             Vega.Amber,
         )
-        pending != null -> Triple("Confirma", "${pending.message} Toca la tecla otra vez o di «sí».", Vega.Red)
-        notice != null -> Triple(if (notice.ok) "Aviso" else "Error", notice.text, if (notice.ok) Vega.Amber else Vega.Red)
+        pending != null -> Line("Confirma", "${pending.message} Toca la tecla otra vez o di «sí».", Vega.Red)
+        notice != null -> Line(if (notice.ok) "Aviso" else "Error", notice.text, if (notice.ok) Vega.Amber else Vega.Red)
         else -> lastLine(ui.messages, ui.assistant)
     }
+    // Su respuesta se escribe letra a letra (rápido: ~110 por segundo), como si la dijera.
+    val typing = line.typeKey
+    var shown by remember(typing) { mutableIntStateOf(if (typing == null) Int.MAX_VALUE else 0) }
+    LaunchedEffect(typing, line.text.length) {
+        while (shown < line.text.length) {
+            delay(18)
+            shown += 2
+        }
+    }
     Column(modifier, verticalArrangement = Arrangement.Bottom) {
-        if (who.isNotEmpty()) Text(who, style = Vega.label.copy(fontSize = 10.sp, color = color))
-        Text(text, maxLines = 2, style = Vega.body.copy(fontSize = 15.sp, lineHeight = 18.sp))
+        if (line.who.isNotEmpty()) Text(line.who, maxLines = 1, style = Vega.label.copy(fontSize = 10.sp, color = line.color))
+        Text(line.text.take(shown), maxLines = 2, style = Vega.body.copy(fontSize = 15.sp, lineHeight = 18.sp))
     }
 }
 
-private fun lastLine(messages: List<Message>, assistant: String): Triple<String, String, Color> {
-    val last = messages.lastOrNull() ?: return Triple("", "Di «${assistant.ifEmpty { "Vega" }}» y lo que necesites.", Vega.Ink2)
+/** Lo que muestra el subtítulo; `typeKey` (el mensaje) hace que se escriba letra a letra. */
+private data class Line(val who: String, val text: String, val color: Color, val typeKey: Int? = null)
+
+private fun lastLine(messages: List<Message>, assistant: String): Line {
+    val last = messages.lastOrNull() ?: return Line("", "Di «${assistant.ifEmpty { "Vega" }}» y lo que necesites.", Vega.Ink2)
     return when (last.role) {
-        Role.USER -> Triple("Tú", last.text, Vega.Ink2)
-        Role.ASSISTANT -> Triple(assistant.ifEmpty { "Asistente" }, last.text + if (last.streaming) " ▍" else "", Vega.Coral)
-        Role.ERROR -> Triple("Error", last.text, Vega.Red)
-        Role.NOTE -> Triple("Aviso", last.text, Vega.Amber)
+        Role.USER -> Line("Tú", last.text, Vega.Ink2)
+        Role.ASSISTANT -> {
+            // Encima, lo que le dijiste: así se lee como una conversación.
+            val asked = messages.getOrNull(messages.size - 2)?.takeIf { it.role == Role.USER }?.text
+            Line(
+                if (asked != null) "Tú: $asked" else assistant.ifEmpty { "Asistente" },
+                last.text + if (last.streaming) " ▍" else "",
+                if (asked != null) Vega.Ink3 else Vega.Coral,
+                typeKey = last.id,
+            )
+        }
+        Role.ERROR -> Line("Error", last.text, Vega.Red)
+        Role.NOTE -> Line("Aviso", last.text, Vega.Amber)
     }
 }

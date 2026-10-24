@@ -23,6 +23,7 @@ from server.ws.protocol import (
     ActionConfirm,
     ActionRequest,
     Attention,
+    Brain,
     ChatRequest,
     ErrorEvent,
     Hello,
@@ -30,9 +31,13 @@ from server.ws.protocol import (
     ListenStart,
     ListenStop,
     MediaControl,
+    MemoryImport,
+    NotificationDismiss,
+    PhoneCommand,
     PlaybackDone,
     Ready,
     Reset,
+    Say,
     ServerEvent,
     SetVoice,
     WakeMode,
@@ -161,6 +166,16 @@ def register_ws(
                     await orchestrator.set_voice(msg.voice)
                 elif isinstance(msg, PlaybackDone):
                     await orchestrator.playback_done()
+                elif isinstance(msg, PhoneCommand):
+                    await orchestrator.phone_command(msg.text)
+                elif isinstance(msg, MemoryImport):
+                    await orchestrator.import_memory(msg)
+                elif isinstance(msg, Say):
+                    await orchestrator.say_for_phone(msg.text)
+                elif isinstance(msg, Brain):
+                    await orchestrator.set_brain(msg.where)
+                elif isinstance(msg, NotificationDismiss) and hub is not None:
+                    await hub.dismiss_notification(msg.id)
                 elif isinstance(msg, MediaControl) and hub is not None:
                     await hub.media_control(msg.command)
         except WebSocketDisconnect:

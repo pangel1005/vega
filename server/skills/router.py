@@ -9,6 +9,7 @@ la frase responde. Si ninguna la reconoce, la frase va al modelo de lenguaje.
 - Temporizadores: «pon un temporizador de 5 minutos», «cancela el temporizador»
 - Notas: «apunta…», «lee mis notas», «borra mis notas»
 - Estado: «cómo está el PC» (CPU, RAM, GPU, batería del teléfono)
+- Notificaciones del PC: «qué notificaciones tengo», «léeme el último mensaje (de WhatsApp)»
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from server.core.text import normalize
+from server.device.notifications import PcNotification
 from server.memory.personal import PersonalMemory, to_you
 from server.skills.status import pc_status
 from server.skills.when import parse_duration, parse_when, spoken_time
@@ -47,6 +49,31 @@ def _list(items: list[str]) -> str:
     return ", ".join(items[:-1]) + " y " + items[-1]
 
 
+def _ago(seconds: float) -> str:
+    """Hace cuánto llegó: «ahora mismo», «hace 5 minutos», «hace 2 horas»."""
+    s = max(0, int(seconds))
+    if s < 60:
+        return "ahora mismo"
+    if s < 3600:
+        m = s // 60
+        return f"hace {m} minuto{_s(m)}"
+    h = s // 3600
+    return f"hace {h} hora{_s(h)}"
+
+
+def _remaining(seconds: int) -> str:
+    """125 → «2 minutos y 5 segundos»."""
+    h, m, sec = seconds // 3600, seconds % 3600 // 60, seconds % 60
+    parts = []
+    if h:
+        parts.append(f"{h} hora{_s(h)}")
+    if m:
+        parts.append(f"{m} minuto{_s(m)}")
+    if sec and not h:
+        parts.append(f"{sec} segundo{_s(sec)}")
+    return _list(parts) if parts else "nada"
+
+
 _REMEMBER = re.compile(r"^\s*(?:recuerda|acu[ée]rdate(?:\s+de)?|guarda|memoriza)\s+que\s+(?P<fact>.+)$", re.I)
 _FORGET = re.compile(r"^\s*olvida\s+(?:que|lo\s+de|lo\s+que\s+te\s+dije\s+de)\s+(?P<about>.+)$", re.I)
 _REMIND = re.compile(r"^\s*(?:recu[ée]rdame|av[íi]same|recordarme)\b[\s,:]*(?P<rest>.*)$", re.I)
@@ -71,15 +98,17 @@ class SkillRouter:
         memory: PersonalMemory,
         now: Callable[[], datetime] = datetime.now,
         phone_battery: Callable[[], int | None] = lambda: None,
+        notifications: Callable[[], list[PcNotification]] = list,
     ) -> None:
         self._mem = memory
         self._now = now
         self._battery = phone_battery
+        self._notifications = notifications
 
     def handle(self, text: str) -> SkillReply | None:
         said = normalize(text)
         for skill in (self._forget, self._what_you_know, self._remember, self._timer, self._reminders,
-                      self._notes, self._status, self._about_me):  # fmt: skip
+                      self._notes, self._pc_notifications, self._status, self._about_me):  # fmt: skip
             reply = skill(text, said)
             if reply is not None:
                 return reply
@@ -134,6 +163,12 @@ class SkillRouter:
     def _timer(self, text: str, said: str) -> SkillReply | None:
         if not _TIMER.search(text):
             return None
+        if re.search(r"\bcuanto (le )?(falta|queda)", said):
+            timers = [r for r in self._mem.pending() if r.kind == "timer"]
+            if not timers:
+                return SkillReply("No hay ningún temporizador en marcha.")
+            left = max(0, round((timers[0].due_at - self._now()).total_seconds()))
+            return SkillReply(f"Le queda {_remaining(left)}.")
         if re.search(r"\b(cancela|quita|para|detén|deten|borra)\b", said):
             n = self._mem.cancel("timer")
             return SkillReply("Temporizador cancelado." if n else "No había ningún temporizador en marcha.")
@@ -193,6 +228,39 @@ class SkillRouter:
         note = m["text"].strip(" .")
         self._mem.add_note(note)
         return SkillReply(f"Apuntado: {note}.")
+
+    # --- Notificaciones del PC ---
+
+    def _pc_notifications(self, text: str, said: str) -> SkillReply | None:
+        asks_list = re.search(
+            r"\b(que|cuantas|tengo|hay|leeme|lee|dime)\b.*\b(notificaciones|avisos|mensajes)\b", said
+        )
+        asks_last = re.search(
+            r"\b(leeme|lee|dime|que dice)\b.*\b(ultim[oa]s?|nuev[oa]s?)\b.*\b(mensaje|notificacion|aviso)",
+            said,
+        )
+        if not asks_list and not asks_last:
+            return None
+        notes = self._notifications()
+        # «… de WhatsApp»: solo las de esa app (si se nombra una de las que hay).
+        app = next(
+            (n.app for n in notes if normalize(n.app) and f" {normalize(n.app)} " in f" {said} "), None
+        )
+        if app:
+            notes = [n for n in notes if n.app == app]
+        if not notes:
+            where = f" de {app}" if app else ""
+            return SkillReply(f"No tienes notificaciones{where} en el PC.")
+        if asks_last:
+            n = notes[0]
+            ago = _ago(self._now().timestamp() - n.at)
+            who = n.app if n.title == n.app else f"{n.title}, por {n.app}"
+            return SkillReply(f"{who}, {ago}: {n.body or n.title}")
+        parts = [n.app if n.title == n.app else f"{n.app} de {n.title}" for n in notes[:5]]
+        more = f" y {len(notes) - 5} más" if len(notes) > 5 else ""
+        return SkillReply(
+            f"Tienes {len(notes)} notificaci{'ón' if len(notes) == 1 else 'ones'}: {_list(parts)}{more}."
+        )
 
     # --- Estado del PC y del teléfono ---
 

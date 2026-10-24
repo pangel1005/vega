@@ -113,4 +113,17 @@ class ReducerTest {
         assertEquals(LinkStatus.RECONNECTING, s.link)
         assertEquals(500L, s.retryInMs)
     }
+
+    @Test fun `las notificaciones del PC marcan como nuevas solo las que llegan después`() {
+        fun note(id: Long) = com.asistente.personal.net.PcNote(id, "WhatsApp", "Ana", "¿Vienes?", 1000.0 + id, "")
+        var s = reduce(UiState(), Action.Link(LinkStatus.OPEN))
+        s = reduce(s, Action.Server(ServerEvent.Notifications(listOf(note(1)))))
+        assertEquals(emptySet<Long>(), s.freshNotes) // ya estaban al conectar
+        s = reduce(s, Action.Server(ServerEvent.Notifications(listOf(note(2), note(1)))))
+        assertEquals(setOf(2L), s.freshNotes)
+        s = reduce(s, Action.Server(ServerEvent.Notifications(listOf(note(1))))) // se descartó en el PC
+        assertEquals(emptySet<Long>(), s.freshNotes)
+        s = reduce(s, Action.Link(LinkStatus.RECONNECTING))
+        assertEquals(emptyList<com.asistente.personal.net.PcNote>(), s.pcNotes)
+    }
 }

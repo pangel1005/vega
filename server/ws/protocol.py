@@ -14,6 +14,17 @@ Cliente → servidor:
                                          y se atienden las frases que empiezan por el nombre
     {"type": "attention"}                (tocar el rostro) la próxima frase es una orden
     {"type": "set_voice", "voice": "..."}  cambia la voz (y la presenta)
+    {"type": "notification_dismiss", "id": 123}  quita una notificación del PC (sin id: todas)
+    {"type": "phone_command", "text": "..."}  (IA en el teléfono) una orden ya entendida:
+                                         el PC prueba sus habilidades y botones, nunca el
+                                         modelo; contesta con «phone_reply»
+    {"type": "memory_import", "facts": [...], "notes": [...], "reminders": [{"kind",
+     "text", "due_at"}]}                 lo que el teléfono guardó sin PC
+    {"type": "say", "text": "..."}       (IA en el teléfono) el PC lo dice con su voz (Kokoro en
+                                         el procesador): suena más natural que la del teléfono
+    {"type": "brain", "where": "pc|phone"}  dónde piensa Vega: con «phone» el teléfono
+                                         escucha y contesta solo, y el PC suelta el
+                                         modelo de la gráfica (para jugar o trabajar)
 
 Servidor → cliente:
     {"type": "ready", "assistant": "...", "model": "..."}
@@ -31,6 +42,9 @@ Servidor → cliente:
     {"type": "token", "text": "..."}     trozo de la respuesta, en cuanto llega
     {"type": "done", "text": "..."}      respuesta completa
     {"type": "error", "message": "..."}  texto pensado para mostrarse al usuario
+    {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
+                                         (lo dice el teléfono con su voz)
+    {"type": "notifications", "items": [{"id", "app", "title", "body", "at", "icon"}]}
 """
 
 from __future__ import annotations
@@ -115,6 +129,49 @@ class PlaybackDone(_Msg):
     type: Literal["playback_done"] = "playback_done"
 
 
+class PhoneCommand(_Msg):
+    """IA en el teléfono: una orden ya transcrita. El PC solo usa habilidades y botones."""
+
+    type: Literal["phone_command"] = "phone_command"
+    text: str = Field(min_length=1, max_length=1000)
+
+
+class ImportedReminder(_Msg):
+    kind: Literal["reminder", "timer"]
+    text: str = Field(max_length=500)
+    due_at: str = Field(max_length=40)  # hora local, ISO (2026-10-24T18:30:00)
+
+
+class MemoryImport(_Msg):
+    """Lo que el teléfono guardó mientras pensaba sin el PC; aquí se suma a la memoria."""
+
+    type: Literal["memory_import"] = "memory_import"
+    facts: list[Annotated[str, Field(max_length=500)]] = Field(default_factory=list, max_length=200)
+    notes: list[Annotated[str, Field(max_length=500)]] = Field(default_factory=list, max_length=200)
+    reminders: list[ImportedReminder] = Field(default_factory=list, max_length=200)
+
+
+class Say(_Msg):
+    """El teléfono pide que el PC diga un texto con su voz (más natural que la del teléfono)."""
+
+    type: Literal["say"] = "say"
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class NotificationDismiss(_Msg):
+    """Quita una notificación del centro de notificaciones del PC (sin `id`, todas)."""
+
+    type: Literal["notification_dismiss"] = "notification_dismiss"
+    id: int | None = None
+
+
+class Brain(_Msg):
+    """Dónde piensa Vega: en el PC (como siempre) o en el teléfono (el PC libera la gráfica)."""
+
+    type: Literal["brain"] = "brain"
+    where: Literal["pc", "phone"]
+
+
 class SetVoice(_Msg):
     type: Literal["set_voice"] = "set_voice"
     voice: str = Field(max_length=80)
@@ -134,6 +191,11 @@ AnyClientMessage = (
     | SetVoice
     | PlaybackDone
     | MediaControl
+    | Brain
+    | NotificationDismiss
+    | PhoneCommand
+    | MemoryImport
+    | Say
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
@@ -252,6 +314,28 @@ class MediaEvent(_Msg):
     can_next: bool = False
 
 
+class PhoneReplyEvent(_Msg):
+    type: Literal["phone_reply"] = "phone_reply"
+    handled: bool
+    text: str = ""
+
+
+class NotificationItem(_Msg):
+    id: int
+    app: str
+    title: str
+    body: str = ""
+    at: float  # segundos desde 1970 (UTC)
+    icon: str = ""  # /app/notifications/icon/<icon>.png
+
+
+class NotificationsEvent(_Msg):
+    """Las notificaciones del PC, de la más nueva a la más vieja (cuando cambian)."""
+
+    type: Literal["notifications"] = "notifications"
+    items: list[NotificationItem]
+
+
 class TelemetryEvent(_Msg):
     """Cada pocos segundos: estado del PC y próximos avisos, para el panel del teléfono."""
 
@@ -283,4 +367,6 @@ ServerEvent = (
     | ReminderEvent
     | TelemetryEvent
     | MediaEvent
+    | NotificationsEvent
+    | PhoneReplyEvent
 )

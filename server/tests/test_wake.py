@@ -192,3 +192,81 @@ def test_wake_mode_off_ignores_audio() -> None:
         ws.send_json({"type": "chat", "text": "hola"})
         events = until(ws, "done")
     assert all(e["type"] != "transcript" for e in events)
+
+
+def test_brain_on_phone_frees_the_gpu_and_stops_listening() -> None:
+    """Con el cerebro en el teléfono, el PC saca el modelo de la gráfica y deja de atender
+    la voz; al volver al PC, lo carga otra vez."""
+    model = FakeChat(pieces=["ok"])
+    with session(["Vega, ¿qué hora es?"], model, FakeExecutor()) as ws:
+        start(ws)
+        ws.send_json({"type": "brain", "where": "phone"})
+        say(ws)
+        ws.send_json({"type": "chat", "text": "hola"})
+        events = until(ws, "done")
+        assert all(e["type"] != "transcript" for e in events)
+        assert model.unloads == 1
+        preloads = model.preloads
+        ws.send_json({"type": "brain", "where": "pc"})
+        ws.send_json({"type": "chat", "text": "otra"})
+        until(ws, "done")
+    assert model.preloads == preloads + 1
+
+
+def phone(ws: WebSocketTestSession, text: str) -> dict[str, Any]:
+    ws.send_json({"type": "phone_command", "text": text})
+    return until(ws, "phone_reply")[-1]
+
+
+def test_phone_brain_uses_pc_buttons_and_skills_but_never_the_model() -> None:
+    """Con la IA en el teléfono, el PC resuelve sus botones y habilidades; lo demás no."""
+    model, ex = FakeChat(), FakeExecutor()
+    with session([], model, ex) as ws:
+        start(ws)
+        ws.send_json({"type": "brain", "where": "phone"})
+        assert phone(ws, "sube el volumen") == {
+            "type": "phone_reply",
+            "handled": True,
+            "text": "Volumen +: hecho.",
+        }
+        assert phone(ws, "apunta comprar pan")["text"] == "Apuntado: comprar pan."
+        assert phone(ws, "¿cuál es la capital de Francia?") == {
+            "type": "phone_reply",
+            "handled": False,
+            "text": "",
+        }
+    assert ex.ran == ["volumen-mas"] and model.calls == []
+
+
+def test_phone_brain_confirms_sensitive_buttons_by_voice() -> None:
+    ex = FakeExecutor()
+    with session([], FakeChat(), ex) as ws:
+        start(ws)
+        ws.send_json({"type": "brain", "where": "phone"})
+        assert "Di sí" in phone(ws, "apaga el PC")["text"]
+        assert ex.ran == []
+        assert phone(ws, "sí")["handled"] is True
+    assert ex.ran == ["apagar"]
+
+
+def test_memory_made_on_the_phone_joins_the_pc() -> None:
+    with session([], FakeChat(), FakeExecutor()) as ws:
+        start(ws)
+        ws.send_json(
+            {
+                "type": "memory_import",
+                "facts": ["mi perro se llama Toby"],
+                "notes": ["comprar leche"],
+                "reminders": [{"kind": "reminder", "text": "llamar a mamá", "due_at": "2099-01-01T10:00:00"}],
+            }
+        )
+        assert phone(ws, "lee mis notas")["text"] == "Tienes 1 nota: comprar leche."
+        assert "Toby" in phone(ws, "qué sabes de mí")["text"]
+        assert "llamar a mamá" in phone(ws, "qué recordatorios tengo")["text"]
+
+
+def test_without_pc_voice_the_phone_speaks_itself() -> None:
+    with session([], FakeChat(), FakeExecutor()) as ws:  # sin voz en el PC
+        start(ws)
+        ws.send_json({"type": "say", "text": "Hola."})
+        assert until(ws, "audio_end")[-1] == {"type": "audio_end"}

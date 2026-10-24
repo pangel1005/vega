@@ -15,9 +15,10 @@ from datetime import datetime
 from typing import Protocol
 
 from server.device.media import Command, MediaWatcher, NowPlaying
+from server.device.notifications import NotificationReader, PcNotification
 from server.memory.personal import PersonalMemory, Reminder
 from server.skills.status import PcSample, sample_pc
-from server.ws.protocol import MediaEvent, TelemetryEvent, Upcoming
+from server.ws.protocol import MediaEvent, NotificationItem, NotificationsEvent, TelemetryEvent, Upcoming
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +34,8 @@ class Listener(Protocol):
 
     async def send_media(self, event: MediaEvent) -> None: ...
 
+    async def send_notifications(self, event: NotificationsEvent) -> None: ...
+
 
 class Hub:
     def __init__(
@@ -41,6 +44,7 @@ class Hub:
         now: Callable[[], datetime] = datetime.now,
         sample: Callable[[], PcSample] = sample_pc,
         media: MediaWatcher | None = None,
+        notifications: NotificationReader | None = None,
     ) -> None:
         self._memory = memory
         self._now = now
@@ -48,12 +52,15 @@ class Hub:
         self._media = media
         self._media_sent: NowPlaying | None = None
         self._media_known = False  # ¿ya se mandó algo (aunque sea «nada suena»)?
+        self._notifications = notifications
+        self._notes_sent: list[PcNotification] | None = None  # None = aún no se mandó nada
         self._clients: set[Listener] = set()
         self._task: asyncio.Task[None] | None = None
 
     def add(self, client: Listener) -> None:
         self._clients.add(client)
         self._media_known = False  # el que llega recibe lo que suena en la próxima vuelta
+        self._notes_sent = None  # y las notificaciones
 
     def remove(self, client: Listener) -> None:
         self._clients.discard(client)
@@ -135,6 +142,37 @@ class Hub:
             except Exception:
                 log.debug("No pude mandar lo que suena a un cliente", exc_info=True)
 
+    async def send_notifications(self) -> None:
+        """Manda las notificaciones del PC si cambiaron (llega una, se lee o se descarta)."""
+        if self._notifications is None or not self._clients:
+            return
+        items = await self._notifications.read()
+        if items is None or items == self._notes_sent:
+            return
+        self._notes_sent = items
+        event = NotificationsEvent(
+            items=[
+                NotificationItem(id=n.id, app=n.app, title=n.title, body=n.body, at=n.at, icon=n.icon)
+                for n in items
+            ]
+        )
+        for client in list(self._clients):
+            try:
+                await client.send_notifications(event)
+            except Exception:
+                log.debug("No pude mandar las notificaciones a un cliente", exc_info=True)
+
+    async def dismiss_notification(self, notification_id: int | None) -> None:
+        if self._notifications is not None and await self._notifications.dismiss(notification_id):
+            await self.send_notifications()
+
+    def latest_notifications(self) -> list[PcNotification]:
+        """Las últimas notificaciones leídas del PC (para «¿qué notificaciones tengo?»)."""
+        return list(self._notes_sent or [])
+
+    def notification_icon(self, icon_id: str) -> bytes | None:
+        return self._notifications.icon(icon_id) if self._notifications else None
+
     async def media_control(self, command: Command) -> None:
         if self._media is not None and await self._media.control(command):
             self._media_known = False  # que el teléfono vea el cambio enseguida
@@ -168,5 +206,10 @@ class Hub:
                     await self.send_telemetry()
                 except Exception:
                     log.exception("Fallo al leer la telemetría")
+            else:  # en las vueltas sin telemetría, para repartir el trabajo
+                try:
+                    await self.send_notifications()
+                except Exception:
+                    log.exception("Fallo al leer las notificaciones")
             tick += 1
             await asyncio.sleep(CHECK_SECONDS)

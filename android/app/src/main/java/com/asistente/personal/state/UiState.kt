@@ -53,6 +53,12 @@ data class UiState(
      * enlace, Vega se duerme en vez de mostrar «reconectando». Se borra al volver el enlace.
      */
     val pcOff: String? = null,
+    /** Notificaciones del PC (la más nueva primero). */
+    val pcNotes: List<com.asistente.personal.net.PcNote> = emptyList(),
+    /** Ids de las que llegaron después de conectar (para resaltarlas): las de antes no son «nuevas». */
+    val freshNotes: Set<Long> = emptySet(),
+    /** Ya llegó la primera lista desde que se abrió el enlace. */
+    val notesKnown: Boolean = false,
     /** Lo que suena en el PC (null = nada) y cuándo llegó (reloj del teléfono, ms). */
     val media: com.asistente.personal.net.MediaInfo? = null,
     val mediaAt: Long = 0,
@@ -91,6 +97,9 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
             telemetry = if (action.status == LinkStatus.OPEN) s.telemetry else null,
             media = if (action.status == LinkStatus.OPEN) s.media else null,
             pcOff = if (action.status == LinkStatus.OPEN) null else s.pcOff,
+            pcNotes = if (action.status == LinkStatus.OPEN) s.pcNotes else emptyList(),
+            freshNotes = if (action.status == LinkStatus.OPEN) s.freshNotes else emptySet(),
+            notesKnown = action.status == LinkStatus.OPEN && s.notesKnown,
         )
         val open = next.lastStreaming()
         // Si se corta a mitad de una respuesta, se cierra lo que había llegado.
@@ -145,5 +154,13 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         // Llega sin hora local; AssistantController la reenvía como Action.Telemetry con la hora.
         is ServerEvent.Stats -> s.copy(telemetry = e.telemetry)
         is ServerEvent.Media -> s.copy(media = e.media)
+        is ServerEvent.Notifications -> {
+            val old = s.pcNotes.map { it.id }.toSet()
+            val arrived = if (s.notesKnown) e.items.map { it.id }.filter { it !in old } else emptyList()
+            val alive = e.items.map { it.id }.toSet()
+            s.copy(pcNotes = e.items, freshNotes = (s.freshNotes intersect alive) + arrived, notesKnown = true)
+        }
+        // La contesta el puente con el PC de la IA del teléfono; la pantalla no cambia.
+        is ServerEvent.PhoneReply -> s
     }
 }

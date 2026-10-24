@@ -102,4 +102,17 @@ class LedFaceTest {
         // Un recordatorio no pone cara contenta: pasa por la cara como texto.
         assertEquals(Mood.IDLE, moodFor(idle, open, null, Notice(1, "Te recuerdo", ok = true, reminder = true), true))
     }
+
+    @Test fun `la cuenta atras del temporizador ocupa el sitio de la boca`() {
+        assertEquals("4:59", com.asistente.personal.ui.led.countdownText(299))
+        assertEquals("1:05:00", com.asistente.personal.ui.led.countdownText(3900))
+        val smile = com.asistente.personal.ui.led.Frame()
+        val timer = com.asistente.personal.ui.led.Frame()
+        com.asistente.personal.ui.led.LedFace.draw(smile, com.asistente.personal.ui.led.Mood.IDLE, 0f)
+        com.asistente.personal.ui.led.LedFace.draw(timer, com.asistente.personal.ui.led.Mood.IDLE, 0f, countdown = "4:59")
+        // Los ojos (filas 0–12) son iguales; debajo, la cuenta atrás enciende más puntos que la sonrisa.
+        for (y in 0..12) for (x in 0 until 48) assertEquals(smile[x, y], timer[x, y], 0f)
+        val lit = { f: com.asistente.personal.ui.led.Frame -> (13 until 20).sumOf { y -> (0 until 48).count { x -> f[x, y] > 0.5f } } }
+        assertTrue(lit(timer) > lit(smile))
+    }
 }

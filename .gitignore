@@ -28,3 +28,6 @@ android/.kotlin/
 android/build/
 android/app/build/
 android/local.properties
+
+# IA del teléfono: la librería sherpa-onnx (50 MB) se baja con tools/android_sherpa.ps1
+android/app/libs/*.aar

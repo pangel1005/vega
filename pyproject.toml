@@ -23,6 +23,9 @@ dependencies = [
     "winrt-windows-storage-streams>=3.2.1",
     "winrt-windows-foundation>=3.2.1",
     "winrt-windows-foundation-collections>=3.2.1",
+    "winrt-windows-ui-notifications-management>=3.2.1",
+    "winrt-windows-ui-notifications>=3.2.1",
+    "winrt-windows-applicationmodel>=3.2.1",
 ]
 
 [dependency-groups]

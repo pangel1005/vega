@@ -162,6 +162,9 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             nextFaceColor = c::nextFaceColor,
             sleepChanged = sleepChanged,
             mediaControl = c::mediaControl,
+            toggleBrain = c::toggleBrain,
+            dismissNote = c::dismissNote,
+            nextTouchFeel = c::nextTouchFeel,
         )
     }
     VegaScreen(
@@ -194,6 +197,11 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             mediaArt = c.mediaArt,
             mediaAccent = c.mediaAccent,
             lyrics = c.lyrics,
+            brainLabel = c.brainLabel,
+            brainOnPhone = c.brainOnPhone,
+            noteIcons = c.noteIcons,
+            localTimerEndsAt = c.localTimerEndsAt,
+            touchFeel = c.touchFeel,
         ),
         actions,
     )

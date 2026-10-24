@@ -3,10 +3,11 @@ from datetime import datetime, timedelta
 
 from server.core.hub import Hub
 from server.device.media import NowPlaying
+from server.device.notifications import PcNotification
 from server.memory.personal import PersonalMemory, Reminder
 from server.memory.store import ConversationStore
 from server.skills.status import PcSample
-from server.ws.protocol import MediaEvent, TelemetryEvent
+from server.ws.protocol import MediaEvent, NotificationsEvent, TelemetryEvent
 
 NOW = datetime(2026, 10, 22, 15, 0, 0)
 
@@ -24,6 +25,7 @@ class Client:
         self.heard: list[tuple[str, bool]] = []
         self.telemetry: list[TelemetryEvent] = []
         self.media: list[MediaEvent] = []
+        self.notifications: list[NotificationsEvent] = []
 
     async def announce(self, reminder: Reminder, late: bool) -> None:
         self.heard.append((reminder.text, late))
@@ -33,6 +35,9 @@ class Client:
 
     async def send_media(self, event: MediaEvent) -> None:
         self.media.append(event)
+
+    async def send_notifications(self, event: NotificationsEvent) -> None:
+        self.notifications.append(event)
 
 
 def test_reminder_is_delivered_when_due() -> None:
@@ -157,3 +162,55 @@ def test_new_client_gets_what_is_playing_and_controls_work() -> None:
     assert media.commands == ["play_pause"]
     assert first.media[-1].playing is False  # la pausa llega sin esperar a la siguiente vuelta
     assert hub.media_art("abc") == b"jpg" and hub.media_art("otro") is None
+
+
+def _note(i: int, title: str = "Ana") -> PcNotification:
+    return PcNotification(id=i, app="WhatsApp", title=title, body="¿Vienes?", at=1_000.0 + i, icon="ic")
+
+
+class FakeNotifications:
+    def __init__(self) -> None:
+        self.items: list[PcNotification] | None = [_note(1)]
+        self.dismissed: list[int | None] = []
+
+    async def read(self) -> list[PcNotification] | None:
+        return self.items
+
+    async def dismiss(self, notification_id: int | None) -> bool:
+        self.dismissed.append(notification_id)
+        self.items = (
+            [] if notification_id is None else [n for n in self.items or [] if n.id != notification_id]
+        )
+        return True
+
+    def icon(self, icon_id: str) -> bytes | None:
+        return b"png" if icon_id == "ic" else None
+
+
+def test_pc_notifications_are_sent_when_they_change() -> None:
+    notes, client = FakeNotifications(), Client()
+    hub = Hub(PersonalMemory(ConversationStore(":memory:")), now=Clock(), notifications=notes)  # type: ignore[arg-type]
+    hub.add(client)
+    asyncio.run(hub.send_notifications())
+    asyncio.run(hub.send_notifications())  # sin cambios: no se repite
+    assert len(client.notifications) == 1
+    assert client.notifications[0].items[0].title == "Ana"
+    notes.items = [_note(2, "Luis"), _note(1)]  # llega otra
+    asyncio.run(hub.send_notifications())
+    assert [n.title for n in client.notifications[-1].items] == ["Luis", "Ana"]
+    notes.items = None  # Windows no responde: se deja lo último que se mandó
+    asyncio.run(hub.send_notifications())
+    assert len(client.notifications) == 2
+    assert hub.notification_icon("ic") == b"png"
+
+
+def test_dismissing_from_the_phone_removes_it_on_the_pc() -> None:
+    notes, client = FakeNotifications(), Client()
+    notes.items = [_note(2), _note(1)]
+    hub = Hub(PersonalMemory(ConversationStore(":memory:")), now=Clock(), notifications=notes)  # type: ignore[arg-type]
+    hub.add(client)
+    asyncio.run(hub.dismiss_notification(2))
+    assert notes.dismissed == [2]
+    assert [n.id for n in client.notifications[-1].items] == [1]
+    asyncio.run(hub.dismiss_notification(None))
+    assert client.notifications[-1].items == []

@@ -17,6 +17,7 @@ from server.core.config import ROOT, Settings
 from server.core.hub import Hub
 from server.device.lyrics import LyricsFinder
 from server.device.media import MediaWatcher
+from server.device.notifications import NotificationReader
 from server.device.usb import PhoneStatus
 from server.llm.base import ChatModel
 from server.llm.ollama import OllamaChat
@@ -27,7 +28,15 @@ from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner
 from server.tools.app_icons import AppIcons
-from server.web import UI_DIST, register_app_icons, register_lyrics, register_media_art, register_ui
+from server.web import (
+    UI_DIST,
+    register_app_icons,
+    register_lyrics,
+    register_media_art,
+    register_notification_icons,
+    register_phone_models,
+    register_ui,
+)
 from server.ws.routes import register_ws
 
 log = logging.getLogger(__name__)
@@ -73,6 +82,7 @@ def create_app(
     phone_battery: Callable[[], int | None] = lambda: None,
     app_icons: AppIcons | None = None,
     media: MediaWatcher | None = None,
+    notifications: NotificationReader | None = None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
@@ -86,8 +96,11 @@ def create_app(
     )
     history = store or ConversationStore(settings.memory.path)
     memory = PersonalMemory(history)
-    skills = SkillRouter(memory, phone_battery=phone_battery)
-    hub = Hub(memory, media=media)
+    # Las notificaciones las lee el centro de avisos (`hub`, justo debajo).
+    skills = SkillRouter(
+        memory, phone_battery=phone_battery, notifications=lambda: hub.latest_notifications()
+    )
+    hub = Hub(memory, media=media, notifications=notifications if settings.notifications.enabled else None)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -109,6 +122,8 @@ def create_app(
     if app_icons is not None:
         register_app_icons(app, app_icons)
     register_media_art(app, hub.media_art)
+    register_phone_models(app)
+    register_notification_icons(app, hub.notification_icon)
     register_lyrics(app, LyricsFinder(ROOT / "data" / "lyrics", enabled=settings.media.lyrics))
 
     @app.get("/health")

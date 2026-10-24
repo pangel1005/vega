@@ -8,8 +8,27 @@
 Cuando el teléfono esté conectado al PC, el PC puede seguir ayudando y se sincronizan
 memoria, notas y recordatorios.
 
-> Estado: **medido en el teléfono (23-10-2026); falta construirlo**. Las cifras de la
+> Estado: **construido (24-10-2026), sin probar aún en el Redmi**. Las cifras de la
 > sección «Medidas» son reales; las de «Las piezas» eran la estimación previa.
+
+## Cómo funciona ahora («IA: teléfono», en «Más»)
+
+- **Lo que hace el teléfono:**
+  - corta el micrófono en frases;
+  - las transcribe con Whisper base (sherpa-onnx, dentro de la app);
+  - mira si empiezan por «Vega»;
+  - contesta con la voz Piper `es_MX`.
+- **Con el PC conectado:** le pasa la orden ya escrita (`phone_command`). El PC usa solo sus
+  habilidades y botones, sin modelo de lenguaje ni gráfica, y saca el modelo de la memoria
+  de vídeo. Así se puede jugar.
+- **Lo que el PC no resuelve, o si no hay PC**, lo contesta el teléfono:
+  - hora y fecha;
+  - cuentas, moneda, dado y chistes;
+  - recordatorios, temporizadores, notas y memoria.
+- **Lo que el teléfono guardó sin PC** pasa al PC al volver a conectar (`memory_import`), y
+  desde entonces lo guarda y avisa el PC.
+- **Los modelos** (~230 MB) los sirve el PC desde `data/telefono` (`/app/models`) y la app
+  los baja una sola vez.
 
 ## El teléfono
 
@@ -35,6 +54,12 @@ instalar nada:
 | Whisper **tiny** (sherpa-onnx, int8) | ~1,3 s por frase de 3 s | Se equivoca bastante («pampa Ramaniana») |
 | Whisper **base** (sherpa-onnx, int8) | **~2,2 s por frase de 3 s** (4 núcleos) | **Bien**: «Apunta a comprar leche y pan para mañana». Escribe «Bega», que Vega ya acepta |
 | Voz Piper `es_MX-claude-high` (sherpa-onnx) | **5,3 s de audio en ~2 s** | Bien: 2,5 veces más rápida que el tiempo real |
+| Voz Kokoro `ef_dora` int8 (la del PC; 24-10-2026) | 2,9 s de audio en 11,6 s (igual con 2 o 4 núcleos) | **Demasiado lenta** |
+| Voz Kokoro `ef_dora` fp32 | 3,1 s de audio en 8,4 s (4 núcleos) | **Demasiado lenta** |
+
+Por eso, con la IA en el teléfono y el PC conectado, el teléfono **pide la voz al PC**
+(mensaje `say`): Kokoro en el procesador del PC, sin gráfica (3,2 s de voz en 1,2 s). Sin PC,
+o si no contesta en 3 s, habla Piper en el teléfono.
 
 **Memoria.** Con todo cargado se usarían unos 1,3 GB: el modelo 0,8 GB, Whisper base
 ~0,3 GB y Piper ~0,1 GB. El teléfono tenía 1,5–2 GB libres. Cabe, pero justo.

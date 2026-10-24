@@ -73,6 +73,26 @@ enum class FaceColor(val label: String, val color: Color) {
     }
 }
 
+/**
+ * Vibración al tocar una tecla. En teléfonos baratos el motor «zumba» y el toque fuerte se
+ * nota raro: la suave es un golpecito corto; también se puede quitar.
+ */
+enum class TouchFeel(val label: String, val haptic: Int?) {
+    STRONG("Fuerte", HapticFeedbackConstants.KEYBOARD_TAP),
+    SOFT("Suave", HapticFeedbackConstants.CLOCK_TICK),
+    OFF("Sin vibrar", null),
+    ;
+
+    fun next(): TouchFeel = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        /** La elegida ahora (la guarda AssistantController); se lee en cada toque. */
+        @Volatile var current: TouchFeel = SOFT
+
+        fun from(name: String?): TouchFeel = entries.firstOrNull { it.name == name } ?: SOFT
+    }
+}
+
 /** Color de cada botón según config/actions.toml (más suaves que antes: es un acento, no un fondo). */
 fun deckColor(name: String): Color = when (name) {
     "red" -> Vega.Red
@@ -98,7 +118,7 @@ fun Modifier.instantPress(enabled: Boolean, pressed: MutableState<Boolean>, onPr
             if (!on.value) return@awaitEachGesture
             down.consume()
             pressed.value = true
-            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            TouchFeel.current.haptic?.let(view::performHapticFeedback)
             action.value()
             waitForUpOrCancellation()
             pressed.value = false

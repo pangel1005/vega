@@ -118,3 +118,35 @@ def test_facts_reach_the_model_prompt() -> None:
     assert mem.prompt_context() == "Lo que sabes del usuario (háblale de tú): se llama Pablo."
     mem.remember("me gusta el café y mi perro se llama Toby")
     assert "te gusta el café y tu perro se llama Toby" in mem.prompt_context()
+
+
+def test_timer_time_left(router: SkillRouter) -> None:
+    assert say(router, "¿Cuánto le queda al temporizador?") == "No hay ningún temporizador en marcha."
+    say(router, "pon un temporizador de 2 minutos")
+    assert say(router, "¿Cuánto falta del temporizador?") == "Le queda 2 minutos."
+
+
+def test_pc_notifications_by_voice() -> None:
+    from server.device.notifications import PcNotification
+
+    at = NOW.timestamp()
+    notes = [
+        PcNotification(3, "WhatsApp", "Ana", "¿Vienes a cenar?", at - 120, ""),
+        PcNotification(2, "Discord", "#general", "Luis: ¿partida?", at - 600, ""),
+        PcNotification(1, "Outlook", "Outlook", "Factura de octubre", at - 7200, ""),
+    ]
+    router = SkillRouter(
+        PersonalMemory(ConversationStore(":memory:")), now=lambda: NOW, notifications=lambda: notes
+    )
+    assert say(router, "¿Qué notificaciones tengo?") == (
+        "Tienes 3 notificaciones: WhatsApp de Ana, Discord de #general y Outlook."
+    )
+    assert say(router, "Léeme el último mensaje") == "Ana, por WhatsApp, hace 2 minutos: ¿Vienes a cenar?"
+    assert (
+        say(router, "léeme el último mensaje de Discord")
+        == "#general, por Discord, hace 10 minutos: Luis: ¿partida?"
+    )
+    assert say(router, "lee la última notificación de Outlook") == "Outlook, hace 2 horas: Factura de octubre"
+    assert say(router, "Lee mis notas") == "No tienes notas."  # las notas siguen siendo las notas
+    empty = SkillRouter(PersonalMemory(ConversationStore(":memory:")), now=lambda: NOW)
+    assert say(empty, "¿Tengo notificaciones?") == "No tienes notificaciones en el PC."

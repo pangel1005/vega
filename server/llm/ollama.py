@@ -57,6 +57,14 @@ class OllamaChat:
         except httpx.HTTPError as exc:
             log.debug("No se pudo precargar el modelo: %s", exc)
 
+    async def unload(self) -> None:
+        # keep_alive 0: Ollama libera el modelo en cuanto termina esta petición.
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT, transport=self._transport) as client:
+                await client.post(f"{self._url}/api/generate", json={"model": self._model, "keep_alive": 0})
+        except httpx.HTTPError as exc:
+            log.debug("No se pudo descargar el modelo de la memoria: %s", exc)
+
     async def stream(self, messages: Sequence[ChatMessage]) -> AsyncIterator[str]:
         payload = {
             "model": self._model,

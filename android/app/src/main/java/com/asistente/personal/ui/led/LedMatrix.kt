@@ -132,8 +132,14 @@ fun LedFaceView(
     modifier: Modifier = Modifier,
     /** Arcoíris que se desplaza despacio por la cara (en vez de un solo color). */
     rainbow: Boolean = false,
+    /** Cuenta atrás del temporizador en la boca («4:59»); null si no hay. */
+    countdown: String? = null,
+    /** Hacia dónde mirar un momento; cada mirada nueva lleva otro `seq`. */
+    glance: Glance? = null,
 ) {
     val animator = remember { LedFaceAnimator() }
+    animator.countdown = countdown
+    LaunchedEffect(glance?.seq) { glance?.let { animator.glance(it.x, it.y) } }
     val currentRainbow by rememberUpdatedState(rainbow)
     val time = remember { floatArrayOf(0f) }
     val currentMood by rememberUpdatedState(mood)
@@ -162,6 +168,9 @@ fun LedFaceView(
         brush = if (rainbow) { width -> rainbowBrush(width, time[0]) } else null,
     )
 }
+
+/** Una mirada hacia algo de la pantalla (x, y entre −1 y 1). */
+data class Glance(val seq: Int, val x: Float, val y: Float)
 
 private val RAINBOW = listOf(
     Color(0xFFFF4D4D), Color(0xFFFFA43D), Color(0xFFFFE15C), Color(0xFF6CF0A8),
