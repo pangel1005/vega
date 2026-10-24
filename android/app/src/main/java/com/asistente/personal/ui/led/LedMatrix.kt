@@ -29,6 +29,12 @@ import kotlin.math.min
 
 /** Color de un LED apagado: se ve la rejilla entera, como en un panel real. */
 val LedOff = Color(0xFF181716)
+/** LED apagado sobre cristal: un punto de luz casi invisible (el gris oscuro se veía como un agujero). */
+val GlassLedOff = Color.White.copy(alpha = 0.07f)
+
+/** El LED apagado del estilo actual. */
+val ledOff: Color @androidx.compose.runtime.Composable get() =
+    if (com.asistente.personal.ui.LocalAurora.current != null) GlassLedOff else LedOff
 
 private const val LEVELS = 8
 
@@ -60,13 +66,14 @@ fun LedMatrix(
     dot: Float = 0.62f,
     /** Si no es null, los LED encendidos se pintan con este pincel (p. ej. el arcoíris) en vez de `color`. */
     brush: ((width: Float) -> Brush)? = null,
+    off: Color = LedOff,
 ) {
     // Capa propia: cuando la cara cambia solo se vuelve a grabar esta capa, no toda la pantalla
     // (medido en el teléfono: redibujar todo costaba ~11 ms por cuadro).
     Box(
         modifier.graphicsLayer().drawWithCache {
             val g = Grid(size, cols, rows)
-            val base = offBitmap(this, g, cols, rows, dot)
+            val base = offBitmap(this, g, cols, rows, dot, off)
             val buckets = Array(LEVELS) { ArrayList<Offset>(cols * rows / 4) }
             val glow = ArrayList<Offset>(cols * rows / 4)
             onDrawBehind {
@@ -103,14 +110,14 @@ fun LedMatrix(
     )
 }
 
-private fun offBitmap(scope: CacheDrawScope, g: Grid, cols: Int, rows: Int, dot: Float): ImageBitmap {
+private fun offBitmap(scope: CacheDrawScope, g: Grid, cols: Int, rows: Int, dot: Float, off: Color): ImageBitmap {
     val w = scope.size.width.toInt().coerceAtLeast(1)
     val h = scope.size.height.toInt().coerceAtLeast(1)
     val bitmap = ImageBitmap(w, h)
     CanvasDrawScope().draw(scope, scope.layoutDirection, BitmapCanvas(bitmap), Size(w.toFloat(), h.toFloat())) {
         val pts = ArrayList<Offset>(cols * rows)
         for (y in 0 until rows) for (x in 0 until cols) pts.add(g.at(x, y))
-        drawPoints(pts, PointMode.Points, LedOff, strokeWidth = g.pitch * dot, cap = StrokeCap.Round)
+        drawPoints(pts, PointMode.Points, off, strokeWidth = g.pitch * dot, cap = StrokeCap.Round)
     }
     return bitmap
 }
@@ -166,6 +173,7 @@ fun LedFaceView(
     LedMatrix(
         animator.shown, FACE_COLS, FACE_ROWS, shade, { tick }, modifier,
         brush = if (rainbow) { width -> rainbowBrush(width, time[0]) } else null,
+        off = ledOff,
     )
 }
 

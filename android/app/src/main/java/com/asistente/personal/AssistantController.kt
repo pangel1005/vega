@@ -29,6 +29,7 @@ private const val KEY_LISTEN = "escucha_continua"
 private const val KEY_FACE_COLOR = "color_cara"
 private const val KEY_BRAIN = "cerebro_telefono"
 private const val KEY_TOUCH = "vibracion_toque"
+private const val KEY_GLASS = "estilo_cristal"
 private const val ECHO_GUARD_MS = 500L
 
 /**
@@ -75,6 +76,15 @@ class AssistantController(context: Context) {
         com.asistente.personal.ui.TouchFeel.from(prefs.getString(KEY_TOUCH, null)).also { com.asistente.personal.ui.TouchFeel.current = it },
     )
         private set
+
+    /** Estilo «Cristal» (prototipo) o «Noche»; se recuerda entre reinicios. */
+    var glass by mutableStateOf(prefs.getBoolean(KEY_GLASS, false))
+        private set
+
+    fun toggleGlass() {
+        glass = !glass
+        prefs.edit().putBoolean(KEY_GLASS, glass).apply()
+    }
 
     fun nextTouchFeel() {
         touchFeel = touchFeel.next()

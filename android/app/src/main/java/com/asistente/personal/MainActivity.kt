@@ -165,6 +165,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             toggleBrain = c::toggleBrain,
             dismissNote = c::dismissNote,
             nextTouchFeel = c::nextTouchFeel,
+            toggleGlass = c::toggleGlass,
         )
     }
     VegaScreen(
@@ -202,6 +203,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             noteIcons = c.noteIcons,
             localTimerEndsAt = c.localTimerEndsAt,
             touchFeel = c.touchFeel,
+            glass = c.glass,
         ),
         actions,
     )

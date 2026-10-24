@@ -162,6 +162,20 @@ class ScreenshotTest {
         afterMs = 900,
     )
 
+    // Estilo «Cristal» (prototipo): en reposo, escuchando, con música y con la hoja «Más».
+    @Test fun cristal_reposo() = shot("25_cristal_reposo", model(base.copy(pcNotes = notes, notesKnown = true)).copy(glass = true, wallMs = 1_761_300_000_000))
+
+    @Test fun cristal_escuchando() = shot("26_cristal_escuchando", model(base, AssistantState.LISTENING, pulse = 2).copy(glass = true), afterMs = 120)
+
+    @Test fun cristal_hoja_mas() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent { VegaScreen(model(base).copy(glass = true), ScreenActions()) }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Más").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(600)
+        compose.onRoot().captureRoboImage("build/capturas/27_cristal_mas.png")
+    }
+
     // Cara en arcoíris y en violeta (opciones de «Más»); teclas con el icono real de la app.
     @Test fun arcoiris() = shot("12_arcoiris", model(base).copy(faceColor = com.asistente.personal.ui.FaceColor.RAINBOW, icons = fakeIcons()))
 

@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
@@ -23,10 +24,11 @@ import androidx.compose.ui.unit.sp
 
 val CardShape = RoundedCornerShape(22.dp)
 
-/** Tarjeta: fondo oscuro, esquinas redondeadas y un borde muy fino. */
-fun Modifier.card(border: Color = Vega.Line, radius: Dp = 22.dp, fill: Color = Vega.Card): Modifier {
+/** Tarjeta: fondo oscuro, esquinas redondeadas y un borde muy fino; en estilo «Cristal», de cristal. */
+fun Modifier.card(border: Color = Vega.Line, radius: Dp = 22.dp, fill: Color = Vega.Card, overlay: Boolean = false): Modifier = composed {
     val shape = if (radius == 22.dp) CardShape else RoundedCornerShape(radius)
-    return background(fill, shape).border(1.dp, border, shape)
+    if (LocalAurora.current != null) glass(shape, border, smoke = if (overlay) 0.93f else 0.62f)
+    else background(fill, shape).border(1.dp, border, shape)
 }
 
 /**

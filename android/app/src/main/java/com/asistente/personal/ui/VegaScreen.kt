@@ -107,6 +107,8 @@ data class ScreenModel(
     /** Dónde piensa Vega: «IA: PC», «IA: teléfono» o cómo va la descarga de sus modelos. */
     val brainLabel: String = "IA: PC",
     val brainOnPhone: Boolean = false,
+    /** Estilo «Cristal» (aurora y cristal) en vez de «Noche» (PROTOTIPO). */
+    val glass: Boolean = false,
     /** Iconos de las apps que mandan notificaciones en el PC, por id de icono. */
     val noteIcons: Map<String, ImageBitmap> = emptyMap(),
     /** Hora real (ms desde 1970) para «hace 5 min» en las notificaciones. */
@@ -133,6 +135,7 @@ class ScreenActions(
     /** Quita una notificación del PC (null = todas). */
     val dismissNote: (Long?) -> Unit = {},
     val nextTouchFeel: () -> Unit = {},
+    val toggleGlass: () -> Unit = {},
 )
 
 /** Qué cara pone Vega según lo que está pasando de verdad. */
@@ -305,7 +308,18 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         tween(450),
         label = "aura",
     )
+    // Estilo «Cristal»: la aurora toma el color de su ánimo, el de la música y un violeta de fondo.
+    val aurora = remember { Aurora() }
+    // Sin animar el cambio de color: cada color nuevo obliga a repintar los cristales (medido:
+    // repintarlos varias veces por segundo daba ~3 tirones por segundo en el Redmi).
+    val auroraMusic = if (ui.media != null) m.mediaAccent else Color(0xFFB79BFF)
+    androidx.compose.runtime.SideEffect {
+        val next = listOf(color, auroraMusic, Vega.Sky)
+        if (next != aurora.colors) aurora.colors = next
+    }
     Box(modifier.fillMaxSize().background(Vega.Bg)) {
+        if (m.glass) AuroraBackground(aurora)
+        androidx.compose.runtime.CompositionLocalProvider(LocalAurora provides if (m.glass) aurora else null) {
         if (sleepFade < 1f) Box(
             Modifier.fillMaxSize().graphicsLayer {
                 alpha = 1f - sleepFade
@@ -429,6 +443,8 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         onToggleBrain = a.toggleBrain,
                         touchLabel = m.touchFeel.label,
                         onNextTouch = a.nextTouchFeel,
+                        glass = m.glass,
+                        onToggleGlass = a.toggleGlass,
                         // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.
                         modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                             awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
@@ -437,6 +453,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     )
                 }
             }
+        }
         }
         if (sleepFade > 0f) SleepScreen(m, Modifier.graphicsLayer { alpha = sleepFade })
         // Pantalla «Sonando» (se abre tocando el mini reproductor).
@@ -669,6 +686,7 @@ private fun StatRow(name: String, value: String?, fraction: Float?, invert: Bool
 
 @Composable
 private fun DotBar(fraction: Float?, invert: Boolean, charging: Boolean, modifier: Modifier = Modifier) {
+    val off = com.asistente.personal.ui.led.ledOff
     Canvas(modifier) {
         val n = 10
         val step = size.width / n
@@ -676,13 +694,13 @@ private fun DotBar(fraction: Float?, invert: Boolean, charging: Boolean, modifie
         val lit = if (fraction == null) 0 else (fraction.coerceIn(0f, 1f) * n + 0.5f).toInt()
         val f = fraction ?: 0f
         val color = when {
-            fraction == null -> LedOff
+            fraction == null -> off
             charging -> Vega.Mint // cargando: en verde
             !invert && f >= 0.9f || invert && f <= 0.15f -> Vega.Red
             !invert && f >= 0.75f || invert && f <= 0.3f -> Vega.Amber
             else -> Vega.Light
         }
-        for (i in 0 until n) drawCircle(if (i < lit) color else LedOff, r, Offset(step * (i + 0.5f), size.height / 2))
+        for (i in 0 until n) drawCircle(if (i < lit) color else off, r, Offset(step * (i + 0.5f), size.height / 2))
     }
 }
 

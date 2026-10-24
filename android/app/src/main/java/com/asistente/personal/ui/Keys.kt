@@ -88,12 +88,14 @@ fun Key(
     // Se enciende al instante y se apaga despacio, como un LED.
     val glow by animateFloatAsState(if (down) 1f else 0f, tween(if (down) 0 else 420), label = "brillo")
     val glyph = remember(icon, image) { if (image != null) imageGlyph(id, image) else deckGlyph(icon) }
+    val glassy = LocalAurora.current != null
     // Muelle rápido: se hunde en el mismo cuadro del toque y rebota al soltar.
     val scale by animateFloatAsState(if (down) 0.92f else 1f, spring(dampingRatio = 0.5f, stiffness = 1500f), label = "pulsar")
     val fill by animateColorAsState(
         when {
             confirming -> Vega.Red
             down -> color.copy(alpha = 0.22f)
+            glassy -> Color.Transparent // en cristal, el fondo es el propio cristal
             else -> Vega.Card
         },
         tween(if (down) 0 else 220),
@@ -106,8 +108,15 @@ fun Key(
                 scaleY = scale
                 alpha = if (enabled || confirming) 1f else 0.35f
             }
+            .then(
+                if (glassy) Modifier.glass(KeyShape, if (confirming) Vega.Red else if (down) color.copy(alpha = 0.6f) else Vega.Line)
+                else Modifier,
+            )
             .background(fill, KeyShape)
-            .border(1.dp, if (confirming) Vega.Red else if (down) color.copy(alpha = 0.6f) else Vega.Line, KeyShape)
+            .then(
+                if (glassy) Modifier
+                else Modifier.border(1.dp, if (confirming) Vega.Red else if (down) color.copy(alpha = 0.6f) else Vega.Line, KeyShape),
+            )
             .instantPress(enabled = enabled, pressed = pressed, onPress = onClick)
             .padding(horizontal = 6.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
