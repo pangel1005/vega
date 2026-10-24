@@ -23,6 +23,11 @@ private const val SERVER_HTTP = "http://127.0.0.1:8000"
  */
 class Updater(private val context: Context) {
     private val http = OkHttpClient.Builder().callTimeout(60, TimeUnit.SECONDS).build()
+    /**
+     * Para el APK (~37 MB): sin límite total corto, solo que no se quede 30 s sin recibir nada.
+     * Con el PC ocupado, la descarga tardaba más de 60 s y «Actualizar» no hacía nada.
+     */
+    private val apkHttp = OkHttpClient.Builder().callTimeout(10, TimeUnit.MINUTES).readTimeout(30, TimeUnit.SECONDS).build()
 
     /** Devuelve el número de la versión nueva del PC, o null si no hay ninguna más reciente. */
     suspend fun newerVersion(): Int? = withContext(Dispatchers.IO) {
@@ -105,7 +110,7 @@ class Updater(private val context: Context) {
             try {
                 val dir = File(context.cacheDir, "updates").apply { mkdirs() }
                 val out = File(dir, "update.apk")
-                http.newCall(Request.Builder().url("$SERVER_HTTP/app/latest.apk").build()).execute().use { resp ->
+                apkHttp.newCall(Request.Builder().url("$SERVER_HTTP/app/latest.apk").build()).execute().use { resp ->
                     if (!resp.isSuccessful) return@withContext null
                     out.outputStream().use { resp.body.byteStream().copyTo(it) }
                 }

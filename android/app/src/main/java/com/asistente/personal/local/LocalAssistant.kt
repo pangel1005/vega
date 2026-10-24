@@ -174,9 +174,11 @@ class LocalAssistant(
         listening = false
         val seconds = samples.size / 16_000.0
         if (command.isEmpty()) {
-            // Solo «Vega»: contesta y espera la orden sin pedir otra vez el nombre.
+            // Solo «Vega»: contesta y espera la orden sin pedir otra vez el nombre. Lo siguiente
+            // que digas es una orden seguro (como tocar la cara): si no es una habilidad, charla.
             events(ServerEvent.Transcript(text, seconds, elapsed))
             reply("¿Sí?")
+            attentive = true
             return
         }
         events(ServerEvent.State(AssistantState.THINKING))

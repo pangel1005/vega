@@ -245,4 +245,13 @@ class LocalAssistantTest {
         rig.phrase()
         assertEquals(listOf("Son las tres de la tarde."), rig.said)
     }
+
+    @Test fun trasElSiLaPreguntaSinNombreTambienCharla() {
+        // «Vega» … «¿Sí?» … «¿qué es un volcán?»: la pregunta va sin nombre, pero es para ella.
+        val rig = Rig(listOf("Vega.", "¿qué es un volcán?"), talker = fakeTalker("Una montaña que echa lava."))
+        rig.phrase()
+        rig.vega.playbackDone()
+        rig.phrase()
+        assertEquals(listOf("¿Sí?", "Una montaña que echa lava."), rig.said)
+    }
 }
