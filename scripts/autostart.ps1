@@ -35,8 +35,12 @@ if ($Remove) {
 }
 
 $user = "$env:USERDOMAIN\$env:USERNAME"
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -WorkingDirectory $root `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\start.ps1`" -Hidden"
+# PowerShell lanzado directamente por una tarea enseña su ventana un instante aunque lleve
+# -WindowStyle Hidden (con el vigilante, un parpadeo cada 5 minutos). conhost --headless
+# lo arranca sin crear ninguna ventana.
+$hidden = '--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File'
+$action = New-ScheduledTaskAction -Execute 'conhost.exe' -WorkingDirectory $root `
+    -Argument "$hidden `"$root\scripts\start.ps1`" -Hidden"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $trigger.Delay = 'PT15S'  # deja respirar al sistema justo al entrar
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
@@ -44,8 +48,8 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
     -Description 'Arranca Vega (asistente personal) al iniciar sesión' -Force | Out-Null
-$watchAction = New-ScheduledTaskAction -Execute 'powershell.exe' -WorkingDirectory $root `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\vigilante.ps1`""
+$watchAction = New-ScheduledTaskAction -Execute 'conhost.exe' -WorkingDirectory $root `
+    -Argument "$hidden `"$root\scripts\vigilante.ps1`""
 $watchTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) -RepetitionInterval (New-TimeSpan -Minutes 5)
 $watchSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 4) -MultipleInstances IgnoreNew
