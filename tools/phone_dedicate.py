@@ -70,7 +70,12 @@ com.google.android.gms com.google.android.gsf
 CAR_PACKAGES = [
     "com.google.android.gms", "com.google.android.gsf", "com.android.vending",
     "com.google.android.projection.gearhead", "com.google.android.gms.location.history",
+    # Lo que se usa EN el coche: Google Maps, la app de Google («Hey Google» en Android Auto) y YouTube Music.
+    "com.google.android.apps.maps", "com.google.android.googlequicksearchbox",
+    "com.google.android.apps.youtube.music",
 ]
+# Estas se apagaron (no se quitaron): basta con encenderlas. Waze no viene en el teléfono: se instala desde Play.
+CAR_ENABLE = ["com.spotify.music"]
 
 # Se dejan, pero casi sin segundo plano. (Play Services y Play Store reaparecían al instante
 # aunque estuvieran restringidos y se llevaban ~480 MB: se quitan; ver DISABLE.)
@@ -121,7 +126,7 @@ def apply() -> None:
     for pkg in DISABLE:
         if pkg not in enabled:
             continue
-        if saved.get("car") and pkg in CAR_PACKAGES:
+        if saved.get("car") and (pkg in CAR_PACKAGES or pkg in CAR_ENABLE):
             continue  # en modo coche se dejan
         out = adb("pm", "disable-user", "--user", "0", pkg)
         if "new state: disabled" in out:
@@ -175,9 +180,11 @@ def car_on() -> None:
     saved = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"disabled": [], "settings": {}, "buckets": {}}
     for pkg in CAR_PACKAGES:
         print(f"   {pkg}: {adb('cmd', 'package', 'install-existing', '--user', '0', pkg)}")
+    for pkg in CAR_ENABLE:
+        print(f"   {pkg}: {adb('pm', 'enable', '--user', '0', pkg)}")
     saved["car"] = True
     STATE.write_text(json.dumps(saved, indent=2), encoding="utf-8")
-    print("\nListo. Abre Google Play en el teléfono, inicia sesión e instala «Android Auto».")
+    print("\nListo. Abre Google Play en el teléfono, inicia sesión e instala «Android Auto» (y Waze, si lo quieres).")
 
 
 def car_off() -> None:
@@ -186,6 +193,8 @@ def car_off() -> None:
     for pkg in CAR_PACKAGES:
         if "Success" in adb("pm", "uninstall", "-k", "--user", "0", pkg):
             removed.add(pkg)
+    for pkg in CAR_ENABLE:
+        adb("pm", "disable-user", "--user", "0", pkg)
     saved["removed"] = sorted(removed)
     saved["car"] = False
     STATE.write_text(json.dumps(saved, indent=2), encoding="utf-8")

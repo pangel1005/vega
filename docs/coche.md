@@ -30,6 +30,29 @@ vea: un servicio en primer plano mantiene el micrófono y el enlace con el PC.
 - **Vega no sustituye al asistente de voz de Google en el coche:** Android Auto no deja que otra
   app lo haga. Vega escucha por el micrófono del teléfono.
 
+## Spotify, Waze y Google Maps siguen funcionando
+
+Vega es **una app más** dentro de Android Auto: no sustituye a las demás. Spotify, Waze, Google
+Maps y el asistente «Hey Google» siguen funcionando como siempre y Vega aparece en el lanzador
+junto a ellos. El modo coche (`--car`) repone lo que la limpieza del teléfono había quitado:
+Google Maps, la app de Google (el asistente de voz), YouTube Music y Spotify. **Waze no viene en
+el teléfono:** se instala desde Google Play.
+
+## ¿CarPlay en vez de Android Auto?
+
+Con este teléfono, **no**: CarPlay es de Apple y solo funciona con un iPhone. Un Android no puede
+hablar con un coche por CarPlay. Opciones:
+
+- **Si tu coche admite Android Auto** (casi todos los que tienen CarPlay también): lo de arriba
+  funciona tal cual.
+- **Si tu coche solo tiene CarPlay:** existen adaptadores que convierten Android Auto a CarPlay
+  (por ejemplo, el Ottocast U2X), pero su funcionamiento es irregular y depende del modelo de coche.
+  No los he probado.
+- **Si usas un iPhone:** Vega necesitaría una app para iPhone (Swift). Haría falta una Mac con Xcode,
+  la cuenta de desarrollador de Apple (unos 99 $ al año) y que **Apple apruebe** el permiso de
+  CarPlay para esa app. Además, hoy Vega solo habla con el PC por el cable USB y por `127.0.0.1`; un
+  iPhone necesitaría Wi-Fi o Tailscale, y eso hay que decidirlo con cuidado por seguridad.
+
 ## Puesta en marcha (una sola vez)
 
 1. **Reponer lo que Android Auto necesita.** La limpieza del teléfono quitó Google Play Services y

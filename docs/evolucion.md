@@ -199,6 +199,48 @@ de cristal ahumado. Se midió en el Redmi hasta que fue tan fluido como el estil
 - **Apagado limpio:** `stop.ps1` pide al servidor que se cierre solo y solo lo fuerza si no lo
   hace. Cerrarlo a la fuerza dejó una vez el proceso medio muerto 2 minutos.
 
+## 14. El teléfono, solo para Vega (25-10)
+
+El usuario pidió que el Redmi viviera solo para Vega y autorizó tocarlo. Se hizo con `adb`, sin
+root, y todo se puede deshacer (`tools/phone_dedicate.py --undo`):
+- **99 apps quitadas** (juegos con anuncios, redes sociales, la nube de Xiaomi y de Google…),
+  incluidos Google Play Services y Play Store, que reaparecían al instante y pesaban unos 480 MB.
+  Las de usuario se apagan (`pm disable-user`); las de sistema, que Android no deja apagar, se
+  quitan solo de su usuario (`pm uninstall -k --user 0`) y no se borran del teléfono.
+- **Vega, prioridad total:** fuera del ahorro de batería, pantalla encendida cargando y **pantalla
+  de inicio** del teléfono.
+- **Medido:** RAM libre 1186 → 1434 MB y 21 → 17 ms por cuadro.
+
+También: **botón de dormir** en los dos modos (y «Vega, duérmete»). Dormida, no escucha y suelta los
+modelos de la memoria (~600 MB en el teléfono); tocar la pantalla la despierta. El modelo de charla
+del teléfono se carga solo al primer uso y se suelta a los 3 minutos.
+
+## 15. Vega siempre activa y la app de escritorio (25-10)
+
+- **Servicio en primer plano:** Vega sigue escuchando con la pantalla del teléfono en segundo plano
+  (y la necesita el coche). El controlador es uno solo y arranca con el primer «dueño» (pantalla,
+  servicio, coche) y para con el último.
+- **App de escritorio nativa** (Qt/PySide6, sin navegador) en la bandeja de Windows:
+  [docs/escritorio.md](escritorio.md). Panel en vivo, conversación, edición de botones y de la
+  pantalla del coche, ajustes, control del servidor y registros.
+- **Sincronización con el teléfono:** el saludo lleva un rol (`phone` o `desktop`). El teléfono
+  publica su estado, el escritorio lo ve, ve en espejo lo que Vega oye y responde, y le manda órdenes
+  (dormir, modo de IA, estilo, micrófono). El servidor solo admite esas órdenes.
+- **Una lección de las pruebas:** el cliente de pruebas de Starlette pone cada conexión en su propio
+  bucle de eventos, y un envío entre dos bucles no despierta al otro; las pruebas de sincronización
+  comparten un solo bucle, como el servidor real.
+
+## 16. Vega en el coche (25-10)
+
+[docs/coche.md](coche.md). Pantalla de **Android Auto** (categoría «IoT») con hasta 6 casillas que se
+configuran desde el PC (`config/car.toml`): dormir, música, avisos del PC, estado del PC, cambiar de
+IA, botones del PC con confirmación y datos del coche.
+- **Límites a propósito:** Vega no escribe nada en el coche. Los datos del coche (OBD-II) son solo
+  de lectura: el código solo puede enviar al lector una lista cerrada de órdenes, comprobado con pruebas.
+- **Probado:** lógica, pantallas con el coche de mentira de Google y el lector OBD simulado.
+  **Sin probar:** con el emulador DHU ni con un coche real; hace falta Google Play (que se había quitado)
+  y la cuenta del usuario. `tools/phone_dedicate.py --car` lo repone.
+
 ## Lo que se mantuvo desde el principio
 
 - Piezas pequeñas, **probadas** y explicadas.
@@ -210,5 +252,5 @@ de cristal ahumado. Se midió en el Redmi hasta que fue tan fluido como el estil
   - lo peligroso pide confirmación;
   - todo queda registrado.
 
-**Cifras al cierre de esta etapa (24-10):** 222 pruebas del servidor y 91 de la app, incluidas
+**Cifras al cierre de esta etapa (25-10):** 241 pruebas del servidor, 15 de la app de escritorio y 112 de la app del teléfono, incluidas
 capturas de pantalla dibujadas en el PC para revisar el diseño sin instalarlo.
