@@ -29,6 +29,7 @@ from server.skills.when import parse_duration, parse_when, spoken_time
 @dataclass(frozen=True)
 class SkillReply:
     text: str  # lo que se dice y se muestra
+    sleep: bool = False  # después de decirlo, el teléfono pasa a dormir
 
 
 def _cut(text: str, span: tuple[int, int]) -> str:
@@ -108,7 +109,8 @@ class SkillRouter:
     def handle(self, text: str) -> SkillReply | None:
         said = normalize(text)
         for skill in (self._forget, self._what_you_know, self._remember, self._timer, self._reminders,
-                      self._notes, self._pc_notifications, self._status, self._about_me):  # fmt: skip
+                      self._notes, self._pc_notifications, self._status, self._sleep,
+                      self._about_me):  # fmt: skip
             reply = skill(text, said)
             if reply is not None:
                 return reply
@@ -228,6 +230,13 @@ class SkillRouter:
         note = m["text"].strip(" .")
         self._mem.add_note(note)
         return SkillReply(f"Apuntado: {note}.")
+
+    # --- Dormir ---
+
+    def _sleep(self, text: str, said: str) -> SkillReply | None:
+        if not re.search(r"\b(duermete|vete a dormir|a dormir|modo (de )?(sueno|descanso))\b", said):
+            return None
+        return SkillReply("Hasta luego. Toca la pantalla cuando quieras despertarme.", sleep=True)
 
     # --- Notificaciones del PC ---
 

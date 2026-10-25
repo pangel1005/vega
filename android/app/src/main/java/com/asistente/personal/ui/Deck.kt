@@ -42,6 +42,7 @@ fun Deck(
     onNextTouch: () -> Unit = {},
     glass: Boolean = false,
     onToggleGlass: () -> Unit = {},
+    onOpenAndroid: () -> Unit = {},
 ) {
     Column(modifier.card(fill = Vega.Card.copy(alpha = 0.98f), overlay = true).padding(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -64,6 +65,8 @@ fun Deck(
                 Pill("Voz: $voiceLabel", Vega.Sky, onNextVoice)
                 Spacer(Modifier.width(8.dp))
             }
+            Pill("Android", Vega.Ink2, onOpenAndroid)
+            Spacer(Modifier.width(8.dp))
             Pill("Cerrar", Vega.Ink2, onClose)
         }
         // Cuadrícula sencilla (no perezosa): con ~16 botones, construirla de una vez es más barato

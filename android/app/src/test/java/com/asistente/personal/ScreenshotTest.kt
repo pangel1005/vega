@@ -176,6 +176,9 @@ class ScreenshotTest {
         compose.onRoot().captureRoboImage("build/capturas/27_cristal_mas.png")
     }
 
+    // Dormida a mano (botón «Dormir» o «Vega, duérmete»): se despierta tocando.
+    @Test fun dormida_a_mano() = shot("28_dormida_a_mano", model(base).copy(sleeping = true), afterMs = 1600)
+
     // Cara en arcoíris y en violeta (opciones de «Más»); teclas con el icono real de la app.
     @Test fun arcoiris() = shot("12_arcoiris", model(base).copy(faceColor = com.asistente.personal.ui.FaceColor.RAINBOW, icons = fakeIcons()))
 

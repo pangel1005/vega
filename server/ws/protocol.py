@@ -22,6 +22,8 @@ Cliente → servidor:
      "text", "due_at"}]}                 lo que el teléfono guardó sin PC
     {"type": "say", "text": "..."}       (IA en el teléfono) el PC lo dice con su voz (Kokoro en
                                          el procesador): suena más natural que la del teléfono
+    {"type": "sleep", "on": true}        botón de dormir: sin escuchar y sin modelo en la gráfica
+                                         (con false se despierta)
     {"type": "brain", "where": "pc|phone"}  dónde piensa Vega: con «phone» el teléfono
                                          escucha y contesta solo, y el PC suelta el
                                          modelo de la gráfica (para jugar o trabajar)
@@ -42,6 +44,7 @@ Servidor → cliente:
     {"type": "token", "text": "..."}     trozo de la respuesta, en cuanto llega
     {"type": "done", "text": "..."}      respuesta completa
     {"type": "error", "message": "..."}  texto pensado para mostrarse al usuario
+    {"type": "sleep"}                    «Vega, duérmete»: el teléfono pasa a dormir
     {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
                                          (lo dice el teléfono con su voz)
     {"type": "notifications", "items": [{"id", "app", "title", "body", "at", "icon"}]}
@@ -158,6 +161,13 @@ class Say(_Msg):
     text: str = Field(min_length=1, max_length=2000)
 
 
+class SleepMode(_Msg):
+    """Botón de dormir del teléfono: el PC deja de escuchar y suelta el modelo de la gráfica."""
+
+    type: Literal["sleep"] = "sleep"
+    on: bool
+
+
 class NotificationDismiss(_Msg):
     """Quita una notificación del centro de notificaciones del PC (sin `id`, todas)."""
 
@@ -196,6 +206,7 @@ AnyClientMessage = (
     | PhoneCommand
     | MemoryImport
     | Say
+    | SleepMode
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
@@ -314,6 +325,12 @@ class MediaEvent(_Msg):
     can_next: bool = False
 
 
+class SleepEvent(_Msg):
+    """Alguien le dijo a Vega que se durmiera: el teléfono pasa a dormir."""
+
+    type: Literal["sleep"] = "sleep"
+
+
 class PhoneReplyEvent(_Msg):
     type: Literal["phone_reply"] = "phone_reply"
     handled: bool
@@ -369,4 +386,5 @@ ServerEvent = (
     | MediaEvent
     | NotificationsEvent
     | PhoneReplyEvent
+    | SleepEvent
 )

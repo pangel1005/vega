@@ -131,6 +131,7 @@ class AssistantController(context: Context) {
 
     /** Cambia entre pensar en el PC y en el teléfono. */
     fun toggleBrain() {
+        if (sleeping) return
         brainOnPhone = !brainOnPhone
         prefs.edit().putBoolean(KEY_BRAIN, brainOnPhone).apply()
         if (brainOnPhone) {
@@ -178,6 +179,7 @@ class AssistantController(context: Context) {
                         audio = { pcm, rate -> player.enqueue(pcm, rate) },
                         clock = { android.os.SystemClock.elapsedRealtime() },
                         pc = ::askPc,
+                        onSleep = { mainThread.post { sleep() } },
                         pcVoice = ::speakWithPc,
                         log = { android.util.Log.i("Vega", it) },
                         // Charla sin PC: el modelo se carga en segundo plano (~4 s), sin retrasar el resto.
@@ -271,7 +273,31 @@ class AssistantController(context: Context) {
         scope.launch(kotlinx.coroutines.Dispatchers.IO) { phoneMemory.exportForPc { socket.send(it) } }
     }
 
+    /**
+     * Dormida a mano (botón o «duérmete»): sin micrófono y sin los modelos en memoria (~600 MB
+     * menos). Se despierta tocando la pantalla; los modelos tardan unos segundos en volver.
+     */
+    var sleeping by mutableStateOf(false)
+        private set
+
+    fun sleep() {
+        if (sleeping) return
+        sleeping = true
+        stopMic()
+        socket.send(Protocol.sleepMode(true))
+        stopLocal()
+    }
+
+    fun wake() {
+        if (!sleeping) return
+        sleeping = false
+        socket.send(Protocol.sleepMode(false))
+        if (brainOnPhone) startLocal()
+        syncMic()
+    }
+
     private fun stopLocal() {
+        local?.close()
         localTimerEndsAt = null
         localJob?.cancel()
         tickJob?.cancel()
@@ -301,6 +327,7 @@ class AssistantController(context: Context) {
         url = SERVER_WS,
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
         onEvent = { event ->
+            if (event is ServerEvent.Sleep) mainThread.post { sleep() }
             if (event is ServerEvent.PhoneReply) pcAnswer?.complete(event)
             if (event is ServerEvent.Audio) pcVoiceStarted?.complete(true)
             if (event is ServerEvent.AudioEnd) {
@@ -538,7 +565,7 @@ class AssistantController(context: Context) {
     private fun syncMic() {
         // Con la IA en el teléfono se escucha aunque el PC no esté.
         val ready = if (brainOnPhone) local != null else ui.link == LinkStatus.OPEN
-        val want = listenEnabled && micAllowed && ready
+        val want = !sleeping && listenEnabled && micAllowed && ready
         if (want && !micOn) {
             if (mic.start()) {
                 micOn = true

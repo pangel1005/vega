@@ -106,6 +106,8 @@ sealed interface ServerEvent {
     data class Media(val media: MediaInfo?) : ServerEvent
     /** Las notificaciones del PC, de la más nueva a la más vieja. */
     data class Notifications(val items: List<PcNote>) : ServerEvent
+    /** «Vega, duérmete»: el teléfono pasa a dormir. */
+    data object Sleep : ServerEvent
     /** Respuesta del PC a una orden que entendió el teléfono (IA en el teléfono). */
     data class PhoneReply(val handled: Boolean, val text: String) : ServerEvent
 }
@@ -170,6 +172,7 @@ object Protocol {
                     PcNote(n.getLong("id"), n.getString("app"), n.getString("title"), n.optString("body"), n.getDouble("at"), n.optString("icon"))
                 })
             }
+            "sleep" -> ServerEvent.Sleep
             "phone_reply" -> ServerEvent.PhoneReply(o.getBoolean("handled"), o.optString("text"))
             "telemetry" -> {
                 val arr = o.optJSONArray("upcoming")
@@ -200,6 +203,7 @@ object Protocol {
         JSONObject().put("type", "media_control").put("command", command).toString()
     fun setVoice(id: String): String = JSONObject().put("type", "set_voice").put("voice", id).toString()
     fun confirm(nonce: String): String = JSONObject().put("type", "action_confirm").put("nonce", nonce).toString()
+    fun sleepMode(on: Boolean): String = JSONObject().put("type", "sleep").put("on", on).toString()
     fun phoneCommand(text: String): String = JSONObject().put("type", "phone_command").put("text", text).toString()
     /** Quita una notificación del PC; con null, todas. */
     fun dismissNotification(id: Long?): String =

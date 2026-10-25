@@ -45,7 +45,7 @@ fun chatPrompt(question: String, system: String = TALK_SYSTEM): String =
  * Medido en el Redmi 15C: escribe ~9 palabras/s con 2 núcleos (con más, va más lento: los
  * 6 lentos frenan a los 2 rápidos). Sabe poco y se equivoca a veces: es para charlar.
  */
-class PhoneLlm(model: File, threads: Int = 2) : Talker {
+class PhoneLlm(model: File, threads: Int = 2) : Talker, AutoCloseable {
     @Volatile private var handle = 0L
     private val ready = CountDownLatch(1)
 
@@ -59,6 +59,12 @@ class PhoneLlm(model: File, threads: Int = 2) : Talker {
                 ready.countDown()
             }
         }
+    }
+
+    override fun close() {
+        val h = handle
+        handle = 0L
+        if (h != 0L) LlamaNative.free(h)
     }
 
     override fun reply(question: String, onText: (String) -> Boolean): String? {

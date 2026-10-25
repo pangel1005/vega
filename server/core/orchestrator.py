@@ -46,6 +46,7 @@ from server.ws.protocol import (
     PhoneReplyEvent,
     ReminderEvent,
     ServerEvent,
+    SleepEvent,
     State,
     StateEvent,
     TelemetryEvent,
@@ -198,6 +199,19 @@ class Orchestrator:
         self._segmenter.reset()
         self._followup_until = 0.0
         log.info("Escucha continua %s", "activada" if on else "desactivada")
+
+    async def set_sleep(self, on: bool) -> None:
+        """Botón de dormir: sin escuchar y con el modelo fuera de la gráfica. Al despertar, en modo
+        PC se vuelve a cargar para que la primera respuesta no espere (el teléfono reabre el micro)."""
+        if on:
+            await self.set_wake_mode(False)
+            await self._model.unload()
+            log.info("Vega duerme: sin escuchar y sin modelo en la gráfica")
+        else:
+            if not self._brain_phone:
+                self._last_preload = time.monotonic()
+                self._spawn(self._model.preload())
+            log.info("Vega despierta")
 
     async def set_brain(self, where: str) -> None:
         """«phone»: el teléfono escucha y contesta solo; aquí se apaga la escucha continua y se
@@ -398,7 +412,7 @@ class Orchestrator:
         if self._skills is not None:
             reply = await asyncio.to_thread(self._skills.handle, command)
             if reply is not None:
-                await self._skill_reply(command, reply.text)
+                await self._skill_reply(command, reply.text, sleep=reply.sleep)
                 return
         action = self._actions.match(command) if (spoken and self._actions) else None
         if action is not None:
@@ -408,7 +422,7 @@ class Orchestrator:
             return
         await self.handle_text(command)
 
-    async def _skill_reply(self, command: str, text: str) -> None:
+    async def _skill_reply(self, command: str, text: str, sleep: bool = False) -> None:
         """Respuesta de una habilidad: se muestra, se dice y se guarda en el historial."""
         await self._set_state(State.SPEAKING)
         await self._emit(TokenEvent(text=text))
@@ -421,6 +435,8 @@ class Orchestrator:
         )
         await self.speak(text)
         await self._set_state(State.IDLE)
+        if sleep:
+            await self._emit(SleepEvent())
 
     async def announce(self, reminder: Reminder, late: bool) -> None:
         """Avisa de un recordatorio o temporizador vencido (lo llama el centro de avisos)."""

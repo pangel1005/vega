@@ -16,7 +16,7 @@ import java.io.File
 // 3 s con 4 núcleos; Piper, 2,5 veces más rápido que el tiempo real.
 
 /** Whisper base (int8) en español. */
-class WhisperEars(dir: File, threads: Int = 4) : Ears {
+class WhisperEars(dir: File, threads: Int = 4) : Ears, AutoCloseable {
     private val recognizer = OfflineRecognizer(
         config = OfflineRecognizerConfig(
             featConfig = FeatureConfig(sampleRate = 16_000, featureDim = 80),
@@ -34,6 +34,8 @@ class WhisperEars(dir: File, threads: Int = 4) : Ears {
         ),
     )
 
+    override fun close() = recognizer.release()
+
     override fun transcribe(samples: FloatArray): String {
         val stream = recognizer.createStream()
         try {
@@ -47,7 +49,7 @@ class WhisperEars(dir: File, threads: Int = 4) : Ears {
 }
 
 /** Voz Piper `es_MX-claude-high` (la que mejor sonó en las pruebas del teléfono). */
-class PiperMouth(dir: File, threads: Int = 2) : Mouth {
+class PiperMouth(dir: File, threads: Int = 2) : Mouth, AutoCloseable {
     private val tts = OfflineTts(
         config = OfflineTtsConfig(
             model = OfflineTtsModelConfig(
@@ -60,6 +62,8 @@ class PiperMouth(dir: File, threads: Int = 2) : Mouth {
             ),
         ),
     )
+
+    override fun close() = tts.release()
 
     override fun say(text: String, onAudio: (ByteArray, Int) -> Unit) {
         val audio = tts.generate(text, sid = 0, speed = 1.0f)

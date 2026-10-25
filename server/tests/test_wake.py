@@ -270,3 +270,28 @@ def test_without_pc_voice_the_phone_speaks_itself() -> None:
         start(ws)
         ws.send_json({"type": "say", "text": "Hola."})
         assert until(ws, "audio_end")[-1] == {"type": "audio_end"}
+
+
+def test_sleep_button_stops_listening_and_frees_the_gpu() -> None:
+    model = FakeChat(pieces=["ok"])
+    with session(["Vega, ¿qué hora es?"], model, FakeExecutor()) as ws:
+        start(ws)
+        ws.send_json({"type": "sleep", "on": True})
+        say(ws)  # dormida: no atiende
+        ws.send_json({"type": "chat", "text": "hola"})
+        events = until(ws, "done")
+        assert all(e["type"] != "transcript" for e in events)
+        assert model.unloads == 1
+        preloads = model.preloads
+        ws.send_json({"type": "sleep", "on": False})
+        ws.send_json({"type": "chat", "text": "otra"})
+        until(ws, "done")
+    assert model.preloads == preloads + 1  # al despertar, el modelo vuelve a la memoria
+
+
+def test_saying_goodnight_tells_the_phone_to_sleep() -> None:
+    with session(["Vega, duérmete"], FakeChat(), FakeExecutor()) as ws:
+        start(ws)
+        say(ws)
+        events = until(ws, "sleep")
+    assert events[-1] == {"type": "sleep"}

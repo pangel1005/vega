@@ -40,7 +40,9 @@ class LocalAssistantTest {
         private val pcAnswers: Map<String, String> = emptyMap(),
         pcSpeaks: Boolean = false,
         talker: com.asistente.personal.local.Talker? = null,
+        ears: com.asistente.personal.local.Ears? = null,
     ) {
+        var slept = 0
         val pcSaid = mutableListOf<String>()
         val heardSizes = mutableListOf<Int>()
         val askedPc = mutableListOf<String>()
@@ -53,7 +55,8 @@ class LocalAssistantTest {
             name = "Vega",
             skills = Skills(memory, { now }),
             memory = memory,
-            ears = { heardSizes += it.size; queue.removeFirst() },
+            ears = ears ?: com.asistente.personal.local.Ears { heardSizes += it.size; queue.removeFirst() },
+            onSleep = { slept++ },
             mouth = { text, onAudio -> said += text; onAudio(ByteArray(4), 22_050) },
             events = { events += it },
             audio = { _, _ -> },
@@ -253,5 +256,29 @@ class LocalAssistantTest {
         rig.vega.playbackDone()
         rig.phrase()
         assertEquals(listOf("¿Sí?", "Una montaña que echa lava."), rig.said)
+    }
+
+    @Test fun duermete() {
+        val rig = Rig(listOf("Vega, duérmete"))
+        rig.phrase()
+        assertEquals(1, rig.slept)
+        assertTrue(rig.said.first().startsWith("Hasta luego"))
+        assertTrue(com.asistente.personal.local.isSleepCommand("vete a dormir"))
+        assertTrue(!com.asistente.personal.local.isSleepCommand("¿qué hora es?"))
+    }
+
+    @Test fun alCerrarLiberaLosModelosYDejaDeOir() {
+        class Closable : com.asistente.personal.local.Ears, AutoCloseable {
+            var closed = false
+            var heard = 0
+            override fun transcribe(samples: FloatArray): String { heard++; return "Vega, ¿qué hora es?" }
+            override fun close() { closed = true }
+        }
+        val ears = Closable()
+        val rig = Rig(emptyList(), ears = ears)
+        rig.vega.close()
+        assertTrue(ears.closed)
+        rig.phrase() // dormida: el audio ya no se atiende
+        assertEquals(0, ears.heard)
     }
 }

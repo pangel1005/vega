@@ -40,6 +40,7 @@ from server.ws.protocol import (
     Say,
     ServerEvent,
     SetVoice,
+    SleepMode,
     WakeMode,
     client_message,
 )
@@ -170,6 +171,8 @@ def register_ws(
                     await orchestrator.phone_command(msg.text)
                 elif isinstance(msg, MemoryImport):
                     await orchestrator.import_memory(msg)
+                elif isinstance(msg, SleepMode):
+                    await orchestrator.set_sleep(msg.on)
                 elif isinstance(msg, Say):
                     await orchestrator.say_for_phone(msg.text)
                 elif isinstance(msg, Brain):

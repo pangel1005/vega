@@ -60,6 +60,8 @@ class LocalAssistant(
     private val pcVoice: (String) -> Boolean = { false },
     /** Charla libre con el modelo pequeño del teléfono, para lo que no resuelve nada más (o null). */
     private val talker: Talker? = null,
+    /** «Vega, duérmete»: el teléfono pasa a dormir (apaga el micrófono y libera los modelos). */
+    private val onSleep: () -> Unit = {},
     /** Registro de cada paso (en el teléfono, logcat «Vega»); nunca lleva lo que se dijo. */
     private val log: (String) -> Unit = {},
     private val runner: (Runnable) -> Unit = Executors.newSingleThreadExecutor { Thread(it, "vega-local") }::execute,
@@ -71,8 +73,24 @@ class LocalAssistant(
     /** La cara está en «escuchando» (tras tocarla o tras contestar) y hay que devolverla a reposo. */
     @Volatile private var listening = false
 
+    @Volatile private var closed = false
+
+    /**
+     * Libera Whisper, la voz y el modelo de charla (~600 MB). Espera a que acabe lo que esté
+     * haciendo (todo va en el mismo hilo) y después ya no atiende más audio.
+     */
+    fun close() {
+        closed = true
+        runner(Runnable {
+            (ears as? AutoCloseable)?.close()
+            (mouth as? AutoCloseable)?.close()
+            (talker as? AutoCloseable)?.close()
+        })
+    }
+
     /** Audio del micrófono (desde su hilo). */
     fun hear(pcm: ByteArray, length: Int = pcm.size) {
+        if (closed) return
         for (phrase in segmenter.feed(pcm, length)) {
             if (!busy.compareAndSet(false, true)) continue
             runner(Runnable {
@@ -179,6 +197,11 @@ class LocalAssistant(
             events(ServerEvent.Transcript(text, seconds, elapsed))
             reply("¿Sí?")
             attentive = true
+            return
+        }
+        if (isSleepCommand(command)) {
+            reply("Hasta luego. Toca la pantalla cuando quieras despertarme.")
+            onSleep()
             return
         }
         events(ServerEvent.State(AssistantState.THINKING))
@@ -294,6 +317,11 @@ class LocalAssistant(
 
 private val SENTENCE_END = Regex("(?<=[.!?…])\\s+")
 private val MARKDOWN = Regex("[*#_`]+")
+
+private val SLEEP_COMMAND = Regex("\\b(duermete|vete a dormir|a dormir|modo (de )?(sueno|descanso))\\b")
+
+/** ¿La orden es «duérmete»? (Igual que la habilidad del PC.) */
+fun isSleepCommand(command: String): Boolean = SLEEP_COMMAND.containsMatchIn(normalize(command))
 
 /** Como mucho, cuántas frases dice en una charla. */
 const val MAX_TALK_SENTENCES = 3

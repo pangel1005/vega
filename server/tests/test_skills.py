@@ -150,3 +150,10 @@ def test_pc_notifications_by_voice() -> None:
     assert say(router, "Lee mis notas") == "No tienes notas."  # las notas siguen siendo las notas
     empty = SkillRouter(PersonalMemory(ConversationStore(":memory:")), now=lambda: NOW)
     assert say(empty, "¿Tengo notificaciones?") == "No tienes notificaciones en el PC."
+
+
+def test_sleep_commands(router: SkillRouter) -> None:
+    for phrase in ("Vega duérmete", "vete a dormir", "a dormir", "modo descanso"):
+        reply = router.handle(phrase)
+        assert reply is not None and reply.sleep, phrase
+    assert router.handle("¿qué hora es?") is None or not router.handle("¿qué hora es?").sleep  # type: ignore[union-attr]

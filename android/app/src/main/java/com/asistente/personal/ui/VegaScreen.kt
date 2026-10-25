@@ -116,6 +116,8 @@ data class ScreenModel(
     /** Fin del temporizador del teléfono (reloj `clockMs`), cuando Vega piensa sin el PC. */
     val localTimerEndsAt: Long? = null,
     val touchFeel: TouchFeel = TouchFeel.SOFT,
+    /** Dormida a mano (botón o «duérmete»): pantalla de noche hasta que se toca. */
+    val sleeping: Boolean = false,
 )
 
 class ScreenActions(
@@ -136,6 +138,8 @@ class ScreenActions(
     val dismissNote: (Long?) -> Unit = {},
     val nextTouchFeel: () -> Unit = {},
     val toggleGlass: () -> Unit = {},
+    val sleep: () -> Unit = {},
+    val wake: () -> Unit = {},
 )
 
 /** Qué cara pone Vega según lo que está pasando de verdad. */
@@ -248,8 +252,8 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         }
     }
     // Con la IA en el teléfono no se duerme: sigue escuchando y contestando sin el PC.
-    val asleep = !m.brainOnPhone && m.hasToken && ui.link != LinkStatus.OPEN && ui.link != LinkStatus.DENIED &&
-        (ui.pcOff != null || longOffline)
+    val asleep = m.sleeping || (!m.brainOnPhone && m.hasToken && ui.link != LinkStatus.OPEN && ui.link != LinkStatus.DENIED &&
+        (ui.pcOff != null || longOffline))
     // Al volver el PC se despierta contenta un momento.
     var waking by remember { mutableStateOf(false) }
     var wasAsleep by remember { mutableStateOf(false) }
@@ -445,6 +449,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         onNextTouch = a.nextTouchFeel,
                         glass = m.glass,
                         onToggleGlass = a.toggleGlass,
+                        onOpenAndroid = a.openAndroid,
                         // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.
                         modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                             awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
@@ -455,7 +460,20 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
             }
         }
         }
-        if (sleepFade > 0f) SleepScreen(m, Modifier.graphicsLayer { alpha = sleepFade })
+        if (sleepFade > 0f) {
+            SleepScreen(
+                m,
+                Modifier.graphicsLayer { alpha = sleepFade }
+                    // Se traga los toques (las teclas de debajo no deben pulsarse); si está dormida a
+                    // mano, tocar la despierta.
+                    .pointerInput(m.sleeping) {
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            if (m.sleeping) a.wake()
+                        }
+                    },
+            )
+        }
         // Pantalla «Sonando» (se abre tocando el mini reproductor).
         val playing = ui.media
         AnimatedVisibility(
@@ -560,7 +578,7 @@ private const val SLEEP_FADE_MS = 1200
  */
 @Composable
 private fun SleepScreen(m: ScreenModel, modifier: Modifier = Modifier) {
-    val message = when (m.ui.pcOff) {
+    val message = if (m.sleeping) "Dormida · toca la pantalla para despertarme" else when (m.ui.pcOff) {
         "restart" -> "El PC se está reiniciando · vuelvo enseguida"
         "sleep" -> "El PC está en suspensión · me despierto cuando lo despiertes"
         else -> "El PC está apagado · me despierto cuando lo enciendas"
@@ -635,7 +653,7 @@ private fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Mod
             val micOn = m.listening && m.micOn
             Pill(if (micOn) "Oyendo" else "Micro apagado", if (micOn) Vega.Coral else Vega.Ink2, a.toggleMic, filled = micOn)
             if (m.updateAvailable) Pill("Actualizar", Vega.Amber, a.update, filled = true)
-            Pill("Android", Vega.Ink2, a.openAndroid)
+            Pill("Dormir", Vega.Ink2, a.sleep)
         }
     }
 }
