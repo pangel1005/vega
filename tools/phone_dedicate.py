@@ -177,8 +177,7 @@ def car_on() -> None:
         print(f"   {pkg}: {adb('cmd', 'package', 'install-existing', '--user', '0', pkg)}")
     saved["car"] = True
     STATE.write_text(json.dumps(saved, indent=2), encoding="utf-8")
-    print("
-Listo. Abre Google Play en el teléfono, inicia sesión e instala «Android Auto».")
+    print("\nListo. Abre Google Play en el teléfono, inicia sesión e instala «Android Auto».")
 
 
 def car_off() -> None:
