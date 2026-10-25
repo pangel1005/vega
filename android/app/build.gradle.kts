@@ -57,6 +57,9 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
+    // Vega en Android Auto (categoría IoT): la pantalla del coche, con plantillas de Android Auto.
+    implementation("androidx.car.app:app:1.7.0")
+    testImplementation("androidx.car.app:app-testing:1.7.0")
     // IA del teléfono: Whisper (voz a texto) y Piper (voz) sin PC. Ver tools/android_sherpa.ps1.
     implementation(files("libs/sherpa-onnx-1.13.8.aar"))
 

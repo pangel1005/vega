@@ -288,6 +288,31 @@ class AssistantController(context: Context) {
         stopLocal()
     }
 
+    /** La pantalla de Vega en Android Auto: título y casillas que manda el PC (vacío: las de serie). */
+    var carTitle by mutableStateOf("Vega")
+        private set
+    var carItems by mutableStateOf<List<com.asistente.personal.car.CarItem>>(emptyList())
+        private set
+
+    /** Lo que dice el lector OBD-II del coche, si hay uno conectado (null: ninguno). */
+    var vehicle by mutableStateOf<com.asistente.personal.car.VehicleReading?>(null)
+
+    /**
+     * Pulsa un botón del PC que pide confirmación y la acepta: el coche ya preguntó «¿Seguro?».
+     * El servidor sigue exigiendo su propia confirmación: se pulsa, se espera a que la pida
+     * y se confirma (como los dos toques del teléfono).
+     */
+    fun pressAndConfirm(id: String) {
+        press(id)
+        var tries = 0
+        val check = object : Runnable {
+            override fun run() {
+                if (ui.pending?.id == id) press(id) else if (++tries < 15) mainThread.postDelayed(this, 200)
+            }
+        }
+        mainThread.postDelayed(check, 200)
+    }
+
     /** Lo que manda la app del PC (ver `phone_control` en server/ws/protocol.py). */
     private fun obey(command: String) {
         when (command) {
@@ -356,6 +381,10 @@ class AssistantController(context: Context) {
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
         onEvent = { event ->
             if (event is ServerEvent.Sleep) mainThread.post { sleep() }
+            if (event is ServerEvent.CarLayout) mainThread.post {
+                carTitle = event.title
+                carItems = event.items
+            }
             if (event is ServerEvent.PhoneControl) mainThread.post { obey(event.command) }
             if (event is ServerEvent.PhoneReply) pcAnswer?.complete(event)
             if (event is ServerEvent.Audio) pcVoiceStarted?.complete(true)

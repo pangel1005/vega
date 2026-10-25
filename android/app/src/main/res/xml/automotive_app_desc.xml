@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vega usa plantillas de Android Auto (la pantalla del coche la dibuja el propio Android Auto). -->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>

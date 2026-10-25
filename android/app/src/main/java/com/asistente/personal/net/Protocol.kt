@@ -108,6 +108,8 @@ sealed interface ServerEvent {
     data class Notifications(val items: List<PcNote>) : ServerEvent
     /** Una orden de la app del PC: sleep, wake, brain_pc, brain_phone, glass_on, glass_off, mic_on, mic_off. */
     data class PhoneControl(val command: String) : ServerEvent
+    /** Las casillas de la pantalla de Vega en Android Auto (vacía: usa las de serie). */
+    data class CarLayout(val title: String, val items: List<com.asistente.personal.car.CarItem>) : ServerEvent
     /** «Vega, duérmete»: el teléfono pasa a dormir. */
     data object Sleep : ServerEvent
     /** Respuesta del PC a una orden que entendió el teléfono (IA en el teléfono). */
@@ -173,6 +175,15 @@ object Protocol {
                     val n = arr.getJSONObject(i)
                     PcNote(n.getLong("id"), n.getString("app"), n.getString("title"), n.optString("body"), n.getDouble("at"), n.optString("icon"))
                 })
+            }
+            "car_layout" -> {
+                val arr = o.getJSONArray("items")
+                ServerEvent.CarLayout(
+                    o.optString("title", "Vega"),
+                    List(arr.length()) { i ->
+                        arr.getJSONObject(i).let { com.asistente.personal.car.CarItem(it.getString("id"), it.getString("label"), it.getString("kind"), it.getString("arg")) }
+                    },
+                )
             }
             "sleep" -> ServerEvent.Sleep
             "phone_control" -> ServerEvent.PhoneControl(o.getString("command"))
