@@ -109,8 +109,9 @@ conversación. Tocar la cara tiene el mismo efecto.
 | Modelo más listo | `qwen3:8b` descargado; es un trueque con la memoria de la gráfica |
 | A veces adorna o pregunta de más | El modelo de 4B es pequeño. Las preguntas sobre ti se responden desde la memoria, sin el modelo |
 | 120 Hz en el teléfono | HyperOS limita a 60 Hz las apps que no conoce. La app lo pide, pero el sistema manda |
-| IA en el teléfono («modo bolsillo») | En estudio: que el teléfono entienda, recuerde y hable sin el PC. Plan en [docs/ia-en-el-telefono.md](docs/ia-en-el-telefono.md) |
-| Wi-Fi y coche (Bluetooth) | Aparcado: de momento, solo cable |
+| IA en el teléfono | Hecha («IA: teléfono» en «Más»): oye, entiende, usa sus habilidades y charla sin el PC. Es más lenta y menos lista que la del PC. Ver [docs/ia-en-el-telefono.md](docs/ia-en-el-telefono.md) |
+| Coche (Android Auto) | Hecho y probado con pruebas automáticas; falta probarlo con el DHU y un coche real. Ver [docs/coche.md](docs/coche.md) |
+| Wi-Fi | Aparcado: de momento, solo cable |
 | Interfaz web (`http://127.0.0.1:8000`) | Antigua: chat escrito, sin panel de botones |
 | Otros equipos (Raspberry Pi, otros Android) | Objetivo a largo plazo: que funcione en equipos modestos |
 
@@ -132,10 +133,13 @@ conversación. Tocar la cara tiene el mismo efecto.
 │   └── app/src/main/java/com/asistente/personal/
 │       ├── ui/          Pantalla, teclas, tema «Vega · noche»
 │       │   └── led/     Cara de LED: expresiones, letras, dibujo
+│       ├── local/       IA del teléfono: Whisper, Piper, habilidades, modelo de charla
+│       ├── car/         Android Auto (pantalla del coche) y lector OBD-II
 │       ├── audio/       Micrófono y reproductor
 │       ├── net/         WebSocket y protocolo
 │       └── state/       Estado de la pantalla
-├── config/              assistant.toml (nombre, modelo, voz…) y actions.toml (botones)
+├── desktop/             App de escritorio nativa (PySide6): panel, conversación, botones, coche…
+├── config/              assistant.toml (nombre, modelo, voz…), actions.toml (botones) y car.toml (pantalla del coche)
 ├── scripts/             Lo de uso diario: arrancar, parar, arranque automático, instalar la app
 ├── tools/               Herramientas de desarrollo y medición (chat por consola, pruebas de voz…)
 ├── web/                 Interfaz web antigua (React)
@@ -144,6 +148,16 @@ conversación. Tocar la cara tiene el mismo efecto.
 
 No van en git: `models/` (voces y Whisper), `data/` (tu memoria e historial), `logs/` y
 `config/token.txt`.
+
+## App de escritorio
+
+Una app nativa de Windows (no web) en la bandeja del sistema: ve en tiempo real lo que pasa en el
+teléfono, lo controla (dormir, cambiar de IA…), edita los botones, la pantalla del coche y los
+ajustes, y arranca o para el servidor. Ver [docs/escritorio.md](docs/escritorio.md).
+
+## Vega en el coche
+
+Una pantalla de Android Auto configurable desde el PC. Ver [docs/coche.md](docs/coche.md).
 
 ## Uso diario
 
@@ -166,6 +180,7 @@ el cable puede tardar hasta unos 30 s.
 | Archivo | Qué se cambia |
 |---|---|
 | `config/assistant.toml` | Nombre, modelo, instrucciones, voz, acento y velocidad, Whisper, USB |
+| `config/car.toml` | Casillas de la pantalla de Vega en Android Auto (máximo 6) |
 | `config/actions.toml` | Botones: qué hacen, cuáles van en la fila principal (`quick`), frases de voz (`say`) y cuáles piden confirmación |
 
 ## Seguridad
