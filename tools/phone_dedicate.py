@@ -14,6 +14,7 @@ Todo se hace con adb, sin root y sin tocar nada que el teléfono necesite para f
 - Google Play Services y Play Store también se quitan (reaparecían al instante y pesaban ~480 MB).
 - Vega: fuera del ahorro de batería, siempre activa, y la pantalla se queda encendida mientras
   carga (el teléfono es el cuerpo de Vega).
+- Vega pasa a ser la pantalla de inicio (el botón Inicio la abre a ella, no a la de Xiaomi).
 - Animaciones de Android a la mitad y batería adaptativa apagada.
 
 Lo que cambió queda en data/telefono_antes.json, para poder deshacerlo.
@@ -139,6 +140,13 @@ def apply() -> None:
     for op in ("RUN_IN_BACKGROUND", "RUN_ANY_IN_BACKGROUND", "START_FOREGROUND", "WAKE_LOCK"):
         adb("cmd", "appops", "set", VEGA, op, "allow")
 
+    print("— Pantalla de inicio —")
+    current = adb("cmd", "package", "resolve-activity", "--brief", "-c", "android.intent.category.HOME", "-a", "android.intent.action.MAIN").splitlines()
+    before = current[-1].strip() if current else ""
+    if before and before != f"{VEGA}/.MainActivity":
+        saved.setdefault("home", before)
+    print("   ", adb("cmd", "package", "set-home-activity", f"{VEGA}/.MainActivity"))
+
     print("— Ajustes —")
     for space, key, value in SETTINGS:
         saved["settings"].setdefault(f"{space}/{key}", adb("settings", "get", space, key))
@@ -161,6 +169,8 @@ def undo() -> None:
         adb("am", "set-standby-bucket", pkg, bucket.split()[0] if bucket.split() else "active")
         adb("cmd", "appops", "set", pkg, "RUN_ANY_IN_BACKGROUND", "default")
     adb("cmd", "deviceidle", "whitelist", f"-{VEGA}")
+    if saved.get("home"):
+        adb("cmd", "package", "set-home-activity", saved["home"])
     for key, value in saved["settings"].items():
         space, name = key.split("/")
         if value in ("", "null"):
