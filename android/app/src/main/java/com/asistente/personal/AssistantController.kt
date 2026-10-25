@@ -121,6 +121,15 @@ class AssistantController(context: Context) {
     )
     private val phoneMemory = com.asistente.personal.local.LocalMemory(java.io.File(context.filesDir, "memoria-telefono.json"))
     @Volatile private var local: com.asistente.personal.local.LocalAssistant? = null
+    /** Filtro barato de «Vega» (assets/wake_gate.bin): si falta o no se lee, Whisper mira todo, como antes. */
+    private val wakeGate: com.asistente.personal.local.WakeGate? by lazy {
+        try {
+            appContext.assets.open("wake_gate.bin").use { com.asistente.personal.local.WakeGate(it.readBytes()) }
+        } catch (e: Exception) {
+            android.util.Log.w("Vega", "Sin filtro de «Vega»: ${e.message}")
+            null
+        }
+    }
     private var localJob: kotlinx.coroutines.Job? = null
     private var tickJob: kotlinx.coroutines.Job? = null
 
@@ -185,6 +194,7 @@ class AssistantController(context: Context) {
                         log = { android.util.Log.i("Vega", it) },
                         // Charla sin PC: el modelo se carga al primer uso (~4 s) y se suelta tras 3 min sin usarlo.
                         talker = models.llm.takeIf { it.isFile }?.let { com.asistente.personal.local.PhoneLlm(it, log = { m -> android.util.Log.i("Vega", m) }) },
+                        gate = wakeGate,
                     )
                 } catch (e: Throwable) {
                     android.util.Log.e("Vega", "No arranca la IA del teléfono", e)

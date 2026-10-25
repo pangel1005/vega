@@ -57,6 +57,7 @@ target-version = "py312"
 
 [tool.ruff.lint.per-file-ignores]
 "desktop/theme.py" = ["E501"]  # líneas de CSS
+"tools/wake/train.py" = ["E501"]  # comentarios largos y tipos de torch
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]

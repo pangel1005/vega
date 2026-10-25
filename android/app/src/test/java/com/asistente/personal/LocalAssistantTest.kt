@@ -41,6 +41,7 @@ class LocalAssistantTest {
         pcSpeaks: Boolean = false,
         talker: com.asistente.personal.local.Talker? = null,
         ears: com.asistente.personal.local.Ears? = null,
+        gate: com.asistente.personal.local.Gate? = null,
     ) {
         var slept = 0
         val pcSaid = mutableListOf<String>()
@@ -66,6 +67,7 @@ class LocalAssistantTest {
             pc = { askedPc += it; pcAnswers[it] },
             pcVoice = { if (pcSpeaks) pcSaid += it; pcSpeaks },
             talker = talker,
+            gate = gate,
         )
 
         /** Alguien habla 5 s seguidos (charla, la tele…). */
@@ -280,5 +282,49 @@ class LocalAssistantTest {
         assertTrue(ears.closed)
         rig.phrase() // dormida: el audio ya no se atiende
         assertEquals(0, ears.heard)
+    }
+
+    // --- El filtro barato de «Vega» ---
+
+    @Test fun elFiltroDescartaLoQueNoLlamaSinGastarWhisper() {
+        var asked = 0
+        val rig = Rig(listOf("Vega, ¿qué hora es?"), gate = { asked++; false })
+        rig.phrase()
+        assertEquals(1, asked)
+        assertTrue(rig.heardSizes.isEmpty()) // Whisper ni se enteró
+        assertTrue(rig.said.isEmpty())
+        assertTrue(rig.events.isEmpty())
+    }
+
+    @Test fun siElFiltroDejaPasarContestaComoSiempre() {
+        val rig = Rig(listOf("Vega, ¿qué hora es?"), gate = { true })
+        rig.phrase()
+        assertEquals(listOf("Son las tres de la tarde."), rig.said)
+    }
+
+    @Test fun conFiltroUnaFraseLargaSeTranscribeEnteraSinMirarSoloElPrincipio() {
+        val rig = Rig(listOf("Vega, recuérdame que mañana tengo que llamar al médico"), gate = { true })
+        rig.longPhrase()
+        assertEquals(1, rig.heardSizes.size)
+        assertTrue(rig.heardSizes[0] > com.asistente.personal.local.PEEK_SAMPLES)
+    }
+
+    @Test fun elFiltroSoloMiraElPrincipioDeLaFrase() {
+        val sizes = mutableListOf<Int>()
+        val rig = Rig(listOf("Vega, ¿qué hora es?"), gate = { sizes += it.size; true })
+        rig.longPhrase()
+        assertEquals(listOf(com.asistente.personal.local.WakeGate.WINDOW), sizes)
+    }
+
+    @Test fun trasContestarSeSigueHablandoSinFiltro() {
+        var asked = 0
+        val rig = Rig(listOf("Vega", "apunta pan"), gate = { asked++; true })
+        rig.phrase()
+        assertEquals(1, asked)
+        rig.vega.playbackDone()
+        rig.clock = 3_000
+        rig.phrase() // sigue la conversación: no hace falta decir «Vega», y tampoco pasa por el filtro
+        assertEquals(1, asked)
+        assertEquals("Apuntado: pan.", rig.said.last())
     }
 }

@@ -64,6 +64,11 @@ class LocalAssistant(
     private val onSleep: () -> Unit = {},
     /** Registro de cada paso (en el teléfono, logcat «Vega»); nunca lleva lo que se dijo. */
     private val log: (String) -> Unit = {},
+    /**
+     * Filtro barato de «Vega»: si la frase no puede empezar llamándola, se descarta sin gastar
+     * Whisper en ella (en el teléfono casi todo lo que oye es ruido o conversación ajena).
+     */
+    private val gate: Gate? = null,
     private val runner: (Runnable) -> Unit = Executors.newSingleThreadExecutor { Thread(it, "vega-local") }::execute,
 ) {
     private val segmenter = Segmenter()
@@ -162,11 +167,17 @@ class LocalAssistant(
         val samples = pcm16ToFloat(phrase)
         val started = clock()
         val following = attentive || clock() < listenUntil
+        if (!following && gate != null) {
+            val t0 = clock()
+            val pass = gate.passes(samples.copyOf(minOf(samples.size, WakeGate.WINDOW)))
+            log("filtro de «$name»: ${if (pass) "pasa" else "descartada"} en ${clock() - t0} ms (frase de ${samples.size / 16} ms)")
+            if (!pass) return
+        }
         val text = try {
             // Whisper tarda según lo larga que sea la frase (Redmi: 1,2 s una de 1 s; 5,5 s una de
             // 8 s). Las largas casi nunca son para Vega (charla, la tele): se mira solo el
             // principio, que es donde va el nombre, y se transcribe entera solo si la llaman.
-            if (!following && samples.size > PEEK_IF_LONGER) {
+            if (!following && gate == null && samples.size > PEEK_IF_LONGER) {
                 val start = ears.transcribe(samples.copyOfRange(0, PEEK_SAMPLES))
                 if (!parseWake(start, name).woke) return
             }
