@@ -29,6 +29,10 @@ dependencies = [
 ]
 
 [dependency-groups]
+desktop = [
+    "pyside6>=6.8",
+    "tomlkit>=0.13",
+]
 dev = [
     "pytest>=8.3",
     "ruff>=0.7",
@@ -50,6 +54,9 @@ testpaths = ["server/tests"]
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+
+[tool.ruff.lint.per-file-ignores]
+"desktop/theme.py" = ["E501"]  # líneas de CSS
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]

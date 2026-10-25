@@ -3,10 +3,11 @@
 #   Activar:    powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1
 #   Desactivar: powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1 -Remove
 #
-# Crea (o borra) dos tareas programadas de tu usuario (sin permisos de administrador):
+# Crea (o borra) tres tareas programadas de tu usuario (sin permisos de administrador):
 #   «Vega (asistente)»: al iniciar sesión, ejecuta scripts\start.ps1 -Hidden.
+#   «Vega (escritorio)»: abre la app de escritorio en la bandeja (scripts\escritorio.ps1 -Bandeja).
 #   «Vega (vigilante)»: cada 5 minutos, si Vega está en marcha pero colgada, la reinicia
-#                        (scriptsigilante.ps1; una noche se quedó colgada horas).
+#                        (scripts\vigilante.ps1; una noche se quedó colgada horas).
 #
 # Antes era un acceso directo en la carpeta Inicio, pero Windows 11 no siempre lo
 # ejecutaba (comprobado: tras apagar y encender, Vega no volvió). Si queda de una versión
@@ -17,11 +18,15 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $task = 'Vega (asistente)'
 $watch = 'Vega (vigilante)'
+$desk = 'Vega (escritorio)'
 $oldLink = Join-Path ([Environment]::GetFolderPath('Startup')) 'Asistente.lnk'
 
 if (Test-Path $oldLink) { Remove-Item $oldLink }
 
 if ($Remove) {
+    if (Get-ScheduledTask -TaskName $desk -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $desk -Confirm:$false
+    }
     if (Get-ScheduledTask -TaskName $watch -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName $watch -Confirm:$false
     }
@@ -55,4 +60,11 @@ $watchSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStop
     -ExecutionTimeLimit (New-TimeSpan -Minutes 4) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $watch -Action $watchAction -Trigger $watchTrigger -Settings $watchSettings `
     -Principal $principal -Description 'Reinicia Vega si se queda colgada' -Force | Out-Null
-Write-Host "Arranque automático activado: tareas «$task» y «$watch»." -ForegroundColor Green
+# La app de escritorio entra cuando el servidor ya está en marcha (si no, se reconecta sola).
+$deskAction = New-ScheduledTaskAction -Execute 'conhost.exe' -WorkingDirectory $root `
+    -Argument "$hidden `"$root\scripts\escritorio.ps1`" -Bandeja"
+$deskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+$deskTrigger.Delay = 'PT40S'
+Register-ScheduledTask -TaskName $desk -Action $deskAction -Trigger $deskTrigger -Settings $settings -Principal $principal `
+    -Description 'Abre la app de escritorio de Vega en la bandeja' -Force | Out-Null
+Write-Host "Arranque automático activado: tareas «$task», «$desk» y «$watch»." -ForegroundColor Green
