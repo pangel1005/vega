@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from desktop import theme
 from desktop.context import Context
 from desktop.pages.buttons import ButtonsPage
+from desktop.pages.car import CarPage
 from desktop.pages.chat import ChatPage
 from desktop.pages.logs import LogsPage
 from desktop.pages.panel import PanelPage
@@ -31,6 +32,7 @@ PAGES = (
     ("Panel", "panel"),
     ("Conversación", "chat"),
     ("Botones", "buttons"),
+    ("Coche", "car"),
     ("Teléfono", "phone"),
     ("Ajustes", "settings"),
     ("Registros", "logs"),
@@ -84,6 +86,7 @@ class MainWindow(QMainWindow):
             "panel": PanelPage(ctx),
             "chat": ChatPage(ctx),
             "buttons": ButtonsPage(ctx),
+            "car": CarPage(ctx),
             "phone": PhonePage(),
             "settings": SettingsPage(ctx),
             "logs": LogsPage(),

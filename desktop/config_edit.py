@@ -16,6 +16,7 @@ import tomlkit
 ROOT = Path(__file__).resolve().parents[1]
 ACTIONS_FILE = ROOT / "config" / "actions.toml"
 SETTINGS_FILE = ROOT / "config" / "assistant.toml"
+CAR_FILE = ROOT / "config" / "car.toml"
 
 ACTION_FIELDS = ("id", "label", "jp", "icon", "color", "kind", "arg", "args", "confirm", "quick", "say")
 
@@ -114,6 +115,40 @@ def write_settings(values: dict[tuple[str | None, str], Any], path: Path = SETTI
         load_settings(probe)
     except Exception as exc:
         raise ConfigError(f"Ajuste no válido: {exc}") from exc
+    finally:
+        probe.unlink(missing_ok=True)
+    _write(path, doc)
+
+
+# --- Pantalla del coche (Android Auto) ---
+
+
+def read_car(path: Path = CAR_FILE) -> tuple[str, list[dict[str, Any]]]:
+    doc = tomlkit.parse(path.read_text(encoding="utf-8"))
+    return str(doc.get("title", "Vega")), [dict(i.unwrap()) for i in doc.get("item", [])]
+
+
+def write_car(title: str, items: list[dict[str, Any]], path: Path = CAR_FILE) -> None:
+    """Guarda la pantalla del coche conservando el encabezado con las instrucciones. Se comprueba con
+    las mismas reglas que el servidor (incluido que los botones del PC existan) antes de escribir."""
+    from server.core.car import CarError, load_car
+
+    doc = tomlkit.parse(path.read_text(encoding="utf-8"))
+    doc["title"] = title.strip() or "Vega"
+    table = tomlkit.aot()
+    for it in items:
+        row = tomlkit.table()
+        for key in ("id", "label", "kind", "arg"):
+            row[key] = it[key]
+        table.append(row)
+    doc["item"] = table
+    probe = path.with_suffix(".probe.toml")
+    probe.write_text(tomlkit.dumps(doc), encoding="utf-8")
+    try:
+        known = {a["id"] for a in read_actions()}
+        load_car(probe, known)
+    except CarError as exc:
+        raise ConfigError(str(exc)) from exc
     finally:
         probe.unlink(missing_ok=True)
     _write(path, doc)

@@ -75,3 +75,27 @@ def test_settings_are_edited_in_place(tmp_path: Path) -> None:
     with pytest.raises(ConfigError):
         config_edit.write_settings({("llm", "gpu_layers"): "mucha"}, target)
     assert config_edit.read_setting("llm", "gpu_layers", target) == 0  # lo inválido no se escribió
+
+
+REAL_CAR = Path(__file__).resolve().parents[2] / "config" / "car.toml"
+
+
+def test_car_screen_is_edited_in_place_and_validated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "car.toml"
+    shutil.copy(REAL_CAR, target)
+    title, items = config_edit.read_car(target)
+    assert title == "Vega" and len(items) == 6
+    new = {"id": "vol", "label": "Volumen +", "kind": "action", "arg": "volumen-mas"}
+    config_edit.write_car("Mi coche", [new, *items[:5]], target)
+    text = target.read_text(encoding="utf-8")
+    assert "SEGURIDAD: solo existe lo que está en esta lista" in text and 'title = "Mi coche"' in text
+    assert config_edit.read_car(target)[1][0] == new
+    assert target.with_suffix(".toml.bak").exists()
+    before = target.read_text(encoding="utf-8")
+    with pytest.raises(ConfigError, match="no está en actions.toml"):
+        config_edit.write_car("Vega", [{**new, "arg": "no-existe"}], target)
+    with pytest.raises(ConfigError, match="no existe"):
+        config_edit.write_car("Vega", [{**new, "kind": "builtin", "arg": "hackear"}], target)
+    with pytest.raises(ConfigError, match="Solo caben 6"):
+        config_edit.write_car("Vega", [{**new, "id": f"i{n}"} for n in range(7)], target)
+    assert target.read_text(encoding="utf-8") == before

@@ -257,5 +257,7 @@ def test_buttons_page_lists_the_real_actions(
     assert page.table.rowCount() >= 10  # type: ignore[attr-defined]
     win.show_page(2)
     shot(app, win, "4_botones")
-    win.show_page(4)
+    win.show_page(3)
+    shot(app, win, "7_coche")
+    win.show_page(5)
     shot(app, win, "5_ajustes")
