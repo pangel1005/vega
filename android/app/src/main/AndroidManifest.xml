@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Vibrar cuando vence un recordatorio o un temporizador. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Seguir escuchando con la pantalla en segundo plano (y en el coche): servicio de micrófono. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Para encontrar la pantalla de inicio normal (botón «ANDROID»). -->
     <queries>
@@ -41,6 +45,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".VegaService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.updates"

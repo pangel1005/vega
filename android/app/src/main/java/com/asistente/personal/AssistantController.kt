@@ -182,8 +182,8 @@ class AssistantController(context: Context) {
                         onSleep = { mainThread.post { sleep() } },
                         pcVoice = ::speakWithPc,
                         log = { android.util.Log.i("Vega", it) },
-                        // Charla sin PC: el modelo se carga en segundo plano (~4 s), sin retrasar el resto.
-                        talker = models.llm.takeIf { it.isFile }?.let { com.asistente.personal.local.PhoneLlm(it) },
+                        // Charla sin PC: el modelo se carga al primer uso (~4 s) y se suelta tras 3 min sin usarlo.
+                        talker = models.llm.takeIf { it.isFile }?.let { com.asistente.personal.local.PhoneLlm(it, log = { m -> android.util.Log.i("Vega", m) }) },
                     )
                 } catch (e: Throwable) {
                     android.util.Log.e("Vega", "No arranca la IA del teléfono", e)
@@ -425,7 +425,19 @@ class AssistantController(context: Context) {
 
     private var batteryJob: kotlinx.coroutines.Job? = null
 
-    fun start() {
+    private val owners = Owners()
+
+    /** Alguien (la pantalla, el servicio, el coche…) necesita a Vega: arranca con el primero. */
+    fun start(owner: String = "pantalla") {
+        if (owners.add(owner)) begin()
+    }
+
+    /** Ese alguien ya no la necesita: para cuando se va el último. */
+    fun stop(owner: String = "pantalla") {
+        if (owners.remove(owner)) end()
+    }
+
+    private fun begin() {
         socket.start()
         if (brainOnPhone) startLocal()
         batteryJob?.cancel()
@@ -439,7 +451,7 @@ class AssistantController(context: Context) {
         }
     }
 
-    fun stop() {
+    private fun end() {
         batteryJob?.cancel()
         stopMic()
         player.stop()

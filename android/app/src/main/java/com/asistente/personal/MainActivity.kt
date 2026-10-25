@@ -34,6 +34,22 @@ class MainActivity : ComponentActivity() {
     private lateinit var controller: AssistantController
     private val askMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         controller.micPermission(granted)
+        if (granted) {
+            if (!VegaService.running) VegaService.start(this)
+            askNotifications()
+        }
+    }
+
+    /** Android 13+: sin este permiso la notificación de «Vega activa» queda oculta (el servicio funciona igual). */
+    private val askNotificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private fun askNotifications() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            askNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,7 +67,7 @@ class MainActivity : ComponentActivity() {
         window.setBackgroundDrawable(null)
         preferFastestRefreshRate()
 
-        controller = AssistantController(applicationContext)
+        controller = VegaRuntime.controller(applicationContext)
         takeToken(intent)
         setContent { AssistantScreen(controller, ::openAndroid, ::dimScreen) }
     }
@@ -70,13 +86,16 @@ class MainActivity : ComponentActivity() {
         // Escucha continua: hace falta el permiso de micrófono (se pide una sola vez).
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             controller.micPermission(true)
+            // Con el micrófono permitido, Vega sigue escuchando aunque esta pantalla pase a segundo plano.
+            if (!VegaService.running) VegaService.start(this)
+            askNotifications()
         } else {
             askMic.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
     override fun onStop() {
-        // En segundo plano no se mantiene la conexión ni el micrófono.
+        // Sin el servicio, en segundo plano no se mantiene la conexión ni el micrófono.
         controller.stop()
         super.onStop()
     }

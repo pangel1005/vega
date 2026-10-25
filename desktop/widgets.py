@@ -385,7 +385,8 @@ def badge(app: str, size: int = 30) -> QLabel:
     label.setFixedSize(QSize(size, size))
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     label.setStyleSheet(
-        f"background: rgba({c.red()},{c.green()},{c.blue()},45); color: {c.name()}; border-radius: {size // 4}px; font-weight: 700;"
+        f"background: rgba({c.red()},{c.green()},{c.blue()},45); color: {c.name()}; "
+        f"border-radius: {size // 4}px; font-weight: 700;"
     )
     return label
 
