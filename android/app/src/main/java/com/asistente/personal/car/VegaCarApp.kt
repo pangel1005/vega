@@ -65,9 +65,11 @@ class VegaCarSession : Session() {
         val controller = VegaRuntime.controller(carContext)
         // Mientras el coche esté conectado, Vega sigue viva aunque la pantalla del teléfono no se vea.
         controller.start(OWNER)
+        controller.startVehicle()
         lifecycle.addObserver(
             object : DefaultLifecycleObserver {
                 override fun onDestroy(owner: LifecycleOwner) {
+                    controller.stopVehicle()
                     controller.stop(OWNER)
                 }
             },

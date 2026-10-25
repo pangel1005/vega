@@ -44,6 +44,19 @@ class MainActivity : ComponentActivity() {
     private val askNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    /** Android 12+: para ver el lector OBD-II emparejado. Se pregunta una sola vez. */
+    private val askBluetooth = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private fun askBluetoothOnce() {
+        val prefs = getSharedPreferences("asistente", MODE_PRIVATE)
+        if (Build.VERSION.SDK_INT >= 31 && !prefs.getBoolean("pidio_bluetooth", false) &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+        ) {
+            prefs.edit().putBoolean("pidio_bluetooth", true).apply()
+            askBluetooth.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+    }
+
     private fun askNotifications() {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -89,6 +102,7 @@ class MainActivity : ComponentActivity() {
             // Con el micrófono permitido, Vega sigue escuchando aunque esta pantalla pase a segundo plano.
             if (!VegaService.running) VegaService.start(this)
             askNotifications()
+            askBluetoothOnce()
         } else {
             askMic.launch(Manifest.permission.RECORD_AUDIO)
         }

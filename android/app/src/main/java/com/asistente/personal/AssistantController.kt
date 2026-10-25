@@ -40,6 +40,7 @@ private const val ECHO_GUARD_MS = 500L
  * se manda al PC todo el rato; el PC solo atiende las frases que empiezan por el nombre.
  */
 class AssistantController(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     var ui by mutableStateOf(UiState())
@@ -296,6 +297,19 @@ class AssistantController(context: Context) {
 
     /** Lo que dice el lector OBD-II del coche, si hay uno conectado (null: ninguno). */
     var vehicle by mutableStateOf<com.asistente.personal.car.VehicleReading?>(null)
+
+    private var obd: com.asistente.personal.car.ObdMonitor? = null
+
+    /** El coche está conectado: se lee el lector OBD-II (solo lectura) mientras dure. */
+    fun startVehicle() {
+        if (obd != null) return
+        obd = com.asistente.personal.car.ObdMonitor(appContext) { reading -> mainThread.post { vehicle = reading } }.also { it.start() }
+    }
+
+    fun stopVehicle() {
+        obd?.stop()
+        obd = null
+    }
 
     /**
      * Pulsa un botón del PC que pide confirmación y la acepta: el coche ya preguntó «¿Seguro?».
