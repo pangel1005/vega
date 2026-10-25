@@ -3,6 +3,8 @@
     uv run python tools/phone_dedicate.py            # aplica y apunta qué cambió
     uv run python tools/phone_dedicate.py --undo     # lo deja como estaba
     uv run python tools/phone_dedicate.py --status   # mide RAM y procesos
+    uv run python tools/phone_dedicate.py --car      # repone Play Services/Play Store para Android Auto
+    uv run python tools/phone_dedicate.py --no-car   # los vuelve a quitar (recupera ~480 MB de RAM)
 
 Todo se hace con adb, sin root y sin tocar nada que el teléfono necesite para funcionar
 (pantalla, llamadas, ajustes, seguridad, teclado, instalador de apps):
@@ -63,6 +65,13 @@ com.android.vending com.google.android.gms.location.history com.google.android.s
 com.google.android.gms com.google.android.gsf
 """.split()
 
+# Android Auto necesita Google Play Services y la tienda (el Android Auto del teléfono es solo un
+# marcador de sistema: la app de verdad se instala desde Google Play, con tu cuenta).
+CAR_PACKAGES = [
+    "com.google.android.gms", "com.google.android.gsf", "com.android.vending",
+    "com.google.android.projection.gearhead", "com.google.android.gms.location.history",
+]
+
 # Se dejan, pero casi sin segundo plano. (Play Services y Play Store reaparecían al instante
 # aunque estuvieran restringidos y se llevaban ~480 MB: se quitan; ver DISABLE.)
 RESTRICT = [
@@ -112,6 +121,8 @@ def apply() -> None:
     for pkg in DISABLE:
         if pkg not in enabled:
             continue
+        if saved.get("car") and pkg in CAR_PACKAGES:
+            continue  # en modo coche se dejan
         out = adb("pm", "disable-user", "--user", "0", pkg)
         if "new state: disabled" in out:
             done.append(pkg)
@@ -157,6 +168,31 @@ def apply() -> None:
     print(f"\nGuardado en {STATE.relative_to(ROOT)} (para --undo).")
 
 
+def car_on() -> None:
+    """Repone lo que Android Auto necesita. Después: abre Google Play en el teléfono, instala «Android Auto»
+    con tu cuenta y sigue docs/coche.md."""
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    saved = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"disabled": [], "settings": {}, "buckets": {}}
+    for pkg in CAR_PACKAGES:
+        print(f"   {pkg}: {adb('cmd', 'package', 'install-existing', '--user', '0', pkg)}")
+    saved["car"] = True
+    STATE.write_text(json.dumps(saved, indent=2), encoding="utf-8")
+    print("
+Listo. Abre Google Play en el teléfono, inicia sesión e instala «Android Auto».")
+
+
+def car_off() -> None:
+    saved = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"disabled": [], "settings": {}, "buckets": {}}
+    removed = set(saved.get("removed", []))
+    for pkg in CAR_PACKAGES:
+        if "Success" in adb("pm", "uninstall", "-k", "--user", "0", pkg):
+            removed.add(pkg)
+    saved["removed"] = sorted(removed)
+    saved["car"] = False
+    STATE.write_text(json.dumps(saved, indent=2), encoding="utf-8")
+    print("Vuelto a quitar Play Services y Play Store.")
+
+
 def undo() -> None:
     if not STATE.exists():
         raise SystemExit("No hay nada que deshacer (falta data/telefono_antes.json).")
@@ -182,4 +218,4 @@ def undo() -> None:
 
 
 if __name__ == "__main__":
-    {"--undo": undo, "--status": status}.get(sys.argv[1] if len(sys.argv) > 1 else "", apply)()
+    {"--undo": undo, "--status": status, "--car": car_on, "--no-car": car_off}.get(sys.argv[1] if len(sys.argv) > 1 else "", apply)()
