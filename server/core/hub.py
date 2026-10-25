@@ -18,7 +18,17 @@ from server.device.media import Command, MediaWatcher, NowPlaying
 from server.device.notifications import NotificationReader, PcNotification
 from server.memory.personal import PersonalMemory, Reminder
 from server.skills.status import PcSample, sample_pc
-from server.ws.protocol import MediaEvent, NotificationItem, NotificationsEvent, TelemetryEvent, Upcoming
+from server.ws.protocol import (
+    MediaEvent,
+    NotificationItem,
+    NotificationsEvent,
+    PhoneControlEvent,
+    PhoneState,
+    PhoneStateEvent,
+    ServerEvent,
+    TelemetryEvent,
+    Upcoming,
+)
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +45,10 @@ class Listener(Protocol):
     async def send_media(self, event: MediaEvent) -> None: ...
 
     async def send_notifications(self, event: NotificationsEvent) -> None: ...
+
+    async def send_event(self, event: ServerEvent) -> None: ...
+
+    async def send_actions(self) -> None: ...
 
 
 class Hub:
@@ -55,15 +69,62 @@ class Hub:
         self._notifications = notifications
         self._notes_sent: list[PcNotification] | None = None  # None = aún no se mandó nada
         self._clients: set[Listener] = set()
+        self._roles: dict[Listener, str] = {}
+        self._phone_state: PhoneState | None = None
         self._task: asyncio.Task[None] | None = None
 
-    def add(self, client: Listener) -> None:
+    def add(self, client: Listener, role: str = "phone") -> None:
         self._clients.add(client)
+        self._roles[client] = role
         self._media_known = False  # el que llega recibe lo que suena en la próxima vuelta
         self._notes_sent = None  # y las notificaciones
 
-    def remove(self, client: Listener) -> None:
+    def remove(self, client: Listener) -> asyncio.Task[None] | None:
+        """Quita un cliente. Si era el último teléfono, avisa a la app del PC de que se fue."""
         self._clients.discard(client)
+        role = self._roles.pop(client, "phone")
+        if role == "phone" and not self._with_role("phone"):
+            self._phone_state = None
+            return asyncio.ensure_future(self.broadcast("desktop", PhoneStateEvent(online=False)))
+        return None
+
+    def _with_role(self, role: str) -> list[Listener]:
+        return [c for c in self._clients if self._roles.get(c, "phone") == role]
+
+    async def broadcast(self, role: str, event: ServerEvent) -> None:
+        """Manda un evento a todos los clientes de un tipo («phone» o «desktop»)."""
+        for client in self._with_role(role):
+            try:
+                await client.send_event(event)
+            except Exception:
+                log.debug("No pude mandar un evento a un cliente", exc_info=True)
+
+    async def mirror(self, event: ServerEvent) -> None:
+        """Lo que pasa en el teléfono (oye, piensa, responde) se ve también en la app del PC."""
+        await self.broadcast("desktop", event)
+
+    async def set_phone_state(self, state: PhoneState) -> None:
+        self._phone_state = state
+        await self.broadcast("desktop", PhoneStateEvent(**state.model_dump(), online=True))
+
+    async def send_phone_state(self, client: Listener) -> None:
+        """A la app del PC que acaba de conectar: cómo está el teléfono ahora."""
+        event = (
+            PhoneStateEvent(**self._phone_state.model_dump(), online=True)
+            if self._phone_state is not None
+            else PhoneStateEvent(online=bool(self._with_role("phone")))
+        )
+        await client.send_event(event)
+
+    async def control_phone(self, command: str) -> None:
+        await self.broadcast("phone", PhoneControlEvent(command=command))  # type: ignore[arg-type]
+
+    async def refresh_actions(self) -> None:
+        for client in list(self._clients):
+            try:
+                await client.send_actions()
+            except Exception:
+                log.debug("No pude mandar los botones a un cliente", exc_info=True)
 
     async def deliver_due(self) -> int:
         """Entrega los recordatorios vencidos. Devuelve cuántos se entregaron."""

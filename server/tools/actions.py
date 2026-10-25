@@ -141,6 +141,12 @@ class ActionRunner:
     def actions(self) -> list[ActionDef]:
         return list(self._order)
 
+    def replace(self, actions: list[ActionDef]) -> None:
+        """Cambia los botones sin reiniciar (la app del PC edita config/actions.toml)."""
+        self._actions = {a.id: a for a in actions}
+        self._order = actions
+        self._pending.clear()  # una confirmación pendiente de un botón que ya no existe no vale
+
     def match(self, text: str) -> ActionDef | None:
         """Busca un botón cuya frase aparezca en lo dicho («apaga el pc por favor» → apagar).
         Si varias encajan, gana la frase más larga (la más específica)."""

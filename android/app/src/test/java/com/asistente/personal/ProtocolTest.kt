@@ -117,4 +117,16 @@ class ProtocolTest {
         val max = byteArrayOf(0xFF.toByte(), 0x7F, 0x00, 0x80.toByte()) // 32767, -32768
         assertEquals(1f, rmsPcm16(max, 4), 1e-3f)
     }
+
+    @Test fun `entiende las ordenes de la app del PC y publica el estado del telefono`() {
+        assertEquals(com.asistente.personal.net.ServerEvent.PhoneControl("sleep"), com.asistente.personal.net.Protocol.parse("""{"type":"phone_control","command":"sleep"}"""))
+        assertEquals(com.asistente.personal.net.ServerEvent.Sleep, com.asistente.personal.net.Protocol.parse("""{"type":"sleep"}"""))
+        val sent = org.json.JSONObject(
+            com.asistente.personal.net.Protocol.phoneState(true, false, true, 91, true, false, "SOFT", "WARM", 428883),
+        )
+        assertEquals("phone_state", sent.getString("type"))
+        assertEquals("phone", sent.getString("brain"))
+        assertEquals("soft", sent.getString("touch"))
+        assertEquals(91, sent.getInt("battery"))
+    }
 }

@@ -1,7 +1,9 @@
 """Mensajes JSON del WebSocket `/ws`.
 
 Cliente → servidor:
-    {"type": "hello", "token": "..."}   primer mensaje obligatorio
+    {"type": "hello", "token": "...", "role": "phone|desktop"}  primer mensaje obligatorio;
+                                         «desktop» (app del PC) ve lo que pasa en el teléfono y
+                                         puede controlarlo, pero no habla ni escucha
     {"type": "chat", "text": "..."}
     {"type": "reset"}                    empieza una conversación nueva
     {"type": "listen_start"}             empieza a grabar; luego llegan mensajes BINARIOS
@@ -22,6 +24,12 @@ Cliente → servidor:
      "text", "due_at"}]}                 lo que el teléfono guardó sin PC
     {"type": "say", "text": "..."}       (IA en el teléfono) el PC lo dice con su voz (Kokoro en
                                          el procesador): suena más natural que la del teléfono
+    {"type": "phone_state", "brain": "pc|phone", "sleeping": false, "mic": true, "battery": 91,
+     "charging": true, "glass": false, "touch": "soft", "face": "WARM", "version": 428883}
+                                         (teléfono) su estado, para que lo vea la app del PC
+    {"type": "phone_control", "command": "sleep|wake|brain_pc|brain_phone|glass_on|glass_off|mic_on|mic_off"}
+                                         (app del PC) manda una orden al teléfono
+    {"type": "reload_actions"}           vuelve a leer config/actions.toml y reparte los botones
     {"type": "sleep", "on": true}        botón de dormir: sin escuchar y sin modelo en la gráfica
                                          (con false se despierta)
     {"type": "brain", "where": "pc|phone"}  dónde piensa Vega: con «phone» el teléfono
@@ -44,6 +52,9 @@ Servidor → cliente:
     {"type": "token", "text": "..."}     trozo de la respuesta, en cuanto llega
     {"type": "done", "text": "..."}      respuesta completa
     {"type": "error", "message": "..."}  texto pensado para mostrarse al usuario
+    {"type": "phone_state", "online": true, ...}  (app del PC) estado del teléfono; online=false
+                                         si se desconectó
+    {"type": "phone_control", "command": "..."}   (teléfono) orden de la app del PC
     {"type": "sleep"}                    «Vega, duérmete»: el teléfono pasa a dormir
     {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
                                          (lo dice el teléfono con su voz)
@@ -77,6 +88,7 @@ class _Msg(BaseModel):
 class Hello(_Msg):
     type: Literal["hello"] = "hello"
     token: str = Field(max_length=200)
+    role: Literal["phone", "desktop"] = "phone"
 
 
 class ChatRequest(_Msg):
@@ -161,6 +173,39 @@ class Say(_Msg):
     text: str = Field(min_length=1, max_length=2000)
 
 
+class PhoneState(_Msg):
+    """Estado del teléfono, para que la app del PC lo vea."""
+
+    type: Literal["phone_state"] = "phone_state"
+    brain: Literal["pc", "phone"] = "pc"
+    sleeping: bool = False
+    mic: bool = False
+    battery: int = -1
+    charging: bool = False
+    glass: bool = False
+    touch: str = "soft"
+    face: str = ""
+    version: int = 0
+
+
+PhoneCommandName = Literal[
+    "sleep", "wake", "brain_pc", "brain_phone", "glass_on", "glass_off", "mic_on", "mic_off"
+]
+
+
+class PhoneControl(_Msg):
+    """La app del PC manda una orden al teléfono."""
+
+    type: Literal["phone_control"] = "phone_control"
+    command: PhoneCommandName
+
+
+class ReloadActions(_Msg):
+    """Vuelve a leer config/actions.toml (la app del PC lo edita) y reparte los botones."""
+
+    type: Literal["reload_actions"] = "reload_actions"
+
+
 class SleepMode(_Msg):
     """Botón de dormir del teléfono: el PC deja de escuchar y suelta el modelo de la gráfica."""
 
@@ -207,6 +252,9 @@ AnyClientMessage = (
     | MemoryImport
     | Say
     | SleepMode
+    | PhoneState
+    | PhoneControl
+    | ReloadActions
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
@@ -325,6 +373,19 @@ class MediaEvent(_Msg):
     can_next: bool = False
 
 
+class PhoneStateEvent(PhoneState):
+    """Estado del teléfono para la app del PC; `online` es false si el teléfono no está conectado."""
+
+    online: bool = True
+
+
+class PhoneControlEvent(_Msg):
+    """Orden de la app del PC para el teléfono."""
+
+    type: Literal["phone_control"] = "phone_control"
+    command: PhoneCommandName
+
+
 class SleepEvent(_Msg):
     """Alguien le dijo a Vega que se durmiera: el teléfono pasa a dormir."""
 
@@ -387,4 +448,6 @@ ServerEvent = (
     | NotificationsEvent
     | PhoneReplyEvent
     | SleepEvent
+    | PhoneStateEvent
+    | PhoneControlEvent
 )

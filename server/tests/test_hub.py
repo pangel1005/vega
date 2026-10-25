@@ -26,6 +26,8 @@ class Client:
         self.telemetry: list[TelemetryEvent] = []
         self.media: list[MediaEvent] = []
         self.notifications: list[NotificationsEvent] = []
+        self.events: list[object] = []
+        self.actions_sent = 0
 
     async def announce(self, reminder: Reminder, late: bool) -> None:
         self.heard.append((reminder.text, late))
@@ -38,6 +40,12 @@ class Client:
 
     async def send_notifications(self, event: NotificationsEvent) -> None:
         self.notifications.append(event)
+
+    async def send_event(self, event: object) -> None:
+        self.events.append(event)
+
+    async def send_actions(self) -> None:
+        self.actions_sent += 1
 
 
 def test_reminder_is_delivered_when_due() -> None:
@@ -214,3 +222,42 @@ def test_dismissing_from_the_phone_removes_it_on_the_pc() -> None:
     assert [n.id for n in client.notifications[-1].items] == [1]
     asyncio.run(hub.dismiss_notification(None))
     assert client.notifications[-1].items == []
+
+
+def test_desktop_sees_the_phone_and_controls_it() -> None:
+    from server.ws.protocol import PhoneControlEvent, PhoneState, PhoneStateEvent
+
+    hub = Hub(PersonalMemory(ConversationStore(":memory:")), now=Clock())
+    phone, desktop = Client(), Client()
+    hub.add(phone, "phone")
+    hub.add(desktop, "desktop")
+    asyncio.run(hub.send_phone_state(desktop))  # el teléfono aún no dijo nada, pero está conectado
+    assert desktop.events == [PhoneStateEvent(online=True)]
+    asyncio.run(hub.set_phone_state(PhoneState(brain="phone", sleeping=True, battery=80)))
+    last = desktop.events[-1]
+    assert isinstance(last, PhoneStateEvent) and last.brain == "phone" and last.sleeping and last.online
+    assert phone.events == []  # el teléfono no recibe su propio estado
+    asyncio.run(hub.control_phone("sleep"))
+    assert phone.events == [PhoneControlEvent(command="sleep")]
+    assert len(desktop.events) == 2  # y el escritorio no recibe las órdenes
+    asyncio.run(hub.mirror(PhoneControlEvent(command="wake")))  # lo que pasa en el teléfono se refleja
+    assert desktop.events[-1] == PhoneControlEvent(command="wake") and phone.events == [
+        PhoneControlEvent(command="sleep")
+    ]
+
+
+def test_desktop_is_told_when_the_phone_leaves() -> None:
+    from server.ws.protocol import PhoneStateEvent
+
+    async def run() -> None:
+        hub = Hub(PersonalMemory(ConversationStore(":memory:")), now=Clock())
+        phone, desktop = Client(), Client()
+        hub.add(phone, "phone")
+        hub.add(desktop, "desktop")
+        task = hub.remove(phone)
+        assert task is not None
+        await task
+        assert desktop.events[-1] == PhoneStateEvent(online=False)
+        assert hub.remove(desktop) is None  # irse el escritorio no avisa a nadie
+
+    asyncio.run(run())

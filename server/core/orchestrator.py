@@ -459,6 +459,9 @@ class Orchestrator:
     async def send_notifications(self, event: NotificationsEvent) -> None:
         await self._emit(event)
 
+    async def send_event(self, event: ServerEvent) -> None:
+        await self._emit(event)
+
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
         task = asyncio.create_task(coro)
         self._tasks.add(task)

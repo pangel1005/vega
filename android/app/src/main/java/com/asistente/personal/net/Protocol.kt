@@ -106,6 +106,8 @@ sealed interface ServerEvent {
     data class Media(val media: MediaInfo?) : ServerEvent
     /** Las notificaciones del PC, de la más nueva a la más vieja. */
     data class Notifications(val items: List<PcNote>) : ServerEvent
+    /** Una orden de la app del PC: sleep, wake, brain_pc, brain_phone, glass_on, glass_off, mic_on, mic_off. */
+    data class PhoneControl(val command: String) : ServerEvent
     /** «Vega, duérmete»: el teléfono pasa a dormir. */
     data object Sleep : ServerEvent
     /** Respuesta del PC a una orden que entendió el teléfono (IA en el teléfono). */
@@ -173,6 +175,7 @@ object Protocol {
                 })
             }
             "sleep" -> ServerEvent.Sleep
+            "phone_control" -> ServerEvent.PhoneControl(o.getString("command"))
             "phone_reply" -> ServerEvent.PhoneReply(o.getBoolean("handled"), o.optString("text"))
             "telemetry" -> {
                 val arr = o.optJSONArray("upcoming")
@@ -203,6 +206,13 @@ object Protocol {
         JSONObject().put("type", "media_control").put("command", command).toString()
     fun setVoice(id: String): String = JSONObject().put("type", "set_voice").put("voice", id).toString()
     fun confirm(nonce: String): String = JSONObject().put("type", "action_confirm").put("nonce", nonce).toString()
+    /** El estado del teléfono para la app del PC (ver `phone_state` en server/ws/protocol.py). */
+    fun phoneState(
+        brainOnPhone: Boolean, sleeping: Boolean, mic: Boolean, battery: Int, charging: Boolean,
+        glass: Boolean, touch: String, face: String, version: Int,
+    ): String = JSONObject().put("type", "phone_state").put("brain", if (brainOnPhone) "phone" else "pc")
+        .put("sleeping", sleeping).put("mic", mic).put("battery", battery).put("charging", charging)
+        .put("glass", glass).put("touch", touch.lowercase()).put("face", face).put("version", version).toString()
     fun sleepMode(on: Boolean): String = JSONObject().put("type", "sleep").put("on", on).toString()
     fun phoneCommand(text: String): String = JSONObject().put("type", "phone_command").put("text", text).toString()
     /** Quita una notificación del PC; con null, todas. */

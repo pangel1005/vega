@@ -288,6 +288,34 @@ class AssistantController(context: Context) {
         stopLocal()
     }
 
+    /** Lo que manda la app del PC (ver `phone_control` en server/ws/protocol.py). */
+    private fun obey(command: String) {
+        when (command) {
+            "sleep" -> sleep()
+            "wake" -> wake()
+            "brain_phone" -> if (!brainOnPhone) toggleBrain()
+            "brain_pc" -> if (brainOnPhone) toggleBrain()
+            "glass_on" -> if (!glass) toggleGlass()
+            "glass_off" -> if (glass) toggleGlass()
+            "mic_on" -> if (!listenEnabled) toggleListening()
+            "mic_off" -> if (listenEnabled) toggleListening()
+        }
+    }
+
+    private var lastPublished = ""
+
+    /** Cada 2 s, si algo cambió (o acaba de conectar), cuenta cómo está el teléfono al PC. */
+    private fun publishState() {
+        if (ui.link != LinkStatus.OPEN) {
+            lastPublished = ""
+            return
+        }
+        val now = Protocol.phoneState(
+            brainOnPhone, sleeping, micOn, battery, charging, glass, touchFeel.name, faceColor.name, BuildConfig.VERSION_CODE,
+        )
+        if (now != lastPublished && socket.send(now)) lastPublished = now
+    }
+
     fun wake() {
         if (!sleeping) return
         sleeping = false
@@ -328,6 +356,7 @@ class AssistantController(context: Context) {
         token = { prefs.getString(KEY_TOKEN, "") ?: "" },
         onEvent = { event ->
             if (event is ServerEvent.Sleep) mainThread.post { sleep() }
+            if (event is ServerEvent.PhoneControl) mainThread.post { obey(event.command) }
             if (event is ServerEvent.PhoneReply) pcAnswer?.complete(event)
             if (event is ServerEvent.Audio) pcVoiceStarted?.complete(true)
             if (event is ServerEvent.AudioEnd) {
@@ -401,9 +430,11 @@ class AssistantController(context: Context) {
         if (brainOnPhone) startLocal()
         batteryJob?.cancel()
         batteryJob = scope.launch {
+            var round = 0
             while (true) {
-                readBattery()
-                kotlinx.coroutines.delay(30_000)
+                if (round++ % 15 == 0) readBattery() // cada 30 s
+                publishState()
+                kotlinx.coroutines.delay(2_000)
             }
         }
     }

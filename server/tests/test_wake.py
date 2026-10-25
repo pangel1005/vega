@@ -295,3 +295,86 @@ def test_saying_goodnight_tells_the_phone_to_sleep() -> None:
         say(ws)
         events = until(ws, "sleep")
     assert events[-1] == {"type": "sleep"}
+
+
+def desktop_session(model: FakeChat, ex: FakeExecutor) -> Any:
+    async def probe() -> LlmStatus:
+        return LlmStatus(True, "ok")
+
+    app = create_app(
+        Settings(assistant=AssistantSettings(name="Vega"), llm=LlmSettings(model="fake")),
+        token=TOKEN,
+        llm_probe=probe,
+        chat_model=model,
+        store=ConversationStore(":memory:"),
+        stt=FakeSTT(texts=["Vega, ¿qué hora es?"]),
+        actions=ActionRunner(ACTIONS, ex),
+    )
+    client = TestClient(app, base_url="http://127.0.0.1:8000")
+    return client, client.websocket_connect("ws://127.0.0.1:8000/ws")
+
+
+def test_desktop_app_mirrors_the_phone_and_controls_it() -> None:
+    """La app del PC ve el estado y lo que pasa en el teléfono, y le manda órdenes."""
+    model, ex = FakeChat(pieces=["Hola."]), FakeExecutor()
+    client, phone_cm = desktop_session(model, ex)
+    with phone_cm as phone, client.websocket_connect("ws://127.0.0.1:8000/ws") as desk:
+        start(phone)
+        desk.send_json({"type": "hello", "token": TOKEN, "role": "desktop"})
+        for _ in range(4):  # ready, estado del teléfono, botones, historial
+            desk.receive_json()
+        phone.send_json(
+            {
+                "type": "phone_state",
+                "brain": "phone",
+                "sleeping": False,
+                "mic": True,
+                "battery": 90,
+                "charging": True,
+            }
+        )
+        state = until(desk, "phone_state")[-1]
+        assert state["online"] is True and state["brain"] == "phone" and state["battery"] == 90
+        # Lo que se dice al teléfono se ve en el escritorio.
+        say(phone)
+        mirrored = until(desk, "done")
+        assert any(e["type"] == "transcript" for e in mirrored)
+        # El escritorio controla el teléfono.
+        desk.send_json({"type": "phone_control", "command": "sleep"})
+        assert until(phone, "phone_control")[-1] == {"type": "phone_control", "command": "sleep"}
+        # El teléfono no puede mandarse órdenes a sí mismo por esta vía.
+        phone.send_json({"type": "phone_control", "command": "wake"})
+        desk.send_json({"type": "chat", "text": "hola"})
+        assert all(e["type"] != "phone_control" for e in until(desk, "done"))
+    # Al irse el teléfono, el escritorio lo sabe.
+
+
+def test_desktop_never_listens_or_speaks() -> None:
+    model, ex = FakeChat(pieces=["Hola."]), FakeExecutor()
+    client, cm = desktop_session(model, ex)
+    with cm as desk:
+        desk.send_json({"type": "hello", "token": TOKEN, "role": "desktop"})
+        for _ in range(4):
+            desk.receive_json()
+        desk.send_json({"type": "wake_mode", "on": True})
+        say(desk)  # audio al servidor: nadie lo atiende
+        desk.send_json({"type": "chat", "text": "hola"})
+        events = until(desk, "done")
+    assert all(e["type"] not in ("transcript", "audio") for e in events)
+
+
+def test_reloading_actions_hands_out_the_new_buttons(tmp_path: Any, monkeypatch: Any) -> None:
+    import server.ws.routes as routes
+    from server.tools.actions import ActionDef
+
+    model, ex = FakeChat(), FakeExecutor()
+    client, cm = desktop_session(model, ex)
+    new = [ActionDef(id="nueva", label="Nueva", kind="keys", arg="volume_mute")]
+    monkeypatch.setattr(routes, "load_actions", lambda: new)
+    with cm as desk:
+        desk.send_json({"type": "hello", "token": TOKEN, "role": "desktop"})
+        for _ in range(4):
+            desk.receive_json()
+        desk.send_json({"type": "reload_actions"})
+        items = until(desk, "actions")[-1]["items"]
+    assert [i["id"] for i in items] == ["nueva"]

@@ -18,13 +18,16 @@ from server.memory.store import ConversationStore
 from server.skills.router import SkillRouter
 from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
-from server.tools.actions import ActionRunner
+from server.tools.actions import ActionRunner, load_actions
 from server.ws.protocol import (
     ActionConfirm,
     ActionRequest,
+    ActionResultEvent,
     Attention,
     Brain,
     ChatRequest,
+    ConfirmEvent,
+    DoneEvent,
     ErrorEvent,
     Hello,
     ListenCancel,
@@ -34,18 +37,27 @@ from server.ws.protocol import (
     MemoryImport,
     NotificationDismiss,
     PhoneCommand,
+    PhoneControl,
+    PhoneState,
     PlaybackDone,
     Ready,
+    ReloadActions,
     Reset,
     Say,
     ServerEvent,
     SetVoice,
     SleepMode,
+    StateEvent,
+    TokenEvent,
+    TranscriptEvent,
     WakeMode,
     client_message,
 )
 
 log = logging.getLogger(__name__)
+
+# Lo que pasa en el teléfono y se ve también en la app del PC.
+MIRRORED = (StateEvent, TranscriptEvent, TokenEvent, DoneEvent, ErrorEvent, ConfirmEvent, ActionResultEvent)
 
 HELLO_TIMEOUT_S = 5.0
 CLOSE_UNAUTHORIZED = 4401
@@ -87,10 +99,13 @@ def register_ws(
         # Un solo candado para todo lo que se envía: así la cabecera de una frase de voz y su
         # audio salen juntos, sin que otro mensaje se cuele entre medias.
         send_lock = asyncio.Lock()
+        role = "phone"  # se sabe tras el saludo
 
         async def emit(event: ServerEvent) -> None:
             async with send_lock:
                 await websocket.send_text(event.model_dump_json())
+            if role == "phone" and hub is not None and isinstance(event, MIRRORED):
+                await hub.mirror(event)
 
         async def emit_audio(header: ServerEvent, pcm: bytes) -> None:
             async with send_lock:
@@ -110,25 +125,30 @@ def register_ws(
         except WebSocketDisconnect:
             return
 
-        log.info("Cliente conectado (%s)", origin or "sin origen")
+        role = hello.role
+        log.info("Cliente conectado (%s, %s)", role, origin or "sin origen")
         await emit(Ready(assistant=settings.assistant.name, model=model.name))
+        # La app del PC solo lee y escribe: no oye ni habla (eso es del teléfono).
+        desktop = role == "desktop"
         orchestrator = Orchestrator(
             model,
             settings.system_prompt,
             store,
             emit,
-            stt=stt,
+            stt=None if desktop else stt,
             max_audio_seconds=settings.speech.max_seconds,
             actions=actions,
             name=settings.assistant.name,
-            tts=tts,
+            tts=None if desktop else tts,
             emit_audio=emit_audio,
             skills=skills,
             memory=memory,
         )
         if hub is not None:
-            hub.add(orchestrator)
+            hub.add(orchestrator, role)
         try:
+            if desktop and hub is not None:
+                await hub.send_phone_state(orchestrator)
             await orchestrator.send_actions()
             await orchestrator.send_voices()
             await orchestrator.send_history()
@@ -171,6 +191,18 @@ def register_ws(
                     await orchestrator.phone_command(msg.text)
                 elif isinstance(msg, MemoryImport):
                     await orchestrator.import_memory(msg)
+                elif isinstance(msg, PhoneState) and hub is not None and role == "phone":
+                    await hub.set_phone_state(msg)
+                elif isinstance(msg, PhoneControl) and hub is not None and desktop:
+                    await hub.control_phone(msg.command)
+                elif isinstance(msg, ReloadActions) and actions is not None and desktop:
+                    try:
+                        actions.replace(load_actions())
+                    except Exception as exc:  # un actions.toml mal escrito no debe tirar nada
+                        await emit(ErrorEvent(message=f"config/actions.toml no es válido: {exc}"))
+                    else:
+                        if hub is not None:
+                            await hub.refresh_actions()
                 elif isinstance(msg, SleepMode):
                     await orchestrator.set_sleep(msg.on)
                 elif isinstance(msg, Say):
@@ -185,5 +217,7 @@ def register_ws(
             log.info("Cliente desconectado")
         finally:
             if hub is not None:
-                hub.remove(orchestrator)
+                gone = hub.remove(orchestrator)
+                if gone is not None:
+                    await gone
             await orchestrator.close()

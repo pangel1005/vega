@@ -164,5 +164,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         is ServerEvent.PhoneReply -> s
         // La atiende AssistantController (pasa a dormir); la pantalla no cambia por sí sola.
         is ServerEvent.Sleep -> s
+        // Las órdenes de la app del PC las ejecuta AssistantController.
+        is ServerEvent.PhoneControl -> s
     }
 }
