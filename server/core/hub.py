@@ -99,6 +99,10 @@ class Hub:
             except Exception:
                 log.debug("No pude mandar un evento a un cliente", exc_info=True)
 
+    async def broadcast_all(self, event: ServerEvent) -> None:
+        for role in ("phone", "desktop"):
+            await self.broadcast(role, event)
+
     async def mirror(self, event: ServerEvent) -> None:
         """Lo que pasa en el teléfono (oye, piensa, responde) se ve también en la app del PC."""
         await self.broadcast("desktop", event)

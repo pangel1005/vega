@@ -9,6 +9,7 @@ import secrets
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
+from server.core.car import CarConfig, CarError
 from server.core.config import Settings
 from server.core.hub import Hub
 from server.core.orchestrator import Orchestrator
@@ -42,6 +43,7 @@ from server.ws.protocol import (
     PlaybackDone,
     Ready,
     ReloadActions,
+    ReloadCar,
     Reset,
     Say,
     ServerEvent,
@@ -83,6 +85,7 @@ def register_ws(
     skills: SkillRouter | None = None,
     memory: PersonalMemory | None = None,
     hub: Hub | None = None,
+    car: CarConfig | None = None,
 ) -> None:
     origins = allowed_origins(settings)
 
@@ -149,6 +152,8 @@ def register_ws(
         try:
             if desktop and hub is not None:
                 await hub.send_phone_state(orchestrator)
+            if car is not None:
+                await emit(car.event())
             await orchestrator.send_actions()
             await orchestrator.send_voices()
             await orchestrator.send_history()
@@ -203,6 +208,14 @@ def register_ws(
                     else:
                         if hub is not None:
                             await hub.refresh_actions()
+                elif isinstance(msg, ReloadCar) and car is not None and desktop:
+                    try:
+                        car.reload()
+                    except CarError as exc:
+                        await emit(ErrorEvent(message=str(exc)))
+                    else:
+                        if hub is not None:
+                            await hub.broadcast_all(car.event())
                 elif isinstance(msg, SleepMode):
                     await orchestrator.set_sleep(msg.on)
                 elif isinstance(msg, Say):

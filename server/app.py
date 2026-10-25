@@ -17,6 +17,7 @@ from fastapi import FastAPI, Request, Response
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from server import __version__
+from server.core.car import CarConfig
 from server.core.config import ROOT, Settings
 from server.core.hub import Hub
 from server.core.stallwatch import StallWatch
@@ -88,6 +89,7 @@ def create_app(
     app_icons: AppIcons | None = None,
     media: MediaWatcher | None = None,
     notifications: NotificationReader | None = None,
+    car: CarConfig | None = None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
@@ -125,7 +127,7 @@ def create_app(
     # Solo se atienden peticiones dirigidas a 127.0.0.1/localhost. Esto frena el
     # «DNS rebinding»: una web maliciosa que apunta su dominio a 127.0.0.1 para leer el token.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(TRUSTED_HOSTS))
-    register_ws(app, settings, model, history, token, stt, actions, tts, skills, memory, hub)
+    register_ws(app, settings, model, history, token, stt, actions, tts, skills, memory, hub, car)
     register_ui(app, token, ui_dist)
     if app_icons is not None:
         register_app_icons(app, app_icons)

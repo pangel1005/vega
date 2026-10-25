@@ -9,6 +9,7 @@ import threading
 import uvicorn
 
 from server.app import create_app
+from server.core.car import CarConfig
 from server.core.config import ROOT, ConfigError, Settings, load_settings
 from server.core.logs import setup_logging
 from server.core.token import load_or_create_token
@@ -119,6 +120,7 @@ def main() -> int:
             app_icons=AppIcons(actions.actions, ROOT / "data" / "icons"),
             media=MediaWatcher(),
             notifications=NotificationReader(),
+            car=CarConfig(known_actions={a.id for a in actions.actions}),
         ),
         host=settings.server.host,
         port=settings.server.port,

@@ -30,6 +30,7 @@ Cliente → servidor:
     {"type": "phone_control", "command": "sleep|wake|brain_pc|brain_phone|glass_on|glass_off|mic_on|mic_off"}
                                          (app del PC) manda una orden al teléfono
     {"type": "reload_actions"}           vuelve a leer config/actions.toml y reparte los botones
+    {"type": "reload_car"}               (app del PC) vuelve a leer config/car.toml y la reparte
     {"type": "sleep", "on": true}        botón de dormir: sin escuchar y sin modelo en la gráfica
                                          (con false se despierta)
     {"type": "brain", "where": "pc|phone"}  dónde piensa Vega: con «phone» el teléfono
@@ -55,6 +56,9 @@ Servidor → cliente:
     {"type": "phone_state", "online": true, ...}  (app del PC) estado del teléfono; online=false
                                          si se desconectó
     {"type": "phone_control", "command": "..."}   (teléfono) orden de la app del PC
+    {"type": "car_layout", "title": "Vega", "items": [{"id", "label", "kind", "arg"}]}
+                                         las casillas de la pantalla de Vega en Android Auto
+                                         (lista vacía: el teléfono usa la suya de serie)
     {"type": "sleep"}                    «Vega, duérmete»: el teléfono pasa a dormir
     {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
                                          (lo dice el teléfono con su voz)
@@ -206,6 +210,12 @@ class ReloadActions(_Msg):
     type: Literal["reload_actions"] = "reload_actions"
 
 
+class ReloadCar(_Msg):
+    """Vuelve a leer config/car.toml (la app del PC lo edita) y reparte la pantalla del coche."""
+
+    type: Literal["reload_car"] = "reload_car"
+
+
 class SleepMode(_Msg):
     """Botón de dormir del teléfono: el PC deja de escuchar y suelta el modelo de la gráfica."""
 
@@ -255,6 +265,7 @@ AnyClientMessage = (
     | PhoneState
     | PhoneControl
     | ReloadActions
+    | ReloadCar
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
@@ -386,6 +397,21 @@ class PhoneControlEvent(_Msg):
     command: PhoneCommandName
 
 
+class CarItemData(_Msg):
+    id: str
+    label: str
+    kind: Literal["builtin", "action"]
+    arg: str
+
+
+class CarLayoutEvent(_Msg):
+    """Las casillas de la pantalla de Vega en Android Auto."""
+
+    type: Literal["car_layout"] = "car_layout"
+    title: str = "Vega"
+    items: list[CarItemData] = Field(default_factory=list)
+
+
 class SleepEvent(_Msg):
     """Alguien le dijo a Vega que se durmiera: el teléfono pasa a dormir."""
 
@@ -450,4 +476,5 @@ ServerEvent = (
     | SleepEvent
     | PhoneStateEvent
     | PhoneControlEvent
+    | CarLayoutEvent
 )

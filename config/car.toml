@@ -1,0 +1,54 @@
+# La pantalla de Vega en Android Auto (la del coche, no la del teléfono).
+#
+# Se edita desde la app del PC (página «Coche») o a mano. Caben 6 casillas como mucho.
+#
+# SEGURIDAD: solo existe lo que está en esta lista. Vega no escribe nada en el coche: esto solo
+# decide qué casillas enseña su pantalla en Android Auto y qué hace cada una en Vega y en el PC.
+#
+# Campos de cada casilla [[item]]:
+#   id     identificador único (minúsculas, números y guiones)
+#   label  texto de la casilla (hasta 14 letras)
+#   kind   builtin → algo de Vega        action → un botón de config/actions.toml
+#   arg    builtin: sleep (dormir/despertar) · brain (IA en el PC o en el teléfono) ·
+#                   media (pausa/play) · next (siguiente canción) ·
+#                   notifications (lista de avisos del PC) · pc (estado del PC) ·
+#                   vehicle (datos del coche por OBD-II, si hay lector conectado)
+#          action: el id de un botón de actions.toml (p. ej. "volumen-mas")
+
+title = "Vega"
+
+[[item]]
+id = "dormir"
+label = "Dormir"
+kind = "builtin"
+arg = "sleep"
+
+[[item]]
+id = "musica"
+label = "Pausa / Play"
+kind = "builtin"
+arg = "media"
+
+[[item]]
+id = "siguiente"
+label = "Siguiente"
+kind = "builtin"
+arg = "next"
+
+[[item]]
+id = "avisos"
+label = "Avisos del PC"
+kind = "builtin"
+arg = "notifications"
+
+[[item]]
+id = "pc"
+label = "Estado del PC"
+kind = "builtin"
+arg = "pc"
+
+[[item]]
+id = "ia"
+label = "IA: PC / móvil"
+kind = "builtin"
+arg = "brain"
