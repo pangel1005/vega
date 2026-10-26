@@ -23,7 +23,7 @@ fun missingModels(dir: File, files: List<ModelFile>): List<ModelFile> =
     files.filter { File(dir, it.path).let { f -> !f.isFile || f.length() != it.size } }
 
 /**
- * Modelos de la IA del teléfono (~760 MB: Whisper base, la voz Piper y el modelo de charla). Se bajan del PC una
+ * Modelos de la IA del teléfono (~960 MB: Whisper base, la voz Piper y el modelo de charla). Se bajan del PC una
  * sola vez por el cable, como las actualizaciones, y luego funcionan sin él.
  */
 class ModelStore(val dir: File, private val server: String = "http://127.0.0.1:8000") {
@@ -31,8 +31,11 @@ class ModelStore(val dir: File, private val server: String = "http://127.0.0.1:8
 
     val whisper: File get() = File(dir, "whisper-base")
     val piper: File get() = File(dir, "piper-es_MX")
-    /** Modelo de lenguaje pequeño (Qwen 3.5 0.8B, Q4_K_M, ~530 MB) para charlar sin PC. */
-    val llm: File get() = File(dir, "llm/qwen35-08b-q4.gguf")
+    /**
+     * Modelo de lenguaje pequeño para charlar sin PC: LFM2.5 1.2B Q4_0 (~700 MB). Si solo está el
+     * anterior (Qwen 3.5 0.8B), usa ese hasta que se baje el nuevo.
+     */
+    val llm: File get() = LLM_FILES.map { File(dir, it) }.firstOrNull { it.isFile } ?: File(dir, LLM_FILES.first())
 
     /** Hay algo descargado: se puede intentar arrancar sin el PC. */
     fun present(): Boolean = File(whisper, "base-encoder.int8.onnx").isFile && File(piper, "es_MX-claude-high.onnx").isFile
@@ -79,7 +82,16 @@ class ModelStore(val dir: File, private val server: String = "http://127.0.0.1:8
                 return "Se cortó la descarga de los modelos: ${e.message}"
             }
         }
+        // Modelos de charla que el PC ya no ofrece (el Qwen anterior): ocupan ~500 MB para nada.
+        File(dir, "llm").listFiles { f -> f.name.endsWith(".gguf") }
+            ?.filter { f -> files.none { it.path == "llm/${f.name}" } }
+            ?.forEach { it.delete() }
         progress(1f)
         return null
+    }
+
+    companion object {
+        /** Del más nuevo al más antiguo. */
+        val LLM_FILES = listOf("llm/LFM2.5-1.2B-Instruct-Q4_0.gguf", "llm/qwen35-08b-q4.gguf")
     }
 }

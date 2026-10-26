@@ -1,12 +1,13 @@
 // Puente entre la app (Kotlin) y llama.cpp: el modelo de lenguaje pequeño del teléfono.
 //
-// Solo lo justo para charlar: cargar el modelo, contestar a una pregunta (con unas
-// instrucciones y la pregunta en formato ChatML de Qwen) y avisar de cada trozo de texto según
-// sale, para que la app hable mientras el modelo sigue escribiendo.
+// Solo lo justo para charlar: cargar el modelo, leer UNA vez las instrucciones (`prime`) y
+// guardar su estado, contestar a cada pregunta partiendo de ese estado y avisar de cada trozo de
+// texto según sale, para que la app hable mientras el modelo sigue escribiendo.
 //
-// Qwen 3.5 mezcla atención normal con memoria «recurrente», que no se puede recortar a medias:
-// en cada pregunta se vacía la memoria y se lee todo otra vez (por eso las instrucciones son
-// cortas). Medido en el Redmi 15C: lee ~30–40 trozos/s y escribe ~9 palabras/s con 2 núcleos.
+// Los modelos con memoria «recurrente» (Qwen 3.5, LFM) no se pueden recortar a medias, pero sí
+// copiar entera: tras leer las instrucciones se guarda el estado (`llama_state_seq_get_data`,
+// ~1–21 MB) y en cada pregunta se restaura (~5 ms) y solo se lee la pregunta. Medido en el Redmi
+// 15C: primer token 4,2 s → 0,7 s con 119 tokens de instrucciones.
 
 #include <jni.h>
 #include <llama.h>
@@ -21,6 +22,8 @@ struct Brain {
     llama_context * ctx = nullptr;
     const llama_vocab * vocab = nullptr;
     int n_ctx = 0;
+    std::vector<uint8_t> prefix;  // estado tras leer las instrucciones
+    int prefix_n = 0;             // cuántos tokens son
 };
 
 // Cuántos bytes iniciales de `s` forman caracteres UTF-8 completos (un trozo puede cortar uno).
@@ -70,7 +73,8 @@ std::string to_string(JNIEnv * env, jstring s) {
 }  // namespace
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_asistente_personal_local_LlamaNative_load(JNIEnv * env, jobject, jstring path, jint threads, jint n_ctx) {
+Java_com_asistente_personal_local_LlamaNative_load(
+    JNIEnv * env, jobject, jstring path, jint threads, jint threads_batch, jint n_ctx) {
     llama_backend_init();
     auto mparams = llama_model_default_params();
     llama_model * model = llama_model_load_from_file(to_string(env, path).c_str(), mparams);
@@ -78,8 +82,8 @@ Java_com_asistente_personal_local_LlamaNative_load(JNIEnv * env, jobject, jstrin
     auto cparams = llama_context_default_params();
     cparams.n_ctx = static_cast<uint32_t>(n_ctx);
     cparams.n_batch = static_cast<uint32_t>(n_ctx);
-    cparams.n_threads = threads;
-    cparams.n_threads_batch = threads;
+    cparams.n_threads = threads;              // escribir
+    cparams.n_threads_batch = threads_batch;  // leer el prompt (con más hilos lee un 25–35 % más rápido)
     llama_context * ctx = llama_init_from_model(model, cparams);
     if (!ctx) {
         llama_model_free(model);
@@ -89,6 +93,28 @@ Java_com_asistente_personal_local_LlamaNative_load(JNIEnv * env, jobject, jstrin
     return reinterpret_cast<jlong>(b);
 }
 
+// Lee las instrucciones una vez y guarda su estado; `reply` parte siempre de él.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_asistente_personal_local_LlamaNative_prime(JNIEnv * env, jobject, jlong handle, jstring jprefix) {
+    auto * b = reinterpret_cast<Brain *>(handle);
+    const std::string prefix = to_string(env, jprefix);
+    b->prefix.clear();
+    b->prefix_n = 0;
+    llama_memory_clear(llama_get_memory(b->ctx), true);
+    std::vector<llama_token> tokens(prefix.size() + 16);
+    // Con marca de inicio si el modelo la usa (LFM la necesita; Qwen no la tiene).
+    int n = llama_tokenize(b->vocab, prefix.c_str(), static_cast<int32_t>(prefix.size()), tokens.data(),
+                           static_cast<int32_t>(tokens.size()), true, true);
+    if (n <= 0 || n >= b->n_ctx / 2) return JNI_FALSE;
+    tokens.resize(n);
+    if (llama_decode(b->ctx, llama_batch_get_one(tokens.data(), n)) != 0) return JNI_FALSE;
+    std::vector<uint8_t> state(llama_state_seq_get_size(b->ctx, 0));
+    if (llama_state_seq_get_data(b->ctx, state.data(), state.size(), 0) == 0) return JNI_FALSE;
+    b->prefix = std::move(state);
+    b->prefix_n = n;
+    return JNI_TRUE;
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_asistente_personal_local_LlamaNative_reply(
     JNIEnv * env, jobject, jlong handle, jstring jprompt, jint max_tokens, jobject on_piece) {
@@ -96,18 +122,24 @@ Java_com_asistente_personal_local_LlamaNative_reply(
     const std::string prompt = to_string(env, jprompt);
 
     llama_memory_clear(llama_get_memory(b->ctx), true);
+    int base = 0;
+    if (!b->prefix.empty()) {
+        // Se vuelve al estado de «instrucciones ya leídas»; solo falta leer la pregunta.
+        if (llama_state_seq_set_data(b->ctx, b->prefix.data(), b->prefix.size(), 0) == 0) return to_jstring(env, "");
+        base = b->prefix_n;
+    }
     std::vector<llama_token> tokens(prompt.size() + 16);
     int n = llama_tokenize(b->vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()), tokens.data(),
-                           static_cast<int32_t>(tokens.size()), false, true);
-    if (n < 0 || n + max_tokens > b->n_ctx) return to_jstring(env, "");
+                           static_cast<int32_t>(tokens.size()), b->prefix.empty(), true);
+    if (n < 0 || base + n + max_tokens > b->n_ctx) return to_jstring(env, "");
     tokens.resize(n);
     if (llama_decode(b->ctx, llama_batch_get_one(tokens.data(), n)) != 0) return to_jstring(env, "");
 
     auto * sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
     llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
-    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(llama_vocab_n_tokens(b->vocab), 64, 1.1f, 0.0f, 0.0f));
+    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(llama_vocab_n_tokens(b->vocab), 64, 1.05f, 0.0f, 0.0f));
     llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
-    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.7f));
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.4f));
     llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     jclass cls = env->GetObjectClass(on_piece);
