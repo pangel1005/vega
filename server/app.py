@@ -20,6 +20,7 @@ from server import __version__
 from server.core.car import CarConfig
 from server.core.config import ROOT, Settings
 from server.core.hub import Hub
+from server.core.maintenance import Maintenance
 from server.core.stallwatch import StallWatch
 from server.device.lyrics import LyricsFinder
 from server.device.media import MediaWatcher
@@ -90,6 +91,7 @@ def create_app(
     media: MediaWatcher | None = None,
     notifications: NotificationReader | None = None,
     car: CarConfig | None = None,
+    maintenance: Maintenance | None = None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
@@ -127,7 +129,9 @@ def create_app(
     # Solo se atienden peticiones dirigidas a 127.0.0.1/localhost. Esto frena el
     # «DNS rebinding»: una web maliciosa que apunta su dominio a 127.0.0.1 para leer el token.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(TRUSTED_HOSTS))
-    register_ws(app, settings, model, history, token, stt, actions, tts, skills, memory, hub, car)
+    register_ws(
+        app, settings, model, history, token, stt, actions, tts, skills, memory, hub, car, maintenance
+    )
     register_ui(app, token, ui_dist)
     if app_icons is not None:
         register_app_icons(app, app_icons)

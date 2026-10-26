@@ -12,6 +12,7 @@ from server.app import create_app
 from server.core.car import CarConfig
 from server.core.config import ROOT, ConfigError, Settings, load_settings
 from server.core.logs import setup_logging
+from server.core.maintenance import Maintenance
 from server.core.token import load_or_create_token
 from server.device.media import MediaWatcher
 from server.device.notifications import NotificationReader
@@ -101,7 +102,8 @@ def main() -> int:
         return 2
     setup_logging(settings.logging)
     try:
-        actions = ActionRunner(load_actions(), WindowsExecutor())
+        maintenance = Maintenance(ollama_url=settings.llm.url)
+        actions = ActionRunner(load_actions(), WindowsExecutor(maintenance))
     except ActionConfigError as exc:
         print(f"Error en los botones: {exc}", file=sys.stderr)
         return 2
@@ -121,6 +123,7 @@ def main() -> int:
             media=MediaWatcher(),
             notifications=NotificationReader(),
             car=CarConfig(known_actions={a.id for a in actions.actions}),
+            maintenance=maintenance,
         ),
         host=settings.server.host,
         port=settings.server.port,

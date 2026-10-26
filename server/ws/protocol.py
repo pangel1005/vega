@@ -33,6 +33,9 @@ Cliente → servidor:
     {"type": "reload_car"}               (app del PC) vuelve a leer config/car.toml y la reparte
     {"type": "sleep", "on": true}        botón de dormir: sin escuchar y sin modelo en la gráfica
                                          (con false se despierta)
+    {"type": "maintenance", "op": "status|free_ram|disk_scan|disk_clean", "deep": false, "ids": []}
+                                         (app del PC) liberar RAM o limpiar disco; responde con
+                                         «maintenance_result» solo a quien lo pidió
     {"type": "brain", "where": "pc|phone"}  dónde piensa Vega: con «phone» el teléfono
                                          escucha y contesta solo, y el PC suelta el
                                          modelo de la gráfica (para jugar o trabajar)
@@ -59,6 +62,8 @@ Servidor → cliente:
     {"type": "car_layout", "title": "Vega", "items": [{"id", "label", "kind", "arg"}]}
                                          las casillas de la pantalla de Vega en Android Auto
                                          (lista vacía: el teléfono usa la suya de serie)
+    {"type": "maintenance_result", "op": "status|free_ram|disk_scan|disk_clean", "ok": true,
+     "message": "...", "data": {...}}   (app del PC) respuesta a «maintenance»
     {"type": "sleep"}                    «Vega, duérmete»: el teléfono pasa a dormir
     {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
                                          (lo dice el teléfono con su voz)
@@ -68,7 +73,7 @@ Servidor → cliente:
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
@@ -216,6 +221,15 @@ class ReloadCar(_Msg):
     type: Literal["reload_car"] = "reload_car"
 
 
+class MaintenanceRequest(_Msg):
+    """(app del PC) Mantenimiento: estado de la RAM, liberarla, y buscar y limpiar el disco."""
+
+    type: Literal["maintenance"] = "maintenance"
+    op: Literal["status", "free_ram", "disk_scan", "disk_clean"]
+    deep: bool = False  # free_ram: también reduce las demás aplicaciones y detiene Gradle/Kotlin
+    ids: list[Annotated[str, Field(max_length=40)]] = Field(default_factory=list, max_length=10)  # disk_clean
+
+
 class SleepMode(_Msg):
     """Botón de dormir del teléfono: el PC deja de escuchar y suelta el modelo de la gráfica."""
 
@@ -266,6 +280,7 @@ AnyClientMessage = (
     | PhoneControl
     | ReloadActions
     | ReloadCar
+    | MaintenanceRequest
 )
 ClientMessage = Annotated[AnyClientMessage, Field(discriminator="type")]
 client_message: TypeAdapter[AnyClientMessage] = TypeAdapter(ClientMessage)
@@ -412,6 +427,16 @@ class CarLayoutEvent(_Msg):
     items: list[CarItemData] = Field(default_factory=list)
 
 
+class MaintenanceEvent(_Msg):
+    """Respuesta a «maintenance» (solo a quien la pidió): `data` según `op`."""
+
+    type: Literal["maintenance_result"] = "maintenance_result"
+    op: str
+    ok: bool = True
+    message: str = ""
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
 class SleepEvent(_Msg):
     """Alguien le dijo a Vega que se durmiera: el teléfono pasa a dormir."""
 
@@ -477,4 +502,5 @@ ServerEvent = (
     | PhoneStateEvent
     | PhoneControlEvent
     | CarLayoutEvent
+    | MaintenanceEvent
 )

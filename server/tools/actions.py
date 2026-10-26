@@ -52,7 +52,7 @@ class ActionDef(BaseModel):
     jp: str = Field(default="", max_length=6)
     icon: str = "app"
     color: Literal["orange", "red", "amber", "green", "teal"] = "orange"
-    kind: Literal["power", "keys", "launch"]
+    kind: Literal["power", "keys", "launch", "maintenance"]
     arg: str = Field(min_length=1)
     args: list[str] = Field(default_factory=list)
     confirm: bool = False
@@ -63,6 +63,8 @@ class ActionDef(BaseModel):
     def _check_arg(self) -> ActionDef:
         if self.kind == "power" and self.arg not in ("shutdown", "restart", "sleep", "lock", "cancel"):
             raise ValueError(f"acción de energía desconocida: {self.arg!r}")
+        if self.kind == "maintenance" and self.arg not in ("free-ram", "clean-disk"):
+            raise ValueError(f"mantenimiento desconocido: {self.arg!r} (free-ram o clean-disk)")
         if self.kind == "keys" and (bad := unknown_keys(self.arg)):
             raise ValueError(f"teclas desconocidas en {self.arg!r}: {', '.join(bad)}")
         if self.kind != "launch" and self.args:

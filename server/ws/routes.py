@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from server.core.car import CarConfig, CarError
 from server.core.config import Settings
 from server.core.hub import Hub
+from server.core.maintenance import Maintenance
 from server.core.orchestrator import Orchestrator
 from server.llm.base import ChatModel
 from server.memory.personal import PersonalMemory
@@ -34,6 +35,8 @@ from server.ws.protocol import (
     ListenCancel,
     ListenStart,
     ListenStop,
+    MaintenanceEvent,
+    MaintenanceRequest,
     MediaControl,
     MemoryImport,
     NotificationDismiss,
@@ -86,6 +89,7 @@ def register_ws(
     memory: PersonalMemory | None = None,
     hub: Hub | None = None,
     car: CarConfig | None = None,
+    maintenance: Maintenance | None = None,
 ) -> None:
     origins = allowed_origins(settings)
 
@@ -208,6 +212,8 @@ def register_ws(
                     else:
                         if hub is not None:
                             await hub.refresh_actions()
+                elif isinstance(msg, MaintenanceRequest) and desktop:
+                    await emit(await run_maintenance(maintenance, msg))
                 elif isinstance(msg, ReloadCar) and car is not None and desktop:
                     try:
                         car.reload()
@@ -234,3 +240,27 @@ def register_ws(
                 if gone is not None:
                     await gone
             await orchestrator.close()
+
+
+async def run_maintenance(maintenance: Maintenance | None, msg: MaintenanceRequest) -> MaintenanceEvent:
+    """Ejecuta el mantenimiento en un hilo (mide y borra en disco: no debe frenar el servidor)."""
+    if maintenance is None:
+        return MaintenanceEvent(op=msg.op, ok=False, message="El mantenimiento no está disponible.")
+    try:
+        if msg.op == "status":
+            return MaintenanceEvent(
+                op=msg.op, data=(await asyncio.to_thread(maintenance.ram_status)).public()
+            )
+        if msg.op == "free_ram":
+            result = await asyncio.to_thread(maintenance.free_ram, msg.deep)
+            return MaintenanceEvent(op=msg.op, message=result.message(), data=result.public())
+        if msg.op == "disk_scan":
+            found = await asyncio.to_thread(maintenance.disk_scan)
+            return MaintenanceEvent(op=msg.op, data={"categories": [c.public() for c in found]})
+        cleaned = await asyncio.to_thread(maintenance.disk_clean, msg.ids)
+        return MaintenanceEvent(op=msg.op, message=cleaned.message(), data=cleaned.public())
+    except ValueError as exc:  # categoría desconocida
+        return MaintenanceEvent(op=msg.op, ok=False, message=str(exc))
+    except Exception:  # un fallo del sistema no debe tirar la conexión de la app
+        log.exception("Falló el mantenimiento (%s)", msg.op)
+        return MaintenanceEvent(op=msg.op, ok=False, message="No pude completarlo; mira los registros.")

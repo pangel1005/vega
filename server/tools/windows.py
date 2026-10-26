@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from server.core.maintenance import Maintenance
 from server.tools.actions import ActionDef, ActionFailed
 from server.tools.keys import EXTENDED, VK
 
@@ -34,6 +35,9 @@ def parse_keys(combo: str) -> list[int]:
 
 
 class WindowsExecutor:
+    def __init__(self, maintenance: Maintenance | None = None) -> None:
+        self._maintenance = maintenance
+
     def run(self, action: ActionDef) -> str:
         if sys.platform != "win32":
             raise ActionFailed("Esta acción solo funciona en Windows.")
@@ -41,7 +45,20 @@ class WindowsExecutor:
             return self._power(action.arg)
         if action.kind == "keys":
             return self._keys(action)
+        if action.kind == "maintenance":
+            return self._clean(action.arg)
         return self._launch(action)
+
+    # --- Mantenimiento ---
+
+    def _clean(self, what: str) -> str:
+        """Los botones del teléfono y la voz solo hacen lo seguro: nada de lo que no se regenera."""
+        if self._maintenance is None:
+            raise ActionFailed("El mantenimiento no está disponible.")
+        if what == "free-ram":
+            return self._maintenance.free_ram().message()
+        safe = [c.id for c in self._maintenance.disk_scan() if c.default]  # solo lo marcado de serie
+        return self._maintenance.disk_clean(safe).message()
 
     # --- Energía ---
 
