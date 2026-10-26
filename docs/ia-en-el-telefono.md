@@ -114,3 +114,33 @@ con paciencia.
 3. **Escucha «Vega» y voz en el teléfono** (Vosk y la voz de Android o Piper).
 4. **Sincronización** con el PC al conectar el cable.
 5. **Conversación libre en el teléfono**, solo si las medidas del paso 1 lo justifican.
+
+## Filtro barato de «Vega» (25-10-2026)
+
+**El problema (medido en el Redmi).** Cada frase que oye el micrófono pasaba por Whisper (~2 s de
+procesador a 4 hilos) solo para ver si empieza por «Vega». Casi todas son la tele o conversación
+ajena. Mientras Whisper trabajaba, las frases que llegaban se descartaban (`busy`), y la app llegaba
+a gastar 3–4 núcleos con solo estar escuchando.
+
+**La solución.** Una red pequeña (`android/.../local/WakeGate.kt`, ~60 000 pesos, ~14 millones de
+operaciones) mira los primeros 2,4 s de la frase y decide si puede llamar a Vega. Si no, se descarta
+sin llamar a Whisper. Tras contestar, la conversación sigue sin filtro (sin decir «Vega»).
+
+- **Entrenamiento:** `tools/wake/train.py` (torch en CPU; las dependencias se piden en la línea de
+  `uv run`, no entran en el proyecto). Parte de las frases sintéticas de `tools/wake/generate.py` y las
+  varía: ruido (blanco, rosa, marrón, murmullo), reverberación, filtro de micrófono, velocidad,
+  otras longitudes de garganta y máscaras de espectro.
+- **Qué mira:** log-mel de 40 bandas (hecho a mano para poder copiarlo idéntico en Kotlin), tres
+  convoluciones 2D y dos en el tiempo (la primera versión, solo 2D, veía ventanas de ~0,2 s y
+  descartaba apenas el 17 %).
+- **Resultado con voces que no vio al entrenar (4 voces):** pasan ~99 % de las llamadas; del resto
+  pasan ~22 % en limpio y ~49 % con ruido (se ahorra ~64 % de Whisper en total).
+- **Se comprueba que Kotlin calcula lo mismo:** `WakeGateTest` compara con las salidas que guardó el
+  entrenamiento (`android/app/src/test/resources/wake_gate_fixture.bin`).
+
+**Límites, a propósito sin esconderlos:**
+- Las 4 voces de prueba son sintéticas (Kokoro y Piper). Con tu voz real y el micrófono del Redmi
+  puede perder más llamadas o descartar menos. Hay un umbral muy bajo para no perderlas.
+- Si falta `assets/wake_gate.bin`, la app sigue como antes (Whisper mira todo).
+- Pendiente: medir en el Redmi el tiempo del filtro y el ahorro real de procesador.
+- Mejora futura: grabar (con permiso) unas decenas de «Vega» reales para reentrenar.
