@@ -49,6 +49,11 @@ Reglas de seguridad, comprobadas con pruebas:
   compilaciones de la app del teléfono y caché de Gradle (estas dos, sin marcar de serie: tardan en volver a
   crearse).
 
+**Ojo con lo que de verdad libera:** reducir lo que ocupa un programa no aumenta el dato de «libres» de
+Windows (esa memoria pasa a la reserva, que ya cuenta como disponible). Lo que sube la RAM libre de verdad es
+descargar el modelo de Ollama (~3 GB) y detener los servicios de Gradle (~4 GB); cerrar programas pesados
+(como el navegador) lo hace el usuario.
+
 Medido en este PC (25-10-2026): Vega ocupa ~0,6 GB y Ollama ~0,07 GB sin modelo cargado (con
 `qwen3.5:4b` cargado, unos 3 GB). Lo que más RAM gasta es el navegador (~12 GB), la app de Claude, Discord y
 los servicios de Gradle que dejan las compilaciones (~4 GB): por eso existe el modo «a fondo». Se pueden

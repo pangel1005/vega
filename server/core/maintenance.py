@@ -307,7 +307,7 @@ class Maintenance:
 
     def _trim_vega(self) -> list[str]:
         saved = sum(self._trim(p.pid) for p in self._processes() if p.vega)
-        return [f"Vega devolvió {human(saved)} de memoria."] if saved >= 2**20 else []
+        return [f"Vega dejó {human(saved)} en la memoria de reserva de Windows."] if saved >= 2**20 else []
 
     def _trim_others(self) -> list[str]:
         foreground = _foreground_pid()
@@ -328,7 +328,7 @@ class Maintenance:
                 count += 1
         return (
             [
-                f"Reduje {count} aplicaciones en segundo plano ({human(saved)}; se vuelven a llenar si las usas)."  # noqa: E501
+                f"Reduje {count} aplicaciones en segundo plano ({human(saved)}; pasan a la reserva y se vuelven a llenar si las usas)."  # noqa: E501
             ]
             if count
             else []
