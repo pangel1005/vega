@@ -34,7 +34,9 @@ class FakeMaintenance:
         self.calls.append(("scan", None))
         return [
             DiskCategory("logs", "Registros viejos", 2_000, 3, "Se vuelven a crear.", True, ["a.log.1"]),
-            DiskCategory("cache-gradle", "Caché de Gradle", 9_000_000_000, 90, "Se vuelve a bajar.", False, ["caches"]),
+            DiskCategory(
+                "cache-gradle", "Caché de Gradle", 9_000_000_000, 90, "Se vuelve a bajar.", False, ["caches"]
+            ),
         ]
 
     def disk_clean(self, ids: list[str]) -> CleanResult:
@@ -75,7 +77,11 @@ def test_el_escritorio_pide_y_recibe_solo_el(tmp_path: Any) -> None:
 
         desk.send_json({"type": "maintenance", "op": "status"})
         status = until(desk, "maintenance_result")[-1]
-        assert status["ok"] and status["data"]["ollama_models"] == ["qwen3.5:4b"] and status["data"]["free_mb"] == 11_500
+        assert (
+            status["ok"]
+            and status["data"]["ollama_models"] == ["qwen3.5:4b"]
+            and status["data"]["free_mb"] == 11_500
+        )
 
         desk.send_json({"type": "maintenance", "op": "free_ram", "deep": True})
         freed = until(desk, "maintenance_result")[-1]
@@ -134,7 +140,9 @@ def test_el_boton_de_liberar_ram_y_el_de_limpiar_disco_solo_hacen_lo_seguro() ->
     maint = FakeMaintenance()
     executor = WindowsExecutor(maint)  # type: ignore[arg-type]
     ram = ActionDef(id="liberar-ram", label="Liberar RAM", kind="maintenance", arg="free-ram")
-    disk = ActionDef(id="limpiar-disco", label="Limpiar disco", kind="maintenance", arg="clean-disk", confirm=True)
+    disk = ActionDef(
+        id="limpiar-disco", label="Limpiar disco", kind="maintenance", arg="clean-disk", confirm=True
+    )
     assert "Libres ahora" in executor.run(ram)
     assert ("free_ram", False) in maint.calls  # sin «a fondo»
     assert "Liberé" in executor.run(disk)

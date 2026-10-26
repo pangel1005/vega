@@ -15,17 +15,19 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QPlainTextEdit,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from desktop import config_edit, theme
+from desktop import config_edit, slots, theme
 from desktop.config_edit import ConfigError
 from desktop.context import Context
-from desktop.widgets import pill
+from desktop.widgets import Card, pill, style
 
 ICONS = (
     "power",
@@ -45,11 +47,12 @@ ICONS = (
     "screenshot",
 )
 COLORS = ("orange", "red", "amber", "green", "teal")
-KINDS = ("keys", "launch", "power")
+KINDS = ("keys", "launch", "power", "maintenance")
 KIND_HELP = {
     "keys": "Combinación de teclas, p. ej. «win+alt+r» o «volume_up».",
     "launch": "Ruta del programa, p. ej. «C:\\Program Files\\...\\app.exe».",
     "power": "shutdown, restart, sleep, lock o cancel.",
+    "maintenance": "free-ram (liberar RAM) o clean-disk (limpiar lo que se regenera solo).",
 }
 COLUMNS = ("Panel", "Nombre", "Tipo", "Argumento", "Confirma", "Frases de voz")
 
@@ -146,11 +149,12 @@ class ButtonsPage(QWidget):
         lay.setSpacing(12)
         intro = QLabel(
             "Estos son los únicos botones que existen: el servidor solo ejecuta lo que está aquí. "
-            "Los de «Panel» salen en la fila principal del teléfono; los demás, en «Más»."
+            "Elige arriba los 6 de la fila principal del teléfono; los demás salen en «Más»."
         )
         intro.setObjectName("muted")
         intro.setWordWrap(True)
         lay.addWidget(intro)
+        lay.addWidget(self._build_strip())
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -189,6 +193,103 @@ class ButtonsPage(QWidget):
         self.discard_btn.clicked.connect(self.load)
         self.load()
 
+    # --- Fila principal del teléfono: 6 huecos ---
+
+    def _build_strip(self) -> QWidget:
+        card = Card("Fila principal del teléfono")
+        hint = QLabel(
+            "Así se ven los botones de abajo en el teléfono, de izquierda a derecha. Pulsa un hueco para "
+            "elegir su botón; las flechas lo mueven y la cruz lo manda a «Más»."
+        )
+        hint.setObjectName("muted")
+        hint.setWordWrap(True)
+        card.body.addWidget(hint)
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        self.slot_main: list[QPushButton] = []
+        self.slot_tools: list[tuple[QPushButton, QPushButton, QPushButton]] = []
+        for n in range(slots.MAX_SLOTS):
+            col = QVBoxLayout()
+            col.setSpacing(4)
+            main = QPushButton()
+            main.setCursor(Qt.CursorShape.PointingHandCursor)
+            main.setMinimumHeight(58)
+            main.clicked.connect(lambda _=False, i=n: self.pick(i))
+            tools = QHBoxLayout()
+            tools.setSpacing(4)
+            left, right, drop = pill("‹"), pill("›"), pill("×", danger=True)
+            left.setToolTip("Mover a la izquierda")
+            right.setToolTip("Mover a la derecha")
+            drop.setToolTip("Mandar a «Más»")
+            left.clicked.connect(lambda _=False, i=n: self.move_slot(i, -1))
+            right.clicked.connect(lambda _=False, i=n: self.move_slot(i, 1))
+            drop.clicked.connect(lambda _=False, i=n: self.clear_slot(i))
+            tools.addStretch(1)
+            for t in (left, right, drop):
+                t.setFixedSize(34, 26)
+                tools.addWidget(t)
+            tools.addStretch(1)
+            col.addWidget(main, 1)
+            col.addLayout(tools)
+            row.addLayout(col, 1)
+            self.slot_main.append(main)
+            self.slot_tools.append((left, right, drop))
+        more = QLabel("Más")
+        more.setObjectName("faint")
+        more.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        more.setFixedWidth(54)
+        row.addWidget(more)
+        card.body.addLayout(row)
+        self.slot_warn = QLabel("")
+        self.slot_warn.setStyleSheet(f"color: {theme.AMBER};")
+        self.slot_warn.setWordWrap(True)
+        card.body.addWidget(self.slot_warn)
+        return card
+
+    def _paint_slots(self) -> None:
+        current = slots.slots(self.rows)
+        for n, a in enumerate(current):
+            main = self.slot_main[n]
+            main.setText(a["label"] if a else "+ Vacío")
+            style(main, on=a is not None)
+            main.setToolTip(f"{a['kind']}: {a['arg']}" if a else "Elegir un botón para este hueco")
+            left, right, drop = self.slot_tools[n]
+            left.setEnabled(a is not None and n > 0)
+            right.setEnabled(a is not None and n + 1 < slots.MAX_SLOTS and current[n + 1] is not None)
+            drop.setEnabled(a is not None)
+        extra = slots.overflow(self.rows)
+        self.slot_warn.setText(
+            f"Hay {extra} botones más marcados como «panel» y no caben: solo se ven los 6 primeros."
+            if extra
+            else ""
+        )
+
+    def pick(self, slot: int) -> None:
+        """Menú con los botones que aún no están en el panel."""
+        menu = QMenu(self)
+        in_panel = set(slots.quick_rows(self.rows))
+        for i, a in enumerate(self.rows):
+            if i not in in_panel:
+                menu.addAction(a["label"], lambda i=i: self.put(slot, i))
+        if slots.slots(self.rows)[slot] is not None:
+            menu.addSeparator()
+            menu.addAction("Dejar vacío (mandar a «Más»)", lambda: self.clear_slot(slot))
+        if menu.isEmpty():
+            menu.addAction("No quedan botones: añade uno abajo").setEnabled(False)
+        menu.exec(self.slot_main[slot].mapToGlobal(self.slot_main[slot].rect().bottomLeft()))
+
+    def put(self, slot: int, index: int) -> None:
+        slots.assign(self.rows, slot, index)
+        self._touched()
+
+    def move_slot(self, slot: int, delta: int) -> None:
+        slots.swap(self.rows, slot, slot + delta)
+        self._touched()
+
+    def clear_slot(self, slot: int) -> None:
+        slots.clear(self.rows, slot)
+        self._touched()
+
     # --- Datos ---
 
     def load(self) -> None:
@@ -222,6 +323,7 @@ class ButtonsPage(QWidget):
         self.table.horizontalHeader().setStretchLastSection(True)
         if select is not None and 0 <= select < len(self.rows):
             self.table.selectRow(select)
+        self._paint_slots()
         self.save_btn.setEnabled(self.dirty)
         self.discard_btn.setEnabled(self.dirty)
 

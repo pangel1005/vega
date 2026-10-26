@@ -23,6 +23,7 @@ from desktop.pages.buttons import ButtonsPage
 from desktop.pages.car import CarPage
 from desktop.pages.chat import ChatPage
 from desktop.pages.logs import LogsPage
+from desktop.pages.maintenance import MaintenancePage
 from desktop.pages.panel import PanelPage
 from desktop.pages.phone import PhonePage
 from desktop.pages.settings import SettingsPage
@@ -34,6 +35,7 @@ PAGES = (
     ("Botones", "buttons"),
     ("Coche", "car"),
     ("Teléfono", "phone"),
+    ("Mantenimiento", "maintenance"),
     ("Ajustes", "settings"),
     ("Registros", "logs"),
 )
@@ -88,6 +90,7 @@ class MainWindow(QMainWindow):
             "buttons": ButtonsPage(ctx),
             "car": CarPage(ctx),
             "phone": PhonePage(),
+            "maintenance": MaintenancePage(ctx),
             "settings": SettingsPage(ctx),
             "logs": LogsPage(),
         }

@@ -260,4 +260,94 @@ def test_buttons_page_lists_the_real_actions(
     win.show_page(3)
     shot(app, win, "7_coche")
     win.show_page(5)
+    shot(app, win, "8_mantenimiento")
+    win.show_page(6)
     shot(app, win, "5_ajustes")
+
+
+def test_buttons_page_slots_choose_the_phone_row(
+    app: QApplication, window: tuple[MainWindow, FakeClient]
+) -> None:
+    win, _ = window
+    page = win.pages.widget(2)
+    page.rows = [  # type: ignore[attr-defined]
+        {"id": "a", "label": "A", "kind": "keys", "arg": "x", "quick": True},
+        {"id": "b", "label": "B", "kind": "keys", "arg": "y", "quick": False},
+        {"id": "c", "label": "C", "kind": "keys", "arg": "z", "quick": True},
+    ]
+    page._paint()  # type: ignore[attr-defined]
+    texts = [b.text() for b in page.slot_main]  # type: ignore[attr-defined]
+    assert texts == ["A", "C", "+ Vacío", "+ Vacío", "+ Vacío", "+ Vacío"]
+    assert not page.save_btn.isEnabled()  # type: ignore[attr-defined]
+    page.put(2, 1)  # type: ignore[attr-defined]  # «B» al tercer hueco
+    assert [b.text() for b in page.slot_main][:3] == ["A", "C", "B"]  # type: ignore[attr-defined]
+    page.move_slot(2, -1)  # type: ignore[attr-defined]
+    assert [b.text() for b in page.slot_main][:3] == ["A", "B", "C"]  # type: ignore[attr-defined]
+    page.clear_slot(0)  # type: ignore[attr-defined]
+    assert [b.text() for b in page.slot_main][:3] == ["B", "C", "+ Vacío"]  # type: ignore[attr-defined]
+    assert page.save_btn.isEnabled() and page.dirty  # type: ignore[attr-defined]
+    win.show_page(2)
+    shot(app, win, "4_botones_huecos")
+
+
+def test_maintenance_page_frees_ram_and_cleans_disk_after_confirming(
+    app: QApplication, window: tuple[MainWindow, FakeClient], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    win, client = window
+    feed(client, *LIVE)
+    client.connection.emit(True)
+    page = win.pages.widget(5)
+    assert client.sent[-1] == {"type": "maintenance", "op": "status"}  # al conectar pide el estado
+    feed(
+        client,
+        {
+            "type": "maintenance_result", "op": "status", "ok": True, "message": "",
+            "data": {
+                "total_mb": 32_000, "free_mb": 11_500, "vega_mb": 520, "ollama_mb": 74,
+                "ollama_models": ["qwen3.5:4b"], "top": [{"name": "opera.exe", "mb": 13_000}],
+            },
+        },
+    )  # fmt: skip
+    assert "11,2 GB" in page.ram_line.text() and "qwen3.5:4b" in page.ram_line.text()  # type: ignore[attr-defined]
+    assert "opera.exe" in page.ram_top.text()  # type: ignore[attr-defined]
+
+    page.deep.setChecked(True)  # type: ignore[attr-defined]
+    page.free_btn.click()  # type: ignore[attr-defined]
+    assert client.sent[-1] == {"type": "maintenance", "op": "free_ram", "deep": True}
+    feed(client, {"type": "maintenance_result", "op": "free_ram", "ok": True,
+                  "message": "Libres ahora: 14,6 GB.", "data": {}})  # fmt: skip
+    assert page.ram_result.text() == "Libres ahora: 14,6 GB."  # type: ignore[attr-defined]
+
+    page.scan_btn.click()  # type: ignore[attr-defined]
+    assert client.sent[-1] == {"type": "maintenance", "op": "disk_scan"}
+    cats = [
+        {"id": "logs", "label": "Registros viejos", "size": 5_000_000, "files": 4, "note": "Se vuelven a crear.",  # noqa: E501
+         "default": True, "examples": ["server.log.1"]},
+        {"id": "cache-gradle", "label": "Caché de Gradle", "size": 3 * 2**30, "files": 900,
+         "note": "Se vuelve a bajar.", "default": False, "examples": ["caches"]},
+    ]  # fmt: skip
+    feed(client, {"type": "maintenance_result", "op": "disk_scan", "ok": True, "message": "",
+                  "data": {"categories": cats}})  # fmt: skip
+    assert page.selected() == ["logs"]  # type: ignore[attr-defined]  # solo lo que se regenera al momento va marcado
+    assert page.clean_btn.isEnabled()  # type: ignore[attr-defined]
+    win.show_page(5)
+    shot(app, win, "8_mantenimiento_disco")
+
+    sent = len(client.sent)
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
+    page.clean_btn.click()  # type: ignore[attr-defined]
+    assert len(client.sent) == sent  # sin «sí» no se borra nada
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    page.clean_btn.click()  # type: ignore[attr-defined]
+    assert client.sent[-1] == {"type": "maintenance", "op": "disk_clean", "ids": ["logs"]}
+
+
+def test_maintenance_page_without_server_is_disabled(
+    window: tuple[MainWindow, FakeClient],
+) -> None:
+    win, client = window
+    client.connection.emit(False)
+    page = win.pages.widget(5)
+    assert not page.free_btn.isEnabled() and not page.scan_btn.isEnabled()  # type: ignore[attr-defined]
