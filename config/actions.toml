@@ -17,6 +17,7 @@
 #            keys   → arg: combinación, p. ej. "win+alt+r" o "volume_up"
 #            launch → arg: ruta del programa; args: lista de argumentos (opcional)
 #            maintenance → arg: free-ram | clean-disk (ver más abajo)
+#            routine → steps: lista de id de botones y esperas «wait:N» (ver «Rutinas»)
 
 # --- PC ---
 
@@ -32,6 +33,8 @@ confirm = true
 quick = true
 say = ["apaga el pc", "apaga el ordenador", "apaga la computadora", "apagar el pc", "apaga el equipo"]
 
+
+
 [[action]]
 id = "reiniciar"
 label = "Reiniciar"
@@ -43,6 +46,8 @@ arg = "restart"
 confirm = true
 say = ["reinicia el pc", "reinicia el ordenador", "reinicia la computadora", "reiniciar el pc"]
 
+
+
 [[action]]
 id = "cancelar-apagado"
 label = "Cancelar apagado"
@@ -52,6 +57,8 @@ color = "green"
 kind = "power"
 arg = "cancel"
 say = ["cancela el apagado", "no apagues", "cancelar apagado", "cancela el reinicio"]
+
+
 
 [[action]]
 id = "suspender"
@@ -63,6 +70,31 @@ arg = "sleep"
 confirm = true
 say = ["suspende el pc", "suspende el ordenador", "pon el pc en suspension", "duerme el pc"]
 
+
+
+[[action]]
+id = "grabar"
+label = "Grabar"
+jp = "録画"
+icon = "record"
+color = "red"
+kind = "keys"
+arg = "win+alt+r"   # Xbox Game Bar: empieza o termina de grabar el juego/app activo
+say = ["graba", "grabar", "empieza a grabar", "deja de grabar", "para de grabar", "para la grabacion"]
+
+
+
+[[action]]
+id = "captura"
+label = "Captura"
+jp = "撮影"
+icon = "screenshot"
+kind = "keys"
+arg = "win+print_screen"
+say = ["captura de pantalla", "haz una captura", "saca una captura", "toma una captura"]
+
+
+
 [[action]]
 id = "bloquear"
 label = "Bloquear"
@@ -73,26 +105,29 @@ arg = "lock"
 say = ["bloquea el pc", "bloquea el ordenador", "bloquea la computadora", "bloquea la pantalla"]
 
 # --- Grabación y sonido ---
-
-[[action]]
-id = "grabar"
-label = "Grabar"
-jp = "録画"
-icon = "record"
-color = "red"
-kind = "keys"
-arg = "win+alt+r"   # Xbox Game Bar: empieza o termina de grabar el juego/app activo
 quick = true
-say = ["graba", "grabar", "empieza a grabar", "deja de grabar", "para de grabar", "para la grabacion"]
+
+
 
 [[action]]
-id = "captura"
-label = "Captura"
-jp = "撮影"
-icon = "screenshot"
+id = "volumen-menos"
+label = "Volumen −"
+icon = "volume-down"
 kind = "keys"
-arg = "win+print_screen"
-say = ["captura de pantalla", "haz una captura", "saca una captura", "toma una captura"]
+arg = "volume_down"
+say = ["baja el volumen", "bajale", "mas bajo", "menos volumen"]
+
+
+
+[[action]]
+id = "volumen-mas"
+label = "Volumen +"
+icon = "volume-up"
+kind = "keys"
+arg = "volume_up"
+say = ["sube el volumen", "subele", "mas alto", "mas volumen"]
+
+
 
 [[action]]
 id = "silenciar"
@@ -104,31 +139,7 @@ arg = "volume_mute"
 quick = true
 say = ["silencia", "silencio", "quita el sonido", "pon el sonido", "activa el sonido"]
 
-[[action]]
-id = "volumen-menos"
-label = "Volumen −"
-icon = "volume-down"
-kind = "keys"
-arg = "volume_down"
-say = ["baja el volumen", "bajale", "mas bajo", "menos volumen"]
 
-[[action]]
-id = "volumen-mas"
-label = "Volumen +"
-icon = "volume-up"
-kind = "keys"
-arg = "volume_up"
-say = ["sube el volumen", "subele", "mas alto", "mas volumen"]
-
-[[action]]
-id = "play-pausa"
-label = "Play / Pausa"
-jp = "再生"
-icon = "play"
-kind = "keys"
-arg = "media_play_pause"
-quick = true
-say = ["pausa", "pausa la musica", "pon play", "reanuda", "continua la musica", "dale play"]
 
 [[action]]
 id = "siguiente"
@@ -144,15 +155,7 @@ say = ["siguiente cancion", "pasa la cancion", "salta la cancion", "siguiente te
 # solo (registros viejos, cachés de programación y temporales de más de 7 días). Para ver antes qué se
 # borra, o liberar más a fondo, usa la página «Mantenimiento» de la app del PC.
 
-[[action]]
-id = "liberar-ram"
-label = "Liberar RAM"
-jp = "解放"
-icon = "restart"
-color = "teal"
-kind = "maintenance"
-arg = "free-ram"
-say = ["libera la ram", "libera la memoria", "limpia la ram", "limpia la memoria", "libera memoria"]
+
 
 [[action]]
 id = "limpiar-disco"
@@ -165,7 +168,37 @@ arg = "clean-disk"
 confirm = true
 say = ["limpia el disco", "limpiar el disco", "limpia el disco duro", "libera espacio en disco"]
 
+# --- Rutinas ---
+# kind = "routine" → en vez de «arg», una lista «steps» con los id de botones que ya existen, en orden.
+# «wait:3» espera 3 s entre pasos (de 1 a 10). Máximo 8 pasos y 60 s en total. No puede haber rutinas
+# dentro de rutinas, y si algún paso pide confirmación, la rutina también (una sola confirmación
+# cubre todos los pasos). Se activan por voz y desde el panel como cualquier botón.
+
+[[action]]
+id = "modo-noche"
+label = "Modo noche"
+jp = "就寝"
+icon = "sleep"
+color = "amber"
+kind = "routine"
+steps = ["silenciar", "wait:1", "bloquear"]
+say = ["modo noche", "activa el modo noche", "buenas noches pc"]
+
 # --- Apps ---
+
+
+
+[[action]]
+id = "play-pausa"
+label = "Play / Pausa"
+jp = "再生"
+icon = "play"
+kind = "keys"
+arg = "media_play_pause"
+quick = true
+say = ["pausa", "pausa la musica", "pon play", "reanuda", "continua la musica", "dale play"]
+
+
 
 [[action]]
 id = "discord"
@@ -177,6 +210,8 @@ args = ["--processStart", "Discord.exe"]
 quick = true
 say = ["abre discord", "abrir discord"]
 
+
+
 [[action]]
 id = "spotify"
 label = "Spotify"
@@ -187,6 +222,19 @@ arg = "%APPDATA%\\Spotify\\Spotify.exe"
 quick = true
 say = ["abre spotify", "abrir spotify", "pon spotify"]
 
+
+
+[[action]]
+id = "liberar-ram"
+label = "Liberar RAM"
+icon = "restart"
+color = "teal"
+kind = "maintenance"
+arg = "free-ram"
+say = ["libera la ram", "libera la memoria", "limpia la ram", "limpia la memoria", "libera memoria"]
+
+
+
 [[action]]
 id = "steam"
 label = "Steam"
@@ -194,6 +242,8 @@ icon = "app"
 kind = "launch"
 arg = "C:\\Program Files (x86)\\Steam\\steam.exe"
 say = ["abre steam", "abrir steam"]
+
+
 
 [[action]]
 id = "opera"

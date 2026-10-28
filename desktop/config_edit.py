@@ -18,7 +18,9 @@ ACTIONS_FILE = ROOT / "config" / "actions.toml"
 SETTINGS_FILE = ROOT / "config" / "assistant.toml"
 CAR_FILE = ROOT / "config" / "car.toml"
 
-ACTION_FIELDS = ("id", "label", "jp", "icon", "color", "kind", "arg", "args", "confirm", "quick", "say")
+ACTION_FIELDS = (
+    "id", "label", "jp", "icon", "color", "kind", "arg", "args", "steps", "confirm", "quick", "say",
+)  # fmt: skip
 
 
 class ConfigError(Exception):
@@ -47,12 +49,13 @@ def validate_actions(actions: list[dict[str, Any]]) -> None:
     """Las mismas reglas que el servidor (modelo `ActionDef`), con un mensaje legible."""
     from pydantic import ValidationError
 
-    from server.tools.actions import ActionDef
+    from server.tools.actions import ActionDef, check_routines
 
     seen: set[str] = set()
+    defs: list[ActionDef] = []
     for a in actions:
         try:
-            ActionDef(**a)
+            defs.append(ActionDef(**a))
         except ValidationError as exc:
             first = exc.errors()[0]
             where = ".".join(str(p) for p in first["loc"])
@@ -60,6 +63,10 @@ def validate_actions(actions: list[dict[str, Any]]) -> None:
         if a["id"] in seen:
             raise ConfigError(f"Hay dos botones con el id «{a['id']}».")
         seen.add(a["id"])
+    try:
+        check_routines(defs)
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
     if sum(1 for a in actions if a.get("quick")) > 6:
         raise ConfigError("Solo caben 6 botones en el panel principal (quick); el resto va en «Más».")
 

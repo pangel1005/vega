@@ -1,0 +1,222 @@
+# Botones del panel (estilo Stream Deck) y órdenes de voz.
+#
+# SEGURIDAD: solo se puede ejecutar lo que está en este archivo. El servidor lo
+# comprueba siempre en el código; ni el teléfono ni el modelo pueden pedir otra cosa.
+#
+# Campos:
+#   id       identificador único (letras minúsculas, números y guiones)
+#   label    texto del botón          jp    texto japonés decorativo (opcional)
+#   icon     power, restart, sleep, lock, cancel, record, mic, volume-up,
+#            volume-down, mute, play, next, prev, app, screenshot
+#   color    orange, red, amber, green, teal (opcional)
+#   quick    true = aparece en el panal principal (máximo 6; el resto, en «MÁS»)
+#   say      frases que lo activan por voz: «Vega, apaga el PC». Se busca la frase
+#            dentro de lo dicho, sin tildes ni mayúsculas.
+#   confirm  true = pide confirmación en 10 s (un toque o decir «sí» / «confirmo»)
+#   kind     power  → arg: shutdown | restart | sleep | lock | cancel
+#            keys   → arg: combinación, p. ej. "win+alt+r" o "volume_up"
+#            launch → arg: ruta del programa; args: lista de argumentos (opcional)
+#            maintenance → arg: free-ram | clean-disk (ver más abajo)
+
+# --- PC ---
+
+[[action]]
+id = "apagar"
+label = "Apagar PC"
+jp = "停止"
+icon = "power"
+color = "red"
+kind = "power"
+arg = "shutdown"
+confirm = true
+quick = true
+say = ["apaga el pc", "apaga el ordenador", "apaga la computadora", "apagar el pc", "apaga el equipo"]
+
+
+[[action]]
+id = "reiniciar"
+label = "Reiniciar"
+jp = "再起動"
+icon = "restart"
+color = "amber"
+kind = "power"
+arg = "restart"
+confirm = true
+say = ["reinicia el pc", "reinicia el ordenador", "reinicia la computadora", "reiniciar el pc"]
+
+
+[[action]]
+id = "cancelar-apagado"
+label = "Cancelar apagado"
+jp = "中止"
+icon = "cancel"
+color = "green"
+kind = "power"
+arg = "cancel"
+say = ["cancela el apagado", "no apagues", "cancelar apagado", "cancela el reinicio"]
+
+
+[[action]]
+id = "suspender"
+label = "Suspender"
+jp = "休止"
+icon = "sleep"
+kind = "power"
+arg = "sleep"
+confirm = true
+say = ["suspende el pc", "suspende el ordenador", "pon el pc en suspension", "duerme el pc"]
+
+
+[[action]]
+id = "bloquear"
+label = "Bloquear"
+jp = "施錠"
+icon = "lock"
+kind = "power"
+arg = "lock"
+say = ["bloquea el pc", "bloquea el ordenador", "bloquea la computadora", "bloquea la pantalla"]
+
+# --- Grabación y sonido ---
+
+
+[[action]]
+id = "grabar"
+label = "Grabar"
+jp = "録画"
+icon = "record"
+color = "red"
+kind = "keys"
+arg = "win+alt+r"   # Xbox Game Bar: empieza o termina de grabar el juego/app activo
+quick = true
+say = ["graba", "grabar", "empieza a grabar", "deja de grabar", "para de grabar", "para la grabacion"]
+
+
+[[action]]
+id = "captura"
+label = "Captura"
+jp = "撮影"
+icon = "screenshot"
+kind = "keys"
+arg = "win+print_screen"
+say = ["captura de pantalla", "haz una captura", "saca una captura", "toma una captura"]
+
+
+[[action]]
+id = "silenciar"
+label = "Silenciar"
+jp = "消音"
+icon = "mute"
+kind = "keys"
+arg = "volume_mute"
+quick = true
+say = ["silencia", "silencio", "quita el sonido", "pon el sonido", "activa el sonido"]
+
+
+[[action]]
+id = "volumen-menos"
+label = "Volumen −"
+icon = "volume-down"
+kind = "keys"
+arg = "volume_down"
+say = ["baja el volumen", "bajale", "mas bajo", "menos volumen"]
+
+
+[[action]]
+id = "volumen-mas"
+label = "Volumen +"
+icon = "volume-up"
+kind = "keys"
+arg = "volume_up"
+say = ["sube el volumen", "subele", "mas alto", "mas volumen"]
+
+
+[[action]]
+id = "play-pausa"
+label = "Play / Pausa"
+jp = "再生"
+icon = "play"
+kind = "keys"
+arg = "media_play_pause"
+quick = true
+say = ["pausa", "pausa la musica", "pon play", "reanuda", "continua la musica", "dale play"]
+
+
+[[action]]
+id = "siguiente"
+label = "Siguiente"
+icon = "next"
+kind = "keys"
+arg = "media_next_track"
+say = ["siguiente cancion", "pasa la cancion", "salta la cancion", "siguiente tema"]
+
+# --- Mantenimiento ---
+# kind = "maintenance" → arg: free-ram | clean-disk. Solo hacen lo seguro: «free-ram» descarga el modelo de
+# Ollama y devuelve a Windows la memoria que Vega no usa; «clean-disk» borra únicamente lo que se regenera
+# solo (registros viejos, cachés de programación y temporales de más de 7 días). Para ver antes qué se
+# borra, o liberar más a fondo, usa la página «Mantenimiento» de la app del PC.
+
+
+[[action]]
+id = "liberar-ram"
+label = "Liberar RAM"
+jp = "解放"
+icon = "restart"
+color = "teal"
+kind = "maintenance"
+arg = "free-ram"
+say = ["libera la ram", "libera la memoria", "limpia la ram", "limpia la memoria", "libera memoria"]
+
+
+[[action]]
+id = "limpiar-disco"
+label = "Limpiar disco"
+jp = "掃除"
+icon = "restart"
+color = "amber"
+kind = "maintenance"
+arg = "clean-disk"
+confirm = true
+say = ["limpia el disco", "limpiar el disco", "limpia el disco duro", "libera espacio en disco"]
+
+# --- Apps ---
+
+
+[[action]]
+id = "discord"
+label = "Discord"
+icon = "app"
+kind = "launch"
+arg = "%LOCALAPPDATA%\\Discord\\Update.exe"
+args = ["--processStart", "Discord.exe"]
+quick = true
+say = ["abre discord", "abrir discord"]
+
+
+[[action]]
+id = "spotify"
+label = "Spotify"
+icon = "app"
+color = "green"
+kind = "launch"
+arg = "%APPDATA%\\Spotify\\Spotify.exe"
+quick = true
+say = ["abre spotify", "abrir spotify", "pon spotify"]
+
+
+[[action]]
+id = "steam"
+label = "Steam"
+icon = "app"
+kind = "launch"
+arg = "C:\\Program Files (x86)\\Steam\\steam.exe"
+say = ["abre steam", "abrir steam"]
+
+
+[[action]]
+id = "opera"
+label = "Opera GX"
+icon = "app"
+color = "red"
+kind = "launch"
+arg = "%LOCALAPPDATA%\\Programs\\Opera GX\\opera.exe"
+say = ["abre opera", "abre el navegador", "abrir opera"]

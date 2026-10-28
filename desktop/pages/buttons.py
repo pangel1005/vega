@@ -47,12 +47,13 @@ ICONS = (
     "screenshot",
 )
 COLORS = ("orange", "red", "amber", "green", "teal")
-KINDS = ("keys", "launch", "power", "maintenance")
+KINDS = ("keys", "launch", "power", "maintenance", "routine")
 KIND_HELP = {
     "keys": "Combinación de teclas, p. ej. «win+alt+r» o «volume_up».",
     "launch": "Ruta del programa, p. ej. «C:\\Program Files\\...\\app.exe».",
     "power": "shutdown, restart, sleep, lock o cancel.",
     "maintenance": "free-ram (liberar RAM) o clean-disk (limpiar lo que se regenera solo).",
+    "routine": "Varios botones seguidos con una sola orden («modo noche»). Elige los pasos abajo.",
 }
 COLUMNS = ("Panel", "Nombre", "Tipo", "Argumento", "Confirma", "Frases de voz")
 
@@ -60,8 +61,18 @@ COLUMNS = ("Panel", "Nombre", "Tipo", "Argumento", "Confirma", "Frases de voz")
 class ActionDialog(QDialog):
     """Un botón: todos sus campos. Se valida con las mismas reglas que el servidor."""
 
-    def __init__(self, action: dict[str, Any] | None, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        action: dict[str, Any] | None,
+        parent: QWidget | None = None,
+        others: list[dict[str, Any]] | None = None,
+    ) -> None:
         super().__init__(parent)
+        self.others = [
+            o
+            for o in (others or [])
+            if o.get("kind") != "routine" and o.get("id") != (action or {}).get("id")
+        ]
         self.setWindowTitle("Botón" if action else "Botón nuevo")
         self.setMinimumWidth(460)
         a = action or {"kind": "keys", "icon": "app", "color": "orange"}
@@ -86,6 +97,21 @@ class ActionDialog(QDialog):
         self.color = QComboBox()
         self.color.addItems(COLORS)
         self.color.setCurrentText(a.get("color", "orange"))
+        self.steps = QPlainTextEdit(
+            "\n".join(f"espera {s[5:]}" if s.startswith("wait:") else s for s in a.get("steps", []))
+        )
+        self.steps.setPlaceholderText("Un paso por línea: el id de un botón (p. ej. silenciar) o «espera 3»")
+        self.steps.setFixedHeight(110)
+        self.step_pick = QComboBox()
+        for o in self.others:
+            self.step_pick.addItem(f"{o['label']}  ({o['id']})", o["id"])
+        add_step = QPushButton("Añadir este botón")
+        add_wait = QPushButton("Añadir espera de 2 s")
+        add_step.clicked.connect(lambda: self._add_step(str(self.step_pick.currentData() or "")))
+        add_wait.clicked.connect(lambda: self._add_step("espera 2"))
+        step_tools = QHBoxLayout()
+        for w in (self.step_pick, add_step, add_wait):
+            step_tools.addWidget(w)
         self.quick = QCheckBox("Aparece en el panel principal (máximo 6)")
         self.quick.setChecked(bool(a.get("quick")))
         self.confirm = QCheckBox("Pide confirmación (un toque más o decir «sí»)")
@@ -99,11 +125,16 @@ class ActionDialog(QDialog):
         form.addRow("Argumento", self.arg)
         form.addRow("", self.hint)
         form.addRow("Argumentos", self.args)
+        form.addRow("Pasos", self.steps)
+        form.addRow("", step_tools)
         form.addRow("Icono", self.icon)
         form.addRow("Color", self.color)
         form.addRow("", self.quick)
         form.addRow("", self.confirm)
         form.addRow("Frases de voz", self.say)
+        self.kind.currentTextChanged.connect(self._sync_kind)
+        self._form = form
+        self._sync_kind(self.kind.currentText())
         self.error = QLabel()
         self.error.setStyleSheet(f"color: {theme.RED};")
         self.error.setWordWrap(True)
@@ -116,21 +147,51 @@ class ActionDialog(QDialog):
         form.addRow(buttons)
         self.result_action: dict[str, Any] = {}
 
+    def _add_step(self, step: str) -> None:
+        if step:
+            text = self.steps.toPlainText().rstrip("\n")
+            self.steps.setPlainText((text + "\n" if text else "") + step)
+
+    def _sync_kind(self, kind: str) -> None:
+        """Una rutina lleva pasos; los demás botones, un argumento."""
+        routine = kind == "routine"
+        for widget, shown in (
+            (self.arg, not routine),
+            (self.args, not routine),
+            (self.steps, routine),
+            (self.step_pick, routine),
+        ):  # fmt: skip
+            self._form.setRowVisible(widget, shown)
+        self._form.setRowVisible(self.step_pick, routine)
+
+    def _steps(self) -> list[str]:
+        out = []
+        for line in self.steps.toPlainText().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            word, _, rest = line.partition(" ")
+            out.append(f"wait:{rest.strip()}" if word.lower() in ("espera", "wait") else line)
+        return out
+
     def _accept(self) -> None:
+        routine = self.kind.currentText() == "routine"
         a: dict[str, Any] = {
             "id": self.id.text().strip(),
             "label": self.label.text().strip(),
             "icon": self.icon.currentText(),
             "color": self.color.currentText(),
             "kind": self.kind.currentText(),
-            "arg": self.arg.text().strip(),
+            "arg": "" if routine else self.arg.text().strip(),
             "args": self.args.text().split() if self.kind.currentText() == "launch" else [],
+            "steps": self._steps() if routine else [],
             "confirm": self.confirm.isChecked(),
             "quick": self.quick.isChecked(),
             "say": [s.strip() for s in self.say.toPlainText().splitlines() if s.strip()],
         }
         try:
-            config_edit.validate_actions([a])
+            others = [o for o in self.others if o.get("id") != a["id"]]
+            config_edit.validate_actions([*others, a] if routine else [a])
         except ConfigError as exc:
             self.error.setText(str(exc))
             return
@@ -310,7 +371,7 @@ class ButtonsPage(QWidget):
                 "sí" if a.get("quick") else "",
                 a["label"],
                 a["kind"],
-                a["arg"],
+                f"{len(a.get('steps', []))} pasos" if a["kind"] == "routine" else a["arg"],
                 "sí" if a.get("confirm") else "",
                 " · ".join(a.get("say", [])),
             )
@@ -339,7 +400,7 @@ class ButtonsPage(QWidget):
     # --- Acciones ---
 
     def add(self) -> None:
-        dialog = ActionDialog(None, self)
+        dialog = ActionDialog(None, self, self.rows)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.rows.append(dialog.result_action)
             self._touched(len(self.rows) - 1)
@@ -348,7 +409,7 @@ class ButtonsPage(QWidget):
         r = self._current()
         if r is None:
             return
-        dialog = ActionDialog(self.rows[r], self)
+        dialog = ActionDialog(self.rows[r], self, self.rows)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.rows[r] = dialog.result_action
             self._touched(r)

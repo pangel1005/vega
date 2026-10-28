@@ -351,3 +351,49 @@ def test_maintenance_page_without_server_is_disabled(
     client.connection.emit(False)
     page = win.pages.widget(5)
     assert not page.free_btn.isEnabled() and not page.scan_btn.isEnabled()  # type: ignore[attr-defined]
+
+
+def test_routine_dialog_builds_steps_and_validates_them(app: QApplication) -> None:
+    from desktop.pages.buttons import ActionDialog
+
+    others = [
+        {"id": "silenciar", "label": "Silenciar", "kind": "keys", "arg": "volume_mute"},
+        {"id": "bloquear", "label": "Bloquear", "kind": "power", "arg": "lock"},
+        {"id": "apagar", "label": "Apagar PC", "kind": "power", "arg": "shutdown", "confirm": True},
+    ]
+    d = ActionDialog(None, None, others)
+    d.id.setText("modo-noche")
+    d.label.setText("Modo noche")
+    d.kind.setCurrentText("routine")
+    d._add_step("silenciar")
+    d._add_step("espera 2")
+    d._add_step("bloquear")
+    d._accept()
+    assert d.error.text() == ""
+    assert d.result_action["steps"] == ["silenciar", "wait:2", "bloquear"]
+    assert d.result_action["arg"] == "" and d.result_action["args"] == []
+
+    # Un paso que no existe se rechaza al momento, con un mensaje claro.
+    bad = ActionDialog(None, None, others)
+    bad.id.setText("x")
+    bad.label.setText("X")
+    bad.kind.setCurrentText("routine")
+    bad._add_step("fantasma")
+    bad._accept()
+    assert "no existe" in bad.error.text() and not bad.result_action
+
+    # Si incluye un botón que pide confirmación, la rutina también debe pedirla.
+    risky = ActionDialog(None, None, others)
+    risky.id.setText("y")
+    risky.label.setText("Y")
+    risky.kind.setCurrentText("routine")
+    risky._add_step("apagar")
+    risky._accept()
+    assert "confirmación" in risky.error.text()
+    risky.confirm.setChecked(True)
+    risky._accept()
+    assert risky.result_action["confirm"] is True
+
+    # Al editarla de nuevo, las esperas se leen como «espera N».
+    again = ActionDialog(d.result_action, None, others)
+    assert again.steps.toPlainText().splitlines() == ["silenciar", "espera 2", "bloquear"]

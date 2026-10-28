@@ -6,12 +6,16 @@ Reglas de seguridad (las aplica este código, nunca el modelo ni el teléfono):
   uso que caduca a los 10 s.
 - Pulsaciones repetidas del mismo botón en menos de 1 s se ignoran.
 - Cada intento queda registrado en `logs/audit.log` (una línea JSON por evento).
+- Una **rutina** (`kind = "routine"`) es una lista de botones que ya existen, con esperas de unos
+  segundos entre ellos: no puede ejecutar nada que no esté en el registro ni contener otras rutinas,
+  y si algún paso pide confirmación, la rutina también (una sola confirmación cubre todos sus pasos).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import secrets
 import time
 import tomllib
@@ -33,6 +37,11 @@ ACTIONS_FILE = ROOT / "config" / "actions.toml"
 CONFIRM_SECONDS = 10.0
 DEBOUNCE_SECONDS = 0.3  # evita un doble disparo accidental; con 1 s se perdían pulsaciones rápidas (volumen)
 
+MAX_STEPS = 8
+MAX_WAIT_S = 10
+MAX_ROUTINE_S = 60.0  # una rutina no puede tener al servidor ocupado más que esto
+_WAIT = re.compile(r"^wait:(\d{1,2})$")
+
 PowerArg = Literal["shutdown", "restart", "sleep", "lock", "cancel"]
 
 
@@ -52,8 +61,9 @@ class ActionDef(BaseModel):
     jp: str = Field(default="", max_length=6)
     icon: str = "app"
     color: Literal["orange", "red", "amber", "green", "teal"] = "orange"
-    kind: Literal["power", "keys", "launch", "maintenance"]
-    arg: str = Field(min_length=1)
+    kind: Literal["power", "keys", "launch", "maintenance", "routine"]
+    arg: str = ""  # obligatorio salvo en las rutinas (que llevan `steps`)
+    steps: list[str] = Field(default_factory=list, max_length=MAX_STEPS)  # solo en las rutinas
     args: list[str] = Field(default_factory=list)
     confirm: bool = False
     quick: bool = False  # aparece en el panal principal (los demás, en «MÁS»)
@@ -61,6 +71,21 @@ class ActionDef(BaseModel):
 
     @model_validator(mode="after")
     def _check_arg(self) -> ActionDef:
+        if self.kind == "routine":
+            if not self.steps:
+                raise ValueError("una rutina necesita al menos un paso en 'steps'")
+            for step in self.steps:
+                if (m := _WAIT.match(step)) and not 1 <= int(m.group(1)) <= MAX_WAIT_S:
+                    raise ValueError(f"esperas de 1 a {MAX_WAIT_S} s: {step!r}")
+                if step == self.id:
+                    raise ValueError("una rutina no puede contenerse a sí misma")
+            if self.arg or self.args:
+                raise ValueError("una rutina no lleva 'arg' ni 'args', solo 'steps'")
+            return self
+        if self.steps:
+            raise ValueError("'steps' solo se usa con kind = \"routine\"")
+        if not self.arg:
+            raise ValueError("falta 'arg'")
         if self.kind == "power" and self.arg not in ("shutdown", "restart", "sleep", "lock", "cancel"):
             raise ValueError(f"acción de energía desconocida: {self.arg!r}")
         if self.kind == "maintenance" and self.arg not in ("free-ram", "clean-disk"):
@@ -93,6 +118,25 @@ class _ActionsFile(BaseModel):
     action: list[ActionDef] = Field(default_factory=list)
 
 
+def check_routines(actions: list[ActionDef]) -> None:
+    """Reglas entre botones: los pasos existen, no hay rutinas anidadas y la confirmación se hereda."""
+    by_id = {a.id: a for a in actions}
+    for routine in (a for a in actions if a.kind == "routine"):
+        for step in routine.steps:
+            if _WAIT.match(step):
+                continue
+            target = by_id.get(step)
+            if target is None:
+                raise ValueError(f"La rutina «{routine.label}» usa «{step}», que no existe.")
+            if target.kind == "routine":
+                raise ValueError(f"La rutina «{routine.label}» no puede incluir la rutina «{target.label}».")
+            if target.confirm and not routine.confirm:
+                raise ValueError(
+                    f"La rutina «{routine.label}» incluye «{target.label}», que pide confirmación: "
+                    "la rutina también debe pedirla (confirm = true)."
+                )
+
+
 def load_actions(path: Path = ACTIONS_FILE) -> list[ActionDef]:
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
@@ -109,6 +153,10 @@ def load_actions(path: Path = ACTIONS_FILE) -> list[ActionDef]:
     ids = [a.id for a in actions]
     if dupes := sorted({i for i in ids if ids.count(i) > 1}):
         raise ActionConfigError(f"Acciones repetidas en {path}: {', '.join(dupes)}")
+    try:
+        check_routines(actions)
+    except ValueError as exc:
+        raise ActionConfigError(str(exc)) from exc
     return actions
 
 
@@ -130,8 +178,13 @@ class Outcome:
 
 class ActionRunner:
     def __init__(
-        self, actions: list[ActionDef], executor: Executor, now: Callable[[], float] = time.monotonic
+        self,
+        actions: list[ActionDef],
+        executor: Executor,
+        now: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
+        self._sleep = sleep
         self._actions = {a.id: a for a in actions}
         self._order = actions
         self._executor = executor
@@ -191,7 +244,39 @@ class ActionRunner:
         for nonce in [n for n, (_, until) in self._pending.items() if until < now]:
             del self._pending[nonce]
 
+    def _run_routine(self, routine: ActionDef, client: str) -> Outcome:
+        """Los pasos, uno tras otro; si uno falla, se para y se dice cuál. Una sola confirmación los cubre."""
+        started = self._now()
+        done = 0
+        for step in routine.steps:
+            if self._now() - started > MAX_ROUTINE_S:
+                return Outcome("error", f"{routine.label}: tardó demasiado y se paró.", action=routine)
+            if m := _WAIT.match(step):
+                seconds = int(m.group(1))
+                if self._now() - started + seconds > MAX_ROUTINE_S:  # no se espera para pasarse
+                    return Outcome(
+                        "error", f"{routine.label}: tardaría demasiado, no se hizo.", action=routine
+                    )
+                self._sleep(seconds)
+                continue
+            target = self._actions.get(step)
+            if target is None or target.kind == "routine":  # el archivo cambió mientras tanto
+                self._audit("falló", routine.id, client, f"paso no válido: {step}")
+                return Outcome("error", f"{routine.label}: ya no existe «{step}».", action=routine)
+            try:
+                detail = self._executor.run(target)
+            except ActionFailed as exc:
+                self._audit("falló", routine.id, client, f"paso {step}: {exc}")
+                return Outcome("error", f"{routine.label}: falló «{target.label}» ({exc})", action=routine)
+            self._audit("paso", routine.id, client, f"{step}: {detail}")
+            done += 1
+        self._audit("ejecutada", routine.id, client, f"{done} pasos")
+        plural = "s" if done != 1 else ""
+        return Outcome("done", f"{routine.label}: hecho ({done} paso{plural}).", action=routine)
+
     def _execute(self, action: ActionDef, client: str) -> Outcome:
+        if action.kind == "routine":
+            return self._run_routine(action, client)
         try:
             message = self._executor.run(action)
         except ActionFailed as exc:

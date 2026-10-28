@@ -47,6 +47,8 @@ class WindowsExecutor:
             return self._keys(action)
         if action.kind == "maintenance":
             return self._clean(action.arg)
+        if action.kind == "routine":  # las ejecuta el registro de acciones, paso a paso; nunca el ejecutor
+            raise ActionFailed("Las rutinas las ejecuta el registro de acciones.")
         return self._launch(action)
 
     # --- Mantenimiento ---
