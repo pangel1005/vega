@@ -217,7 +217,9 @@ class LocalAssistant(
         val wake = parseWake(text, name)
         if (wake.woke) stats.call()
         val asked = wake.woke || attentive // la llamaste o tocaste la cara: una orden seguro
-        log("frase de ${samples.size / 16} ms → texto en $elapsed ms; nombre: ${wake.woke}, seguimiento: $following")
+        // Solo cifras (nunca lo dicho): palabras por segundo y a cuántas letras está de «Vega» la mejor de las dos primeras.
+        val pace = "%.1f".format(wordsPerSecond(text, samples.size / 16_000.0))
+        log("frase de ${samples.size / 16} ms → texto en $elapsed ms; nombre: ${wake.woke} (a ${nameDistance(text, name) ?: "-"} letras), $pace palabras/s, seguimiento: $following")
         if (!wake.woke && !following) return // no era para Vega: no se guarda
         // Su propia voz que vuelve por el micrófono (eco de la sala): se ignora. Sin esto se
         // contestaba a sí misma en bucle.

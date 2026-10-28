@@ -14,7 +14,10 @@ from server.memory.store import ConversationStore
 from server.skills.semantic import (
     SemanticIntents,
     blocks_actions,
+    closeness,
     fix_volume_direction,
+    fuzzy_launch,
+    sound,
     volume_vote,
 )
 from server.tests.fakes import FakeChat
@@ -118,6 +121,56 @@ def test_words_that_ask_for_volume_win_even_if_the_model_saw_another_audio_butto
     m = s.match("baja la musica")
     assert m is not None and m.id == "volumen-menos"
     assert s.match("no subas el volumen") is None  # una negación no activa nada
+
+
+LAUNCH = [
+    ActionDef(id="discord", label="Discord", kind="launch", arg="x", say=["abre discord"]),
+    ActionDef(id="spotify", label="Spotify", kind="launch", arg="x", say=["abre spotify"]),
+    ActionDef(id="steam", label="Steam", kind="launch", arg="x", say=["abre steam"]),
+    ActionDef(id="opera", label="Opera GX", kind="launch", arg="x", say=["abre opera"]),
+    *ACTIONS,
+]
+
+
+def opened(said: str) -> tuple[str, float] | None:
+    r = fuzzy_launch(said, LAUNCH)
+    return None if r is None else (r[0].id, round(r[1], 2))
+
+
+def test_an_app_name_heard_wrong_is_still_found_by_its_sound() -> None:
+    assert (opened("abre escort") or ("", 0))[0] == "discord"  # Whisper oyó «escort» por «Discord»
+    assert (opened("abred escort") or ("", 0))[0] == "discord"  # y hasta «abre» salió «abred»
+    assert (opened("abre espotifai") or ("", 0))[0] == "spotify"
+    assert (opened("abre disco") or ("", 0))[0] == "discord"
+    assert opened("pon steam") == ("steam", 1.0)
+    assert opened("abre el steam") == ("steam", 1.0)  # con artículo
+    assert opened("abre opera gx") == ("opera", 1.0)
+
+
+def test_unrelated_things_to_open_are_not_taken_for_an_app() -> None:
+    assert opened("abre la puerta") is None
+    assert opened("abre la puerta del garaje") is None
+    assert opened("abre una carpeta") is None
+    assert opened("abre telegram") is None  # no hay Telegram: no se inventa otra app
+    assert opened("abre dis") is None  # demasiado corto para fiarse
+    assert opened("apaga el pc") is None  # sin verbo de abrir
+    assert fuzzy_launch("abre escort", ACTIONS) is None  # sin apps que abrir
+
+
+def test_a_clear_name_opens_at_once_and_a_doubtful_one_asks() -> None:
+    s = SemanticIntents(lambda: LAUNCH, BagEmbedder)
+    sure = s.match("abre discor")
+    assert sure is not None and (sure.id, sure.mode) == ("discord", "act")
+    doubtful = s.match("abre escort")
+    assert doubtful is not None and (doubtful.id, doubtful.mode) == ("discord", "ask")
+    assert s.match("no abras discord") is None  # una negación no abre nada
+
+
+def test_sound_and_closeness_basics() -> None:
+    assert sound("Bega") == sound("Vega") and sound("espotifai").startswith("espotifai")
+    assert closeness("discord", "discord") == 1.0
+    assert closeness("", "") == 1.0
+    assert 0.0 <= closeness("a", "xyz") < 0.5
 
 
 def test_skills_without_data_are_resolved_and_the_ones_with_data_are_left_to_their_rules() -> None:

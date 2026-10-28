@@ -95,6 +95,57 @@ _DOWN = re.compile(r"\b(baja|bajale|bajar|bajo|bajito|bajita|suave|menos volumen
 VOLUME_UP, VOLUME_DOWN = "volumen-mas", "volumen-menos"
 
 
+# «Abre Discord» que Whisper oye «abre escort»: se compara el SONIDO del nombre con el de las apps.
+_OPEN = re.compile(
+    r"^(?:abr\w*|inicia\w*|ejecuta\w*|lanza\w*|arranca\w*|pon)\s+(?:el |la |los |las )?(?P<target>.+)$"
+)
+FUZZY_MIN = 0.55  # parecido mínimo (de 0 a 1) para sospechar que dijo ese nombre
+FUZZY_SURE = 0.85  # desde aquí lo abre sin preguntar
+FUZZY_LEAD = 0.10  # ventaja mínima sobre la segunda app
+
+
+def sound(text: str) -> str:
+    """Una versión «fonética» sencilla: «espotifai» y «spotify», «bega» y «vega», «ciu» y «siu» se parecen."""
+    s = normalize(text).replace(" ", "")
+    for a, b in (("ph", "f"), ("ce", "se"), ("ci", "si"), ("qu", "k"), ("ll", "y"), ("c", "k"), ("v", "b"),
+                 ("z", "s"), ("w", "u"), ("h", "")):  # fmt: skip
+        s = s.replace(a, b)
+    return re.sub(r"(.)\1+", r"\1", s)  # letras repetidas
+
+
+def closeness(a: str, b: str) -> float:
+    """Parecido de 0 a 1 entre dos palabras: 1 menos las letras que hay que cambiar, entre el largo."""
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return 1.0 - prev[-1] / max(len(a), len(b), 1)
+
+
+def fuzzy_launch(said: str, actions: Sequence[Any]) -> tuple[Any, float] | None:
+    """«abre escort» → (Discord, 0,62). Solo para las apps que se abren (kind = launch)."""
+    m = _OPEN.match(said)
+    if m is None:
+        return None
+    target = sound(m["target"])
+    if len(target) < 4:
+        return None
+    scored: list[tuple[float, Any]] = []
+    for action in actions:
+        if action.kind != "launch":
+            continue
+        names = {sound(action.label), *(sound(w) for w in normalize(action.label).split() if len(w) >= 4)}
+        scored.append((max(closeness(target, n) for n in names), action))
+    scored.sort(key=lambda t: t[0], reverse=True)
+    if not scored or scored[0][0] < FUZZY_MIN:
+        return None
+    if len(scored) > 1 and scored[0][0] - scored[1][0] < FUZZY_LEAD:
+        return None
+    return scored[0][1], scored[0][0]
+
+
 def blocks_actions(said: str) -> bool:
     """¿La frase (ya normalizada) niega o pregunta por información? Entonces no es una orden para un botón."""
     return bool(_NEGATION.search(said) or _INFO_QUESTION.search(said))
@@ -213,6 +264,10 @@ class SemanticIntents:
             ranked = [(label, sim) for label, sim in ranked if not label.startswith("action:")]
         if len(ranked) < 2:
             return None
+        sounds_like = None if blocks_actions(said) else fuzzy_launch(said, self._actions())
+        if sounds_like is not None:
+            app, closeness = sounds_like
+            return Match("action", app.id, "act" if closeness >= FUZZY_SURE else "ask", closeness)
         known = {a.id for a in self._actions()}
         vote = volume_vote(said, known)
         if vote is not None and not blocks_actions(said):

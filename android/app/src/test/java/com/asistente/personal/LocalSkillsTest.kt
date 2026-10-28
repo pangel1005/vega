@@ -5,7 +5,9 @@ import com.asistente.personal.local.Skills
 import com.asistente.personal.local.normalize
 import com.asistente.personal.local.parseAt
 import com.asistente.personal.local.parseDuration
+import com.asistente.personal.local.nameDistance
 import com.asistente.personal.local.parseWake
+import com.asistente.personal.local.wordsPerSecond
 import com.asistente.personal.local.parseWhen
 import com.asistente.personal.local.sayTime
 import com.asistente.personal.local.speakable
@@ -147,5 +149,20 @@ class LocalSkillsTest {
         memory.exportForPc { sent = it; true }
         assertTrue(sent.contains("\"memory_import\"") && sent.contains("\"pan\"") && sent.contains("2026-10-24T16:00"))
         assertTrue(memory.isEmpty())
+    }
+
+    @Test fun `la distancia al nombre es solo una cifra y no depende de lo demas`() {
+        assertEquals(0, nameDistance("Vega, abre discord", "Vega"))
+        assertEquals(1, nameDistance("Mega abre discord", "Vega")) // Whisper falló por una letra
+        assertEquals(0, nameDistance("oye vega abre discord", "Vega")) // también vale la segunda palabra
+        assertEquals(4, nameDistance("abre discord ahora", "Vega") ?: -1) // «abre» está a 4 letras: nada que ver
+        assertEquals(null, nameDistance("   ", "Vega"))
+    }
+
+    @Test fun `las palabras por segundo se cuentan sin guardar la frase`() {
+        assertEquals(2.0, wordsPerSecond("abre discord", 1.0), 1e-9)
+        assertEquals(3.0, wordsPerSecond("Vega, sube el volumen ya", 5 / 3.0), 1e-9)
+        assertEquals(0.0, wordsPerSecond("hola", 0.0), 0.0) // sin duración no se divide por cero
+        assertEquals(0.0, wordsPerSecond("", 2.0), 0.0)
     }
 }

@@ -44,6 +44,21 @@ fun soundsLikeName(word: String, name: String): Boolean {
 
 data class Wake(val woke: Boolean, val command: String)
 
+/**
+ * Cuánto se parece a `name` la mejor de las dos primeras palabras de lo transcrito, en letras de diferencia (0 = igual);
+ * null si no hay palabras. Es solo un número para los registros: sirve para saber si Whisper falló por poco («Mega»)
+ * o por mucho, sin guardar lo que se dijo.
+ */
+fun nameDistance(text: String, name: String): Int? {
+    val base = normalize(name)
+    val words = normalize(text).split(' ').filter { it.isNotEmpty() }.take(2)
+    return words.minOfOrNull { editDistance(it, base) }
+}
+
+/** Palabras por segundo de una frase transcrita (solo la cifra, para los registros). */
+fun wordsPerSecond(text: String, seconds: Double): Double =
+    if (seconds <= 0) 0.0 else normalize(text).split(' ').count { it.isNotEmpty() } / seconds
+
 private val FILLERS = setOf("oye", "hey", "ey", "eh", "hola", "ok", "okay", "a", "e")
 private val WHITESPACE = Regex("\\s+")
 
