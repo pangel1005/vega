@@ -52,7 +52,7 @@ fun Deck(
             Pill(brainLabel, if (brainOnPhone) Vega.Mint else Vega.Ink2, onToggleBrain, filled = brainOnPhone)
             Spacer(Modifier.width(8.dp))
             // Estilo: «Noche» (tarjetas lisas), «Cristal» (aurora y cristal) o «Nostromo» (terminal ámbar).
-            Pill("Estilo: $styleName", when (styleName) { "Cristal" -> Vega.Sky; "Nostromo" -> Vega.Amber; else -> Vega.Ink2 }, onNextStyle)
+            Pill("Estilo: $styleName", when (styleName) { "Cristal" -> Vega.Sky; "Nostromo" -> Vega.Amber; "Orbe" -> Vega.Mint; else -> Vega.Ink2 }, onNextStyle)
             Spacer(Modifier.width(8.dp))
             // Vibración al tocar: fuerte, suave o sin vibrar.
             Pill("Toque: $touchLabel", Vega.Ink2, onNextTouch)

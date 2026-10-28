@@ -32,6 +32,7 @@ private const val KEY_BRAIN = "cerebro_telefono"
 private const val KEY_TOUCH = "vibracion_toque"
 private const val KEY_GLASS = "estilo_cristal"
 private const val KEY_TERMINAL = "estilo_terminal"
+private const val KEY_ORB = "estilo_orbe"
 private const val ECHO_GUARD_MS = 500L
 
 /**
@@ -88,22 +89,30 @@ class AssistantController(context: Context) {
     var terminal by mutableStateOf(prefs.getBoolean(KEY_TERMINAL, false))
         private set
 
+    /** Estilo «Orbe» (una esfera de luz que respira): excluyente con los demás. */
+    var orb by mutableStateOf(prefs.getBoolean(KEY_ORB, false))
+        private set
+
     /** Lo que oyó hoy (cifras), para la terminal. */
     fun earsStats(): com.asistente.personal.local.EarsSnapshot = local?.stats?.snapshot() ?: com.asistente.personal.local.EarsSnapshot()
 
-    /** Noche → Cristal → Nostromo → Noche. */
-    fun nextStyle() = setStyle((styleIndex(glass, terminal) + 1) % 3)
+    /** Noche → Cristal → Nostromo → Orbe → Noche. */
+    fun nextStyle() = setStyle((styleIndex(glass, terminal, orb) + 1) % STYLE_COUNT)
 
     private fun setStyle(index: Int) {
         glass = index == 1
         terminal = index == 2
-        prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).apply()
+        orb = index == 3
+        prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).putBoolean(KEY_ORB, orb).apply()
     }
 
     fun toggleGlass() {
         glass = !glass
-        if (glass) terminal = false
-        prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).apply()
+        if (glass) {
+            terminal = false
+            orb = false
+        }
+        prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).putBoolean(KEY_ORB, orb).apply()
     }
 
     fun nextTouchFeel() {
@@ -384,6 +393,8 @@ class AssistantController(context: Context) {
             "glass_on" -> if (!glass) toggleGlass()
             "terminal_on" -> setStyle(2)
             "terminal_off" -> if (terminal) setStyle(0)
+            "orb_on" -> setStyle(3)
+            "orb_off" -> if (orb) setStyle(0)
             "glass_off" -> if (glass) toggleGlass()
             "mic_on" -> if (!listenEnabled) toggleListening()
             "mic_off" -> if (listenEnabled) toggleListening()
@@ -766,11 +777,14 @@ class AssistantController(context: Context) {
     }
 }
 
-/** 0 = Noche, 1 = Cristal, 2 = Nostromo. */
-fun styleIndex(glass: Boolean, terminal: Boolean): Int = if (terminal) 2 else if (glass) 1 else 0
+const val STYLE_COUNT = 4
+
+/** 0 = Noche, 1 = Cristal, 2 = Nostromo, 3 = Orbe. */
+fun styleIndex(glass: Boolean, terminal: Boolean, orb: Boolean = false): Int = if (orb) 3 else if (terminal) 2 else if (glass) 1 else 0
 
 fun styleName(index: Int): String = when (index) {
     1 -> "Cristal"
     2 -> "Nostromo"
+    3 -> "Orbe"
     else -> "Noche"
 }

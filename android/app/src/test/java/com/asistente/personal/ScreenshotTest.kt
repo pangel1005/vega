@@ -332,4 +332,47 @@ class ScreenshotTest {
         compose.mainClock.advanceTimeBy(600)
         compose.onRoot().captureRoboImage("build/capturas/32_nostromo_hoja_mas.png")
     }
+
+    // --- Estilo «Orbe» ---
+
+    private val orbNotes = listOf(
+        com.asistente.personal.net.PcNote(3, "WhatsApp", "Ana", "¿Vienes a cenar?", 1_761_300_000.0 - 40, ""),
+        com.asistente.personal.net.PcNote(2, "Discord", "#general", "Luis: ¿alguien para una partida?", 1_761_300_000.0 - 600, ""),
+    )
+
+    @Test fun orbe_reposo() = shot(
+        "33_orbe_reposo",
+        model(base.copy(pcNotes = orbNotes, freshNotes = setOf(3L), notesKnown = true)).copy(orb = true),
+        afterMs = 1500,
+    )
+
+    @Test fun orbe_escuchando() = shot("34_orbe_escuchando", model(base, AssistantState.LISTENING, pulse = 2).copy(orb = true), afterMs = 600)
+
+    @Test fun orbe_pensando() = shot("35_orbe_pensando", model(base, AssistantState.THINKING).copy(orb = true), afterMs = 600)
+
+    @Test fun orbe_hablando_con_musica() = shot(
+        "36_orbe_hablando_musica",
+        model(base.copy(media = song, mediaAt = 1_000), AssistantState.SPEAKING, pulse = 3).copy(orb = true, mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D)),
+        afterMs = 600,
+    )
+
+    @Test fun orbe_sin_enlace() = shot(
+        "37_orbe_sin_enlace",
+        model(base.copy(link = LinkStatus.RECONNECTING, retryInMs = 3000, telemetry = null)).copy(orb = true),
+        afterMs = 600,
+    )
+
+    @Test fun orbe_confirmar() = shot(
+        "38_orbe_confirmar",
+        model(base.copy(pending = PendingConfirm("n1", "apagar", "¿Seguro?", 8))).copy(orb = true),
+        afterMs = 600,
+    )
+
+    @Test fun orbe_hoja_mas() {
+        compose.setContent { VegaScreen(model(base).copy(orb = true), ScreenActions()) }
+        compose.waitForIdle()
+        compose.onNodeWithText("···").performTouchInput { down(center) }
+        compose.mainClock.advanceTimeBy(500)
+        compose.onRoot().captureRoboImage("build/capturas/39_orbe_hoja_mas.png")
+    }
 }

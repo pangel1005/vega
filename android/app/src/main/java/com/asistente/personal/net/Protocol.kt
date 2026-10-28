@@ -106,7 +106,7 @@ sealed interface ServerEvent {
     data class Media(val media: MediaInfo?) : ServerEvent
     /** Las notificaciones del PC, de la más nueva a la más vieja. */
     data class Notifications(val items: List<PcNote>) : ServerEvent
-    /** Una orden de la app del PC: sleep, wake, brain_pc, brain_phone, glass_on, glass_off, terminal_on, terminal_off, mic_on, mic_off. */
+    /** Una orden de la app del PC: sleep, wake, brain_pc, brain_phone, glass_on, glass_off, terminal_on, terminal_off, orb_on, orb_off, mic_on, mic_off. */
     data class PhoneControl(val command: String) : ServerEvent
     /** Las casillas de la pantalla de Vega en Android Auto (vacía: usa las de serie). */
     data class CarLayout(val title: String, val items: List<com.asistente.personal.car.CarItem>) : ServerEvent

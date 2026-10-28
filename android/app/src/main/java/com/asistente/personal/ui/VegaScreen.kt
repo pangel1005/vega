@@ -113,6 +113,8 @@ data class ScreenModel(
     val glass: Boolean = false,
     /** Estilo «Nostromo»: terminal de fósforo ámbar en vez de la cara de LED. */
     val terminal: Boolean = false,
+    /** Estilo «Orbe»: una esfera de luz que respira, en vez de la cara de LED. */
+    val orb: Boolean = false,
     /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
     val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
     /** Iconos de las apps que mandan notificaciones en el PC, por id de icono. */
@@ -338,7 +340,9 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 scaleY = 1f - 0.05f * sleepFade
             },
         ) {
-            if (m.terminal) NostromoScreen(
+            if (m.orb) OrbScreen(
+                m, secondsLeft, canAct, onPress = press, onMore = { showMore = true }, onAttention = a.attention,
+            ) else if (m.terminal) NostromoScreen(
                 m, secondsLeft, canAct, onPress = press, onMore = { showMore = true }, onAttention = a.attention,
             ) else Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -456,7 +460,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         onToggleBrain = a.toggleBrain,
                         touchLabel = m.touchFeel.label,
                         onNextTouch = a.nextTouchFeel,
-                        styleName = styleName(styleIndex(m.glass, m.terminal)),
+                        styleName = styleName(styleIndex(m.glass, m.terminal, m.orb)),
                         onNextStyle = a.nextStyle,
                         onOpenAndroid = a.openAndroid,
                         // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.

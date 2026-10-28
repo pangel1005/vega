@@ -286,6 +286,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             touchFeel = c.touchFeel,
             glass = c.glass,
             terminal = c.terminal,
+            orb = c.orb,
             ears = c::earsStats,
             sleeping = c.sleeping,
         ),

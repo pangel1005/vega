@@ -334,3 +334,16 @@ de siempre (`¿SEGURO? 8`) y F7 para «Más». Tocar el log equivale a tocar la 
 
 **Cifras al cierre de esta etapa (25-10):** 241 pruebas del servidor, 15 de la app de escritorio y 112 de la app del teléfono, incluidas
 capturas de pantalla dibujadas en el PC para revisar el diseño sin instalarlo.
+
+## Etapa 23 — Estilo «Orbe»
+
+Segundo rediseño de las ocho propuestas: Vega como **una esfera de luz que respira**, sin cara ni tarjetas.
+
+- El color dice qué hace: verde al escucharte, ámbar al pensar, crema al hablar, rojo al pedir confirmación; en
+  reposo toma el color elegido o, si suena una canción en el PC, el de su carátula (con «♪ artista — título» arriba).
+- Motas de luz que fluyen hacia la esfera al escuchar, un cometa que gira al pensar y ondas que salen con cada
+  trozo de voz; cada aviso del PC es un satélite que orbita (los recién llegados brillan).
+- Cuatro anillos finos (CPU, RAM, GPU, batería del móvil) con sus cifras debajo; los que faltan quedan vacíos.
+- Se repinta a 25 fps en reposo, 8 fps dormida y a pantalla completa solo cuando actúa.
+- Se elige en «Más → Estilo» (Noche → Cristal → Nostromo → Orbe) o desde el PC (`phone_control orb_on/orb_off`).
+- 7 pruebas nuevas y 7 capturas (`33` a `39`).
