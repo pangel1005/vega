@@ -381,7 +381,7 @@ class ScreenshotTest {
     @Test fun noche_cuerpo() = shot(
         "40_noche_cuerpo",
         model(base).copy(
-            brainOnPhone = true, brainLabel = "IA: teléfono", phoneRam = { 0.62f },
+            brainOnPhone = true, brainLabel = "IA: teléfono", phoneRam = { 0.62f }, phoneTemp = { 36.5f },
             ears = { com.asistente.personal.local.EarsSnapshot(684, 642, 3) },
         ),
         afterMs = 1500,

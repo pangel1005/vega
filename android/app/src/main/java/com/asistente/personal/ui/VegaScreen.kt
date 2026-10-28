@@ -122,6 +122,8 @@ data class ScreenModel(
     val far: Boolean = false,
     /** Memoria usada del teléfono (0 a 1), para la tarjeta «Cuerpo». */
     val phoneRam: () -> Float? = { null },
+    /** Temperatura del teléfono en °C, para la tarjeta «Cuerpo». */
+    val phoneTemp: () -> Float? = { null },
     /** Iconos de las apps que mandan notificaciones en el PC, por id de icono. */
     val noteIcons: Map<String, ImageBitmap> = emptyMap(),
     /** Hora real (ms desde 1970) para «hace 5 min» en las notificaciones. */
@@ -761,12 +763,19 @@ private fun BodyCard(m: ScreenModel, upcoming: List<Upcoming>, elapsed: Long, mo
             delay(5_000)
         }
     }
+    val temp by produceState<Float?>(null, m.phoneTemp) {
+        while (true) {
+            value = m.phoneTemp()
+            delay(10_000)
+        }
+    }
     val t = m.ui.telemetry.takeIf { m.ui.link == LinkStatus.OPEN }
     Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         brainLoad(m.brainLabel).let { TextRow("Cerebro", m.brainLabel.removePrefix("IA: "), if (it.failed) Vega.Red else if (it.busy) Vega.Amber else Vega.Mint) }
         TextRow("Oído hoy", if (m.micOn) earsText(ears.heard, ears.calls) else "micro apagado", if (m.micOn) Vega.Ink else Vega.Amber)
         TextRow("PC", t?.let { "CPU ${it.cpu} %" + (it.gpuTemp?.let { g -> " · $g °C" } ?: "") } ?: "sin enlace", if (t != null) Vega.Ink else Vega.Ink3)
         StatRow("Memoria", ram?.let { "${(it * 100).toInt()} %" }, ram)
+        StatRow("Temperatura", temp?.let { "${it.toInt()} °C" }, temp?.let(::tempFraction))
         StatRow("Batería", if (m.battery >= 0) "${m.battery} %" else null, if (m.battery >= 0) m.battery / 100f else null, invert = true, charging = m.charging)
         Spacer(Modifier.weight(1f))
         val next = upcoming.firstOrNull()

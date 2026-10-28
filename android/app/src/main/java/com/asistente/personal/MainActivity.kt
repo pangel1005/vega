@@ -294,6 +294,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             far = far,
             ears = c::earsStats,
             phoneRam = { com.asistente.personal.ui.phoneMemoryUsed(appContext) },
+            phoneTemp = { com.asistente.personal.ui.phoneTemperature(appContext) },
             sleeping = c.sleeping,
         ),
         actions,

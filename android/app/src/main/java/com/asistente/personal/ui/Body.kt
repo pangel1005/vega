@@ -49,6 +49,16 @@ fun phoneMemoryUsed(context: Context): Float? {
     return if (info.totalMem > 0) (1f - info.availMem.toFloat() / info.totalMem).coerceIn(0f, 1f) else null
 }
 
+/** Temperatura del teléfono en grados (la de la batería, que es la que da el sistema); null si no la da. */
+fun phoneTemperature(context: Context): Float? {
+    val tenths = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+        ?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE) ?: return null
+    return if (tenths == Int.MIN_VALUE || tenths <= 0) null else tenths / 10f
+}
+
+/** Cuánto llena la barra de temperatura: 25 °C vacía, 50 °C llena (a partir de ~45 °C el teléfono se calienta de más). */
+fun tempFraction(celsius: Float): Float = ((celsius - 25f) / 25f).coerceIn(0f, 1f)
+
 /** Las frases de hoy y las llamadas, en una línea corta para la tarjeta «Cuerpo». */
 fun earsText(heard: Int, calls: Int): String =
     "$heard ${if (heard == 1) "frase" else "frases"} · $calls ${if (calls == 1) "llamada" else "llamadas"}"

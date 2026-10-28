@@ -8,6 +8,7 @@ import com.asistente.personal.ui.earsText
 import com.asistente.personal.ui.recentChat
 import com.asistente.personal.ui.scopeLit
 import com.asistente.personal.ui.scopePush
+import com.asistente.personal.ui.tempFraction
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -44,5 +45,13 @@ class BodyTest {
         assertEquals(listOf("m7", "m8", "m9", "m10"), shown.map { it.text })
         assertEquals(emptyList<Message>(), recentChat(emptyList()))
         assertArrayEquals(arrayOf(Role.USER, Role.ASSISTANT), recentChat(all.take(2)).map { it.role }.toTypedArray())
+    }
+
+    @Test fun `la temperatura llena la barra de 25 a 50 grados`() {
+        assertEquals(0f, tempFraction(20f), 0f)
+        assertEquals(0f, tempFraction(25f), 0f)
+        assertEquals(0.5f, tempFraction(37.5f), 1e-6f)
+        assertEquals(1f, tempFraction(50f), 0f)
+        assertEquals(1f, tempFraction(70f), 0f)
     }
 }
