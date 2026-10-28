@@ -23,6 +23,8 @@ from server.core.text import normalize
 from server.device.notifications import PcNotification
 from server.memory.personal import PersonalMemory, to_you
 from server.skills.status import pc_status
+from server.skills.weather import Forecast
+from server.skills.weather import answer as weather_answer
 from server.skills.when import parse_duration, parse_when, spoken_time
 
 
@@ -90,6 +92,13 @@ def _is_question(text: str, said: str) -> bool:
     return "?" in text or bool(_QUESTION.match(said))
 
 
+_WEATHER = re.compile(
+    r"\b(que|como) tiempo (hace|hara|va a hacer|tendremos)\b"
+    r"|\bel tiempo (de |para )?(hoy|manana|ahora|fuera)\b"
+    r"|\b(el|la) (clima|prevision)\b|\bva a (llover|nevar)\b|\b(llover|llueve|llovera|paraguas)\b"
+    r"|\bhace (frio|calor)\b|\bhara (frio|calor)\b|\bque temperatura (hace|hara)\b"
+    r"|\bcuantos grados (hay|hace)\b"
+)
 _TIMER = re.compile(r"\b(?:temporizador|cron[óo]metro|cuenta\s+atr[áa]s|alarma)\b", re.I)
 
 
@@ -100,7 +109,11 @@ class SkillRouter:
         now: Callable[[], datetime] = datetime.now,
         phone_battery: Callable[[], int | None] = lambda: None,
         notifications: Callable[[], list[PcNotification]] = list,
+        weather: Callable[[], Forecast | None] | None = None,
+        weather_ready: bool = False,
     ) -> None:
+        self._weather = weather
+        self._weather_ready = weather_ready  # ¿está activado y con ciudad? (si no, se explica cómo)
         self._mem = memory
         self._now = now
         self._battery = phone_battery
@@ -109,7 +122,7 @@ class SkillRouter:
     def handle(self, text: str) -> SkillReply | None:
         said = normalize(text)
         for skill in (self._forget, self._what_you_know, self._remember, self._timer, self._reminders,
-                      self._notes, self._pc_notifications, self._status, self._sleep,
+                      self._notes, self._pc_notifications, self._status, self._weather_skill, self._sleep,
                       self._about_me):  # fmt: skip
             reply = skill(text, said)
             if reply is not None:
@@ -270,6 +283,18 @@ class SkillRouter:
         return SkillReply(
             f"Tienes {len(notes)} notificaci{'ón' if len(notes) == 1 else 'ones'}: {_list(parts)}{more}."
         )
+
+    # --- El tiempo ---
+
+    def _weather_skill(self, text: str, said: str) -> SkillReply | None:
+        if not _WEATHER.search(said):
+            return None
+        if not self._weather_ready or self._weather is None:
+            return SkillReply("Aún no tengo el tiempo: actívalo en Ajustes de la app del PC, con tu ciudad.")
+        forecast = self._weather()
+        if forecast is None:
+            return SkillReply("Todavía no he podido bajar el tiempo. Lo intento cada pocos minutos.")
+        return SkillReply(weather_answer(said, forecast, self._now().timestamp()))
 
     # --- Estado del PC y del teléfono ---
 

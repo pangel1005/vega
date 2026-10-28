@@ -114,6 +114,19 @@ class NotificationSettings(_Section):
     enabled: bool = True
 
 
+class WeatherSettings(_Section):
+    """El tiempo (Open-Meteo). Apagado de serie: sale a internet con las coordenadas de la ciudad."""
+
+    enabled: bool = False
+    city: str = ""
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    @property
+    def ready(self) -> bool:
+        return self.enabled and self.latitude is not None and self.longitude is not None
+
+
 class Settings(_Section):
     assistant: AssistantSettings
     server: ServerSettings = ServerSettings()
@@ -124,6 +137,7 @@ class Settings(_Section):
     device: DeviceSettings = DeviceSettings()
     media: MediaSettings = MediaSettings()
     notifications: NotificationSettings = NotificationSettings()
+    weather: WeatherSettings = WeatherSettings()
 
     @property
     def system_prompt(self) -> str:

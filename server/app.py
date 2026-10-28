@@ -31,6 +31,7 @@ from server.llm.ollama import OllamaChat
 from server.memory.personal import PersonalMemory
 from server.memory.store import ConversationStore
 from server.skills.router import SkillRouter
+from server.skills.weather import WeatherService
 from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner
@@ -92,6 +93,9 @@ def create_app(
     notifications: NotificationReader | None = None,
     car: CarConfig | None = None,
     maintenance: Maintenance | None = None,
+    weather_transport: httpx.AsyncBaseTransport | None = None,
+    weather_refresh: bool = True,
+    weather_cache: Path | None = None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
@@ -106,8 +110,23 @@ def create_app(
     history = store or ConversationStore(settings.memory.path)
     memory = PersonalMemory(history)
     # Las notificaciones las lee el centro de avisos (`hub`, justo debajo).
+    weather = (
+        WeatherService(
+            settings.weather.latitude or 0.0,
+            settings.weather.longitude or 0.0,
+            settings.weather.city,
+            weather_cache or ROOT / "data" / "weather.json",
+            transport=weather_transport,
+        )
+        if settings.weather.ready
+        else None
+    )
     skills = SkillRouter(
-        memory, phone_battery=phone_battery, notifications=lambda: hub.latest_notifications()
+        memory,
+        phone_battery=phone_battery,
+        notifications=lambda: hub.latest_notifications(),
+        weather=weather.snapshot if weather else None,
+        weather_ready=weather is not None,
     )
     hub = Hub(memory, media=media, notifications=notifications if settings.notifications.enabled else None)
 
@@ -116,7 +135,10 @@ def create_app(
         hub.start()  # revisa los recordatorios cada segundo
         watch = StallWatch(ROOT / "logs" / "cuelgues")
         watch.start(asyncio.get_running_loop())
+        weather_task = asyncio.create_task(weather.run()) if weather and weather_refresh else None
         yield
+        if weather_task:
+            weather_task.cancel()
         watch.stop()
         await hub.stop()
 

@@ -397,3 +397,46 @@ def test_routine_dialog_builds_steps_and_validates_them(app: QApplication) -> No
     # Al editarla de nuevo, las esperas se leen como «espera N».
     again = ActionDialog(d.result_action, None, others)
     assert again.steps.toPlainText().splitlines() == ["silenciar", "espera 2", "bloquear"]
+
+
+def test_settings_weather_needs_a_chosen_city_and_saves_coordinates(
+    app: QApplication, window: tuple[MainWindow, FakeClient], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    from desktop import config_edit
+    from server.skills.weather import Place
+
+    cfg = tmp_path / "assistant.toml"
+    shutil.copy(config_edit.SETTINGS_FILE, cfg)
+    monkeypatch.setattr(config_edit, "SETTINGS_FILE", cfg)
+    monkeypatch.setattr(
+        config_edit, "write_settings", lambda v, path=cfg, _real=config_edit.write_settings: _real(v, path)
+    )
+    monkeypatch.setattr(
+        config_edit, "read_setting", lambda s, k, path=cfg, _real=config_edit.read_setting: _real(s, k, path)
+    )
+    win, _ = window
+    page = win.pages.widget(6)  # Ajustes
+    page.load()  # type: ignore[attr-defined]
+    assert not page.weather_on.isChecked() and "Aún no hay ciudad" in page.weather_state.text()  # type: ignore[attr-defined]
+
+    # Activarlo sin elegir ciudad no activa nada (no habría coordenadas que enviar).
+    page.weather_on.setChecked(True)  # type: ignore[attr-defined]
+    page.save()  # type: ignore[attr-defined]
+    assert config_edit.read_setting("weather", "enabled", cfg) is False
+
+    # Se elige una de las ciudades que devuelve la búsqueda.
+    page._cities_found([Place("Sevilla", "Andalucía", "España", 37.3891, -5.9845)])  # type: ignore[attr-defined]
+    assert page.city.text() == "Sevilla" and "37.39" in page.weather_state.text()  # type: ignore[attr-defined]
+    page.save()  # type: ignore[attr-defined]
+    assert config_edit.read_setting("weather", "enabled", cfg) is True
+    assert config_edit.read_setting("weather", "latitude", cfg) == 37.3891
+    # El servidor acepta lo que se guardó.
+    from server.core.config import load_settings
+
+    assert load_settings(cfg).weather.ready
+
+    # Una búsqueda sin resultados lo dice.
+    page._cities_found([])  # type: ignore[attr-defined]
+    assert "No encontré" in page.weather_state.text()  # type: ignore[attr-defined]

@@ -28,6 +28,22 @@ from desktop.widgets import Card, Dot, pill
 STT_MODELS = ("tiny", "base", "small", "medium")
 
 
+class CityLookup(QObject):
+    """Buscar una ciudad en Open-Meteo tarda un instante y sale a internet: se hace fuera de la ventana."""
+
+    found = Signal(list)
+
+    def run(self, name: str) -> None:
+        def work() -> None:
+            import asyncio
+
+            from server.skills.weather import find_places
+
+            self.found.emit(asyncio.run(find_places(name)))
+
+        threading.Thread(target=work, daemon=True).start()
+
+
 class ServerJob(QObject):
     """Arrancar o parar el servidor tarda segundos: se hace fuera de la ventana."""
 
@@ -118,6 +134,39 @@ class SettingsPage(QWidget):
             card.body.addWidget(c)
         lay.addWidget(card)
 
+        # --- El tiempo ---
+        weather = Card("El tiempo (opcional)")
+        note = QLabel(
+            "Para contestar «¿qué tiempo hace?». Sale a internet (open-meteo.com) y "
+            "solo manda las coordenadas "
+            "de la ciudad; el resto del tiempo, Vega sigue sin salir de tu casa."
+        )
+        note.setObjectName("muted")
+        note.setWordWrap(True)
+        self.weather_on = QCheckBox("Activar el tiempo")
+        self.city = QLineEdit()
+        self.city.setPlaceholderText("Tu ciudad: Madrid, Sevilla, Ciudad de México…")
+        self.city_search = pill("Buscar")
+        self.city_pick = QComboBox()
+        self.city_pick.setVisible(False)
+        self.weather_state = QLabel("")
+        self.weather_state.setObjectName("faint")
+        self.latitude: float | None = None
+        self.longitude: float | None = None
+        wrow = QHBoxLayout()
+        wrow.addWidget(self.city, 1)
+        wrow.addWidget(self.city_search)
+        for w in (note, self.weather_on):
+            weather.body.addWidget(w)
+        weather.body.addLayout(wrow)
+        weather.body.addWidget(self.city_pick)
+        weather.body.addWidget(self.weather_state)
+        lay.addWidget(weather)
+        self.lookup = CityLookup(self)
+        self.lookup.found.connect(self._cities_found)
+        self.city_search.clicked.connect(self._search_city)
+        self.city_pick.currentIndexChanged.connect(self._city_chosen)
+
         row2 = QHBoxLayout()
         self.save_btn = pill("Guardar", accent=True)
         self.reload_btn = pill("Volver a leer")
@@ -150,7 +199,48 @@ class SettingsPage(QWidget):
         self.lyrics.setChecked(bool(r("media", "lyrics")))
         self.usb.setChecked(bool(r("device", "usb_watcher")))
         self._fill_voices(str(r("speech", "tts_voice") or ""))
+        self.weather_on.setChecked(bool(r("weather", "enabled")))
+        self.city.setText(str(r("weather", "city") or ""))
+        self.latitude, self.longitude = r("weather", "latitude"), r("weather", "longitude")
+        self.city_pick.setVisible(False)
+        self._weather_label()
         self.status.setText("")
+
+    def _weather_label(self) -> None:
+        if self.latitude is None or self.longitude is None:
+            self.weather_state.setText("Aún no hay ciudad elegida: escribe una y pulsa «Buscar».")
+        else:
+            self.weather_state.setText(
+                f"Ciudad elegida: {self.city.text()} ({self.latitude:.2f}, {self.longitude:.2f})"
+            )
+
+    def _search_city(self) -> None:
+        name = self.city.text().strip()
+        if not name:
+            return
+        self.city_search.setEnabled(False)
+        self.weather_state.setText("Buscando…")
+        self.lookup.run(name)
+
+    def _cities_found(self, places: list[Any]) -> None:
+        self.city_search.setEnabled(True)
+        self.city_pick.blockSignals(True)
+        self.city_pick.clear()
+        for p in places:
+            self.city_pick.addItem(p.label, (p.name, p.latitude, p.longitude))
+        self.city_pick.blockSignals(False)
+        self.city_pick.setVisible(bool(places))
+        if not places:
+            self.weather_state.setText("No encontré esa ciudad (¿hay internet?). Prueba con otro nombre.")
+            return
+        self._city_chosen()
+
+    def _city_chosen(self) -> None:
+        data = self.city_pick.currentData()
+        if data:
+            self.city.setText(data[0])
+            self.latitude, self.longitude = round(data[1], 4), round(data[2], 4)
+            self._weather_label()
 
     def _fill_voices(self, current: str) -> None:
         self.voice.clear()
@@ -177,7 +267,12 @@ class SettingsPage(QWidget):
             ("notifications", "enabled"): self.notifications.isChecked(),
             ("media", "lyrics"): self.lyrics.isChecked(),
             ("device", "usb_watcher"): self.usb.isChecked(),
+            ("weather", "enabled"): self.weather_on.isChecked() and self.latitude is not None,
+            ("weather", "city"): self.city.text().strip(),
         }
+        if self.latitude is not None and self.longitude is not None:
+            values[("weather", "latitude")] = float(self.latitude)
+            values[("weather", "longitude")] = float(self.longitude)
         try:
             config_edit.write_settings(values)
         except ConfigError as exc:
