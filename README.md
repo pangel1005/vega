@@ -116,6 +116,7 @@ conversación. Tocar la cara tiene el mismo efecto.
 | 120 Hz en el teléfono | HyperOS limita a 60 Hz las apps que no conoce. La app lo pide, pero el sistema manda |
 | IA en el teléfono | Hecha («IA: teléfono» en «Más»): oye, entiende, usa sus habilidades y charla sin el PC. Es más lenta y menos lista que la del PC. Ver [docs/ia-en-el-telefono.md](docs/ia-en-el-telefono.md) |
 | Coche (Android Auto) | Hecho y probado con pruebas automáticas; falta probarlo con el DHU y un coche real. Ver [docs/coche.md](docs/coche.md) |
+| Filtro de «Vega» | Deja pasar ~94 % de lo que oye (entrenado con voces sintéticas): falta recalibrarlo con grabaciones reales y con permiso. Ver [docs/evolucion.md](docs/evolucion.md) (etapa 20) |
 | Wi-Fi | Aparcado: de momento, solo cable |
 | Interfaz web (`http://127.0.0.1:8000`) | Antigua: chat escrito, sin panel de botones |
 | Otros equipos (Raspberry Pi, otros Android) | Objetivo a largo plazo: que funcione en equipos modestos |

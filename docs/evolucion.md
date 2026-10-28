@@ -275,6 +275,38 @@ suerte el coste real de Whisper es bajo (~20 frases por hora ambiente, ~30 s de 
   desde una copia local; si no hay internet, con lo último y diciendo de cuándo es.
 - **Resumen del día** («buenos días», «¿qué tengo hoy?») y **alarmas a una hora** («pon una alarma a las 7»).
 
+## 20. Evaluación del proyecto y 21 correcciones (28-10)
+
+Se pidió una evaluación general. Dos revisiones independientes (servidor/PC y app del móvil, de solo lectura,
+con medidas reales en el Redmi) y una revisión propia de funciones y diseño. Lo más importante, corregido con su
+prueba:
+
+- **La pantalla pintaba 60 cuadros por segundo sin parar**, hasta dormida (1,2 millones de cuadros en 5,6 h; el
+  hilo de dibujo, al 53 % de un núcleo; la pantalla es el 67 % de lo que gasta la app). Ahora el ritmo depende del
+  ánimo: **en reposo, de 60 a 15 cuadros por segundo y el hilo de dibujo de ~53 % a ~21 %** (medido con
+  `dumpsys gfxinfo` y `top`). Además, **modo ambiente**: a los 10 min sin actividad el brillo baja.
+- **«Cancelar apagado» esperaba a que Vega terminase de contestar** (pedido a los 0,3 s, se ejecutaba a los 3,1 s,
+  y con Ollama real hasta 120 s). Lo lento va ahora en una cola aparte y los botones se atienden al momento.
+- **Fuga de ~400 MB nativos** si se cancelaba la carga de la IA del teléfono; **el micrófono podía morir en
+  silencio** (ahora avisa y reintenta); **una frase que llegaba con Vega ocupada se tiraba** (ahora espera si
+  sigue fresca).
+- **Seguridad:** `/app/models` resolvía rutas de red (UNC) antes de comprobarlas (podía filtrar el hash NTLM);
+  un recordatorio con zona horaria rompía todos los demás; el token con caracteres no ASCII lanzaba excepciones.
+- **Privacidad:** el registro guardaba el texto de los recordatorios y los títulos de las pestañas del navegador
+  (que además viajaban a lrclib.net); lo que se leía de las notificaciones de otras personas quedaba en el
+  historial. Ahora no.
+- **Robustez:** cifras enormes («999999999999 horas») tumbaban la conexión; `actions.toml` a medias impedía
+  arrancar (ahora se guarda con escritura atómica y se arranca con la última copia buena).
+
+**Lo que no se corrigió y sigue pendiente** (con el motivo):
+- El **filtro de «Vega» deja pasar el 94 %** de las frases reales (653 de 698 en ~34 h) y ninguna era una llamada:
+  entrenado solo con voces sintéticas no distingue la tele ni la conversación del cuarto. Hace falta recalibrarlo con
+  grabaciones **reales y con permiso** (el registro ya guarda la probabilidad de cada frase, no lo dicho).
+- El **token se entrega en `GET /`** y el rol lo declara el cliente (cualquiera con el token puede usar el
+  mantenimiento): sin riesgo con un solo usuario; con dos tokens (uno por rol) se cerraría.
+- Descarga de modelos sin reanudar, servicio en primer plano ante reinicios del sistema y llamadas WinRT en el
+  hilo del bucle (posible causa de dos parones de 21 y 25 s): sospechado, sin reproducir.
+
 ## Lo que se mantuvo desde el principio
 
 - Piezas pequeñas, **probadas** y explicadas.
