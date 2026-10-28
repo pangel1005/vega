@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.asistente.personal.ui.VINYL_SECONDS_PER_TURN
@@ -85,16 +86,17 @@ class VinylTest {
     private class Captured {
         var seek: Double? = null
         var toggles = 0
+        var doubles = 0
         val scrubs = mutableListOf<Double?>()
     }
 
-    private fun show(c: Captured, position: Double = 100.0, duration: Double = 300.0) {
+    private fun show(c: Captured, position: Double = 100.0, duration: Double = 300.0, cover: Boolean = false) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             Vinyl(
                 art = null, accent = Color(0xFFFF6B9D), playing = true, position = position, duration = duration,
                 onScrub = { c.scrubs += it }, onSeek = { c.seek = it }, onToggle = { c.toggles++ },
-                modifier = Modifier.size(300.dp),
+                modifier = Modifier.size(300.dp), cover = cover, onDoubleTap = { c.doubles++ },
             )
         }
         compose.mainClock.advanceTimeBy(100)
@@ -137,8 +139,42 @@ class VinylTest {
             val s = min(width, height).toFloat()
             click(Offset(s * 0.46f + s * 0.2f, s * 0.545f))
         }
+        compose.mainClock.advanceTimeBy(400) // un toque suelto espera por si llega un segundo
         assertEquals(1, c.toggles)
+        assertEquals(0, c.doubles)
         assertNull(c.seek)
+    }
+
+    @Test fun `dos toques seguidos cambian entre portada y vinilo y no pausan`() {
+        val c = Captured()
+        show(c)
+        compose.onRoot().performTouchInput {
+            val s = min(width, height).toFloat()
+            doubleClick(Offset(s * 0.46f + s * 0.2f, s * 0.545f))
+        }
+        compose.mainClock.advanceTimeBy(600)
+        assertEquals(1, c.doubles)
+        assertEquals(0, c.toggles) // el primer toque no pausó: esperó al segundo
+        assertNull(c.seek)
+    }
+
+    @Test fun `en la portada se toca en cualquier parte, y el doble toque tambien cambia`() {
+        val c = Captured()
+        show(c, cover = true)
+        compose.onRoot().performTouchInput { click(Offset(40f, 40f)) } // la esquina de la funda
+        compose.mainClock.advanceTimeBy(400)
+        assertEquals(1, c.toggles)
+        compose.onRoot().performTouchInput { doubleClick(Offset(100f, 100f)) }
+        compose.mainClock.advanceTimeBy(600)
+        assertEquals(1, c.doubles)
+        assertEquals(1, c.toggles) // sigue siendo uno: el doble toque no pausa
+    }
+
+    @Test fun `en la portada girar no salta la cancion`() {
+        val c = Captured()
+        show(c, cover = true)
+        turn(120f)
+        assertNull(c.seek) // solo el vinilo entero se gira para adelantar o retroceder
     }
 
     @Test fun `tocar fuera del disco no hace nada`() {
@@ -153,6 +189,7 @@ class VinylTest {
         val c = Captured()
         show(c)
         turn(4f, steps = 2) // menos que el margen de arrastre
+        compose.mainClock.advanceTimeBy(400)
         assertNull(c.seek)
         assertEquals(1, c.toggles)
     }

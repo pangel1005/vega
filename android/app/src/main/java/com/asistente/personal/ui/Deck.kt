@@ -42,7 +42,7 @@ fun Deck(
     onNextTouch: () -> Unit = {},
     styleName: String = "Noche",
     onNextStyle: () -> Unit = {},
-    waveLabel: String = WaveStyle.BARS.label,
+    waveLabel: String = WaveStyle.SPECTRUM.label,
     onNextWave: () -> Unit = {},
     onOpenAndroid: () -> Unit = {},
 ) {

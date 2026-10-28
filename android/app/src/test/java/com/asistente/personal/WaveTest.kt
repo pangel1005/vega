@@ -101,14 +101,15 @@ class WaveTest {
         assertTrue(!isSpotify(""))
     }
 
-    @Test fun `el estilo de onda pasa por barras, neon y silueta y se recuerda por nombre`() {
-        assertEquals(listOf("Barras", "Neón", "Silueta"), WaveStyle.entries.map { it.label })
+    @Test fun `el estilo de onda pasa por espectro, barras, neon y silueta y se recuerda por nombre`() {
+        assertEquals(listOf("Espectro", "Barras", "Neón", "Silueta"), WaveStyle.entries.map { it.label })
+        assertEquals(WaveStyle.BARS, WaveStyle.SPECTRUM.next())
         assertEquals(WaveStyle.NEON, WaveStyle.BARS.next())
         assertEquals(WaveStyle.SILHOUETTE, WaveStyle.NEON.next())
-        assertEquals(WaveStyle.BARS, WaveStyle.SILHOUETTE.next()) // da la vuelta
+        assertEquals(WaveStyle.SPECTRUM, WaveStyle.SILHOUETTE.next()) // da la vuelta
         assertEquals(WaveStyle.NEON, WaveStyle.from("NEON"))
-        assertEquals(WaveStyle.BARS, WaveStyle.from(null)) // sin ajuste guardado: barras
-        assertEquals(WaveStyle.BARS, WaveStyle.from("algo raro"))
+        assertEquals(WaveStyle.SPECTRUM, WaveStyle.from(null)) // sin ajuste guardado: el espectro, como una radio de coche
+        assertEquals(WaveStyle.SPECTRUM, WaveStyle.from("algo raro"))
     }
 
     @Test fun `la envolvente se interpola entre columnas y no se sale del rango`() {

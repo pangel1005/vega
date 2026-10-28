@@ -255,6 +255,8 @@ fun MusicScreen(
     modifier: Modifier = Modifier,
     startWithLyrics: Boolean = false,
     onSeek: (Double) -> Unit = {},
+    disc: Boolean = false,
+    onToggleDisc: () -> Unit = {},
 ) {
     val artImage = art
     val tint by animateColorAsState(accent, tween(600), label = "color de la carátula")
@@ -363,6 +365,8 @@ fun MusicScreen(
                                 },
                                 onToggle = { onControl("play_pause") },
                                 modifier = art.fillMaxHeight().aspectRatio(1f),
+                                cover = !disc,
+                                onDoubleTap = onToggleDisc,
                             )
                             Spacer(Modifier.width(28.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {

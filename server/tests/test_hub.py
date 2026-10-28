@@ -368,3 +368,24 @@ def test_music_spectrum_is_on_by_default_and_can_be_turned_off() -> None:
 
     assert MediaSettings().spectrum is True
     assert MediaSettings(spectrum=False).spectrum is False
+
+
+def test_spectrum_is_not_sent_if_spotify_has_no_audio_on_this_pc() -> None:
+    from server.ws.protocol import MusicSpectrumEvent
+
+    media, phone = FakeMedia(), Client()
+    level: list[float | None] = [None]  # Spotify suena en otro dispositivo: sin sesión de audio aquí
+    hub = Hub(
+        PersonalMemory(ConversationStore(":memory:")),
+        now=Clock(),
+        media=media,  # type: ignore[arg-type]
+        level=lambda: level[0],
+        spectrum=lambda: [0.0] * 24,
+    )
+    hub.add(phone)
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_music()) is False
+    assert not [e for e in phone.events if isinstance(e, MusicSpectrumEvent)]  # nada de barras planas
+    level[0] = 0.4  # ahora sí hay audio de Spotify en el PC
+    assert asyncio.run(hub.send_music()) is True
+    assert [e for e in phone.events if isinstance(e, MusicSpectrumEvent)]

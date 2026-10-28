@@ -6,11 +6,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -36,6 +39,9 @@ const val WAVE_RETURN_MS = 4_000L
 
 /** Cómo se dibuja la onda de la música (se elige en «Más»). */
 enum class WaveStyle(val label: String) {
+    /** Analizador de espectro como el de una radio de coche de los 2000: columnas de LED por frecuencias. */
+    SPECTRUM("Espectro"),
+
     /** Barras finas verticales en espejo, que se afinan en los extremos. */
     BARS("Barras"),
 
@@ -49,7 +55,7 @@ enum class WaveStyle(val label: String) {
     fun next(): WaveStyle = entries[(ordinal + 1) % entries.size]
 
     companion object {
-        fun from(name: String?): WaveStyle = entries.firstOrNull { it.name == name } ?: BARS
+        fun from(name: String?): WaveStyle = entries.firstOrNull { it.name == name } ?: SPECTRUM
     }
 }
 
@@ -97,6 +103,86 @@ class WaveState {
     }
 }
 
+const val SPECTRUM_BANDS = 24
+const val SPECTRUM_SEGMENTS = 16
+
+/**
+ * El analizador de espectro: una columna por banda de frecuencias (de graves a agudos) con el valor real que manda
+ * el servidor (el análisis del audio de Spotify). Cada columna sube de golpe y baja suave, y su pico se queda
+ * un instante arriba y luego cae como con gravedad, como en los ecualizadores de las radios de coche.
+ *
+ * La ganancia sigue al nivel reciente (con un tope para no amplificar ruido). Y, como en un analizador de verdad, no
+ * se dibuja solo el nivel: se mezcla con lo que **sobresale del nivel habitual de esa banda** (los golpes). En la
+ * música real las bandas casi no se mueven en bruto (medido: ~0,69 de media con ±0,09), y sin esto saldría una pared.
+ */
+class SpectrumState(val bands: Int = SPECTRUM_BANDS) {
+    val level = FloatArray(bands)
+    val peak = FloatArray(bands)
+    private val hold = IntArray(bands)
+    private val fall = FloatArray(bands)
+    private val usual = FloatArray(bands) // el nivel habitual de cada banda (media lenta)
+    private var recentTop = MIN_TOP
+    private var started = false
+    var gain = 1f
+        private set
+
+    /** Una lectura nueva (la columna `i` toma `raw[i]`; si llegan otras tantas bandas, se reparten). Vacío = silencio. */
+    fun push(raw: FloatArray) {
+        val top = raw.maxOrNull() ?: 0f
+        // La ganancia sube despacio (si no, un golpe fuerte se anularía a sí mismo) y baja despacio.
+        recentTop = (if (top > recentTop) recentTop + (top - recentTop) * GAIN_ATTACK else recentTop * GAIN_DECAY).coerceAtLeast(MIN_TOP)
+        gain = (TARGET_TOP / recentTop).coerceIn(0.9f, 2.2f)
+        for (i in 0 until bands) {
+            val v = if (raw.isEmpty()) 0f else (raw[if (raw.size == bands) i else i * raw.size / bands] * gain).coerceIn(0f, 1f)
+            if (!started) usual[i] = v // el primer instante no es un «golpe»: se parte de lo que suena
+            val presence = (v / PRESENCE).coerceIn(0f, 1f) // en silencio no hay contraste que resaltar
+            val shown = (ABS_MIX * v + REL_MIX * presence * (BASE + (v - usual[i]) * CONTRAST)).coerceIn(0f, 1f)
+            usual[i] += (v - usual[i]) * USUAL_RATE
+            level[i] = if (shown >= level[i]) shown else max(shown, level[i] * FALL) // sube de golpe, baja suave
+            if (level[i] >= peak[i]) {
+                peak[i] = level[i]
+                hold[i] = HOLD_STEPS
+                fall[i] = 0f
+            } else if (hold[i] > 0) {
+                hold[i]--
+            } else {
+                fall[i] += GRAVITY
+                peak[i] = max(level[i], peak[i] - fall[i])
+            }
+        }
+        if (raw.isNotEmpty()) started = true
+    }
+
+    companion object {
+        const val ABS_MIX = 0.55f // cuánto pesa el nivel de la banda...
+        const val REL_MIX = 0.45f // ...y cuánto lo que sobresale de su nivel habitual
+        const val BASE = 0.30f
+        const val CONTRAST = 3.2f
+        const val USUAL_RATE = 0.03f
+        const val PRESENCE = 0.25f
+        const val FALL = 0.78f
+        const val HOLD_STEPS = 14 // ~0,55 s con una lectura cada 40 ms
+        const val GRAVITY = 0.006f
+        const val TARGET_TOP = 0.92f
+        const val GAIN_DECAY = 0.995f
+        const val GAIN_ATTACK = 0.06f
+        const val MIN_TOP = 0.18f // por debajo de esto es silencio: no se amplifica el ruido
+    }
+}
+
+/** Color de un segmento de LED: lo bajo, del color de la canción; lo alto, más claro; las dos puntas, rojo anaranjado. */
+fun segmentColor(index: Int, total: Int, accent: Color): Color {
+    val r = if (total <= 1) 0f else index / (total - 1f)
+    return when {
+        r < 0.6f -> accent
+        r < 0.85f -> lighten(accent, 0.55f)
+        else -> Color(0xFFFF5A3A)
+    }
+}
+
+/** Cuánto de lleno está el segmento `index` para un nivel de 0 a 1: 1 si está del todo encendido, 0 si no, y algo en medio en el último. */
+fun segmentFill(level: Float, index: Int, total: Int): Float = (level.coerceIn(0f, 1f) * total - index).coerceIn(0f, 1f)
+
 /** El valor de la envolvente en una posición fraccionaria (interpolado entre columnas); fuera de rango, el extremo. */
 fun envAt(env: FloatArray, index: Float): Float {
     if (env.isEmpty()) return 0f
@@ -128,8 +214,16 @@ private fun lighten(c: Color, amount: Float) = Color(
 
 /** La cara de LED hecha onda: se mueve con lo que suena de verdad. */
 @Composable
-fun MusicWave(level: () -> Float, color: Color, style: WaveStyle = WaveStyle.BARS, modifier: Modifier = Modifier) {
+fun MusicWave(
+    level: () -> Float,
+    spectrum: () -> FloatArray,
+    color: Color,
+    style: WaveStyle = WaveStyle.SPECTRUM,
+    modifier: Modifier = Modifier,
+) {
     val state = remember { WaveState() }
+    val bandsState = remember { SpectrumState() }
+    var haveBands by remember { mutableStateOf(false) }
     val path = remember { Path() }
     val curve = remember { Path() }
     var frame by remember { mutableLongStateOf(0L) }
@@ -151,6 +245,9 @@ fun MusicWave(level: () -> Float, color: Color, style: WaveStyle = WaveStyle.BAR
             while (pending >= stepNs) {
                 val v = level()
                 state.push(v)
+                val bands = spectrum()
+                haveBands = bands.isNotEmpty()
+                bandsState.push(bands)
                 energy += (v / state.peak - energy) * 0.35f
                 pending -= stepNs
             }
@@ -161,7 +258,10 @@ fun MusicWave(level: () -> Float, color: Color, style: WaveStyle = WaveStyle.BAR
     val density = LocalDensity.current.density
     Canvas(modifier) {
         frame // se repinta en cada cuadro
-        when (style) {
+        // El espectro necesita el análisis del servidor; si no llega, se dibuja con el volumen (barras).
+        val effective = if (style == WaveStyle.SPECTRUM && !haveBands) WaveStyle.BARS else style
+        when (effective) {
+            WaveStyle.SPECTRUM -> drawSpectrum(bandsState, color, density)
             WaveStyle.BARS -> drawBars(state.env, scroll, color, energy.coerceIn(0f, 1f), density, path)
             WaveStyle.NEON -> drawNeon(state.env, scroll, color, energy.coerceIn(0f, 1f), time, density, curve)
             WaveStyle.SILHOUETTE -> drawSilhouette(state.env, scroll, color, energy.coerceIn(0f, 1f), density, path)
@@ -347,4 +447,59 @@ private fun DrawScope.drawSilhouette(env: FloatArray, scroll: Float, color: Colo
     )
     drawPath(path, bright.copy(alpha = 0.9f * live), style = Stroke(1.2f * density, join = StrokeJoin.Round))
     drawLine(bright.copy(alpha = 0.55f), Offset(0f, cy), Offset(w, cy), 1.4f * density, StrokeCap.Round)
+}
+
+/**
+ * Estilo «Espectro»: el analizador de una radio de coche. Una columna de segmentos de LED por banda (graves a la
+ * izquierda), encendidos de abajo arriba; los segmentos apagados se intuyen; cada pico se queda arriba un
+ * instante; y debajo, un reflejo tenue en el «suelo» brillante.
+ */
+private fun DrawScope.drawSpectrum(state: SpectrumState, color: Color, density: Float) {
+    val w = size.width
+    val h = size.height
+    val n = state.bands
+    val segs = SPECTRUM_SEGMENTS
+    val pitchX = w / n
+    val barWidth = pitchX * 0.74f
+    val floorY = h * 0.80f
+    val barHeight = floorY - h * 0.03f
+    val pitchY = barHeight / segs
+    val segHeight = pitchY * 0.76f
+    val corner = CornerRadius(1.6f * density)
+
+    // Resplandor suave del suelo, del color de la canción.
+    drawRect(
+        Brush.verticalGradient(listOf(Color.Transparent, color.copy(alpha = 0.10f)), h * 0.45f, floorY),
+        Offset(0f, h * 0.45f), Size(w, floorY - h * 0.45f),
+    )
+    for (i in 0 until n) {
+        val x = i * pitchX + (pitchX - barWidth) / 2
+        val lvl = state.level[i]
+        for (s in 0 until segs) {
+            val y = floorY - (s + 1) * pitchY + (pitchY - segHeight) / 2
+            val fill = segmentFill(lvl, s, segs)
+            val tint = segmentColor(s, segs, color)
+            drawRoundRect(tint.copy(alpha = if (fill > 0f) 0.25f + 0.75f * fill else 0.07f), Offset(x, y), Size(barWidth, segHeight), corner)
+            if (fill > 0.6f) { // el brillo de un LED encendido
+                drawRoundRect(
+                    tint.copy(alpha = 0.18f * fill), Offset(x - 1.5f * density, y - 1.5f * density),
+                    Size(barWidth + 3f * density, segHeight + 3f * density), corner,
+                )
+            }
+        }
+        // El pico: un segmento más claro que flota por encima.
+        val peakSeg = (state.peak[i] * segs).toInt().coerceIn(0, segs - 1)
+        if (state.peak[i] > lvl + 0.5f / segs) {
+            val y = floorY - (peakSeg + 1) * pitchY + (pitchY - segHeight) / 2
+            drawRoundRect(lighten(segmentColor(peakSeg, segs, color), 0.5f).copy(alpha = 0.95f), Offset(x, y), Size(barWidth, segHeight), corner)
+        }
+        // Reflejo en el suelo: los primeros segmentos, espejados y cada vez más tenues.
+        for (s in 0 until 3) {
+            val fill = segmentFill(lvl, s, segs)
+            if (fill <= 0f) continue
+            val y = floorY + h * 0.012f + s * pitchY
+            drawRoundRect(segmentColor(s, segs, color).copy(alpha = (0.20f - 0.06f * s) * fill), Offset(x, y), Size(barWidth, segHeight), corner)
+        }
+    }
+    drawLine(color.copy(alpha = 0.35f), Offset(0f, floorY + h * 0.004f), Offset(w, floorY + h * 0.004f), 1.2f * density, StrokeCap.Round)
 }

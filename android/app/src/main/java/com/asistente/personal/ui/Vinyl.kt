@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,6 +58,9 @@ const val VINYL_SECONDS_PER_TURN = 30.0
 
 /** Velocidad de giro de un disco de 33⅓ rpm, en grados por segundo. */
 const val VINYL_DEGREES_PER_SECOND = 200f
+
+/** Tiempo para dar el segundo toque de un doble toque. Un toque suelto espera esto antes de pausar/reanudar. */
+const val VINYL_DOUBLE_TAP_MS = 260L
 
 /** Un toque más largo que esto (sin girar) ya no cuenta como toque. */
 private const val TAP_MAX_MS = 450L
@@ -122,7 +127,11 @@ fun Vinyl(
     onSeek: (Double) -> Unit,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    cover: Boolean = false,
+    onDoubleTap: () -> Unit = {},
 ) {
+    val isCover by rememberUpdatedState(cover)
+    val doubleTap by rememberUpdatedState(onDoubleTap)
     val isPlaying by rememberUpdatedState(playing)
     val livePosition by rememberUpdatedState(position)
     val liveDuration by rememberUpdatedState(duration)
@@ -136,9 +145,10 @@ fun Vinyl(
     var frame by remember { mutableLongStateOf(0L) }
     var delta by remember { mutableStateOf<Double?>(null) } // lo adelantado o retrasado mientras se arrastra
     val arm by animateFloatAsState(
-        if (playing || held) 1f else 0f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = 90f), label = "brazo",
+        if ((playing || held) && !cover) 1f else 0f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = 90f), label = "brazo",
     )
     val label = remember(art) { art?.let { circularArt(it, 320) } }
+    val sleeve = remember(art) { art?.let { roundedArt(it, 480, 0.045f) } }
 
     LaunchedEffect(Unit) {
         var last = withFrameNanos { it }
@@ -155,7 +165,7 @@ fun Vinyl(
     }
 
     Box(
-        modifier.semantics { contentDescription = "Vinilo: toca para pausar, gíralo para adelantar o retroceder la canción" },
+        modifier.semantics { contentDescription = "Portada: toca para pausar, doble toque para ver el vinilo, y en el vinilo gíralo para adelantar o retroceder" },
         contentAlignment = Alignment.BottomCenter,
     ) {
         Canvas(
@@ -165,7 +175,9 @@ fun Vinyl(
                     val side = min(size.width, size.height).toFloat()
                     val center = Offset(side * DISC_X, side * DISC_Y)
                     val radius = side * DISC_R
-                    if ((down.position - center).getDistance() > radius * 1.04f) return@awaitEachGesture // fuera del disco: no es para él
+                    val onRecord = (down.position - center).getDistance() <= radius * 1.04f
+                    // En la portada vale tocar en cualquier parte del cuadrado; con el disco entero, solo sobre él.
+                    if (!isCover && !onRecord) return@awaitEachGesture
                     var previous = angleOf(down.position, center)
                     var turned = 0f
                     var dragging = false
@@ -180,7 +192,7 @@ fun Vinyl(
                         val step = angleDelta(previous, now)
                         previous = now
                         turned += step
-                        if (!dragging && abs(turned) > VINYL_DRAG_SLOP) {
+                        if (!dragging && !isCover && abs(turned) > VINYL_DRAG_SLOP) {
                             dragging = true
                             held = true
                         }
@@ -202,13 +214,21 @@ fun Vinyl(
                         scrub(null)
                         seek(target)
                     } else if (lastTime - pressedAt < TAP_MAX_MS) {
-                        toggle() // toque corto sin girar: pausa o reanuda
+                        // Un toque corto espera un instante por si llega un segundo: doble toque cambia entre la
+                        // portada y el vinilo; un toque suelto pausa o reanuda.
+                        val second = withTimeoutOrNull(VINYL_DOUBLE_TAP_MS) { awaitFirstDown(requireUnconsumed = false) }
+                        if (second != null) {
+                            waitForUpOrCancellation()
+                            doubleTap()
+                        } else {
+                            toggle()
+                        }
                     }
                 }
             },
         ) {
             frame // se repinta en cada cuadro
-            drawVinyl(angle, arm, accent, label)
+            if (cover) drawSleeve(angle, accent, label, sleeve) else drawVinyl(angle, arm, accent, label)
         }
         delta?.let {
             Box(Modifier.padding(bottom = 6.dp)) {
@@ -229,8 +249,12 @@ private fun DrawScope.drawVinyl(angle: Float, arm: Float, accent: Color, label: 
     val s = min(size.width, size.height)
     val c = Offset(s * DISC_X, s * DISC_Y)
     val rd = s * DISC_R
-    val dp = s / 300f // una unidad pequeña que escala con el tamaño
+    drawRecord(c, rd, s / 300f, angle, accent, label)
+    drawArm(s, arm, s / 300f, c, rd)
+}
 
+/** Un disco de vinilo (surcos, marcas del borde, etiqueta y reflejo) con su centro `c` y radio `rd`. */
+private fun DrawScope.drawRecord(c: Offset, rd: Float, dp: Float, angle: Float, accent: Color, label: ImageBitmap?) {
     // Sombra bajo el disco.
     drawCircle(
         Brush.radialGradient(listOf(Color(0xAA000000), Color.Transparent), c + Offset(rd * 0.06f, rd * 0.1f), rd * 1.25f),
@@ -287,8 +311,52 @@ private fun DrawScope.drawVinyl(angle: Float, arm: Float, accent: Color, label: 
         rd, c,
     )
     drawCircle(Color.White.copy(alpha = 0.10f), rd, c, style = Stroke(1.2f * dp))
+}
 
-    drawArm(s, arm, dp, c, rd)
+/**
+ * La portada de la canción, como una funda de disco, con el vinilo asomando por detrás (y girando si suena).
+ * No es un vinilo literal: es la portada la que manda, y el disco da vida.
+ */
+private fun DrawScope.drawSleeve(angle: Float, accent: Color, label: ImageBitmap?, cover: ImageBitmap?) {
+    val s = min(size.width, size.height)
+    val dp = s / 300f
+    val record = Offset(s * 0.695f, s * 0.5f)
+    val rd = s * 0.30f
+    drawRecord(record, rd, dp, angle, accent, label)
+
+    val side = s * 0.68f
+    val left = s * 0.03f
+    val top = (s - side) / 2
+    val radius = CornerRadius(side * 0.045f)
+    // La funda proyecta su sombra sobre el disco.
+    drawRoundRect(Brush.horizontalGradient(listOf(Color(0x99000000), Color.Transparent), left + side - 2 * dp, left + side + rd * 0.35f), Offset(left + side - 2 * dp, top + side * 0.04f), Size(rd * 0.4f, side * 0.92f))
+    drawRoundRect(Color.Black.copy(alpha = 0.5f), Offset(left + 5 * dp, top + 9 * dp), Size(side, side), radius)
+    if (cover != null) {
+        drawImage(cover, dstOffset = IntOffset(left.roundToInt(), top.roundToInt()), dstSize = IntSize(side.roundToInt(), side.roundToInt()))
+    } else {
+        drawRoundRect(Brush.linearGradient(listOf(accent.copy(alpha = 0.95f), accent.copy(alpha = 0.45f)), Offset(left, top), Offset(left + side, top + side)), Offset(left, top), Size(side, side), radius)
+    }
+    // Un brillo en diagonal y el canto de la funda.
+    drawRoundRect(
+        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.16f), Color.Transparent, Color.Black.copy(alpha = 0.18f)), Offset(left, top), Offset(left + side, top + side)),
+        Offset(left, top), Size(side, side), radius,
+    )
+    drawRoundRect(Color.White.copy(alpha = 0.14f), Offset(left, top), Size(side, side), radius, style = Stroke(1.2f * dp))
+}
+
+/** La carátula con las esquinas redondeadas (para la funda); se hace una vez, no en cada cuadro. */
+private fun roundedArt(art: ImageBitmap, size: Int, radiusFraction: Float): ImageBitmap {
+    val source = art.asAndroidBitmap()
+    val side = min(source.width, source.height)
+    val square = android.graphics.Bitmap.createBitmap(source, (source.width - side) / 2, (source.height - side) / 2, side, side)
+    val out = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(out)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    val r = size * radiusFraction
+    canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), r, r, paint)
+    paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+    canvas.drawBitmap(square, null, android.graphics.Rect(0, 0, size, size), paint)
+    return out.asImageBitmap()
 }
 
 /** El brazo del tocadiscos: gira alrededor de su pivote y baja la aguja al disco cuando suena. */

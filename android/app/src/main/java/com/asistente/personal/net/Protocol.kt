@@ -107,6 +107,9 @@ sealed interface ServerEvent {
 
     /** Cuánto suena el PC ahora (0 a 1), unas 20 veces por segundo mientras suena algo. */
     data class MusicLevel(val level: Float) : ServerEvent
+
+    /** Cuánto suena cada banda de frecuencias de Spotify (de graves a agudos, 0 a 1), ~25 veces por segundo. */
+    data class MusicSpectrum(val bands: List<Float>) : ServerEvent
     /** Las notificaciones del PC, de la más nueva a la más vieja. */
     data class Notifications(val items: List<PcNote>) : ServerEvent
     /** Una orden de la app del PC: sleep, wake, brain_pc, brain_phone, glass_on, glass_off, terminal_on, terminal_off, orb_on, orb_off, wave_next, mic_on, mic_off. */
@@ -118,6 +121,9 @@ sealed interface ServerEvent {
     /** Respuesta del PC a una orden que entendió el teléfono (IA en el teléfono). */
     data class PhoneReply(val handled: Boolean, val text: String) : ServerEvent
 }
+
+/** Como mucho cuántas bandas de frecuencia se aceptan del servidor (manda 24). */
+private const val MAX_BANDS = 64
 
 object Protocol {
     /** Convierte el texto recibido en un evento; null si no es válido o no se conoce. */
@@ -164,6 +170,9 @@ object Protocol {
             "audio" -> ServerEvent.Audio(o.getInt("seq"), o.getInt("rate"), o.getString("text"))
             "audio_end" -> ServerEvent.AudioEnd
             "reminder" -> ServerEvent.Reminder(o.getString("kind"), o.getString("text"))
+            "music_spectrum" -> ServerEvent.MusicSpectrum(
+                o.optJSONArray("bands")?.let { arr -> List(minOf(arr.length(), MAX_BANDS)) { i -> arr.optDouble(i, 0.0).toFloat().coerceIn(0f, 1f) } }.orEmpty(),
+            )
             "music_level" -> ServerEvent.MusicLevel(o.optDouble("level", 0.0).toFloat().coerceIn(0f, 1f))
             "media" -> ServerEvent.Media(
                 if (!o.optBoolean("active")) null else MediaInfo(

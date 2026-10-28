@@ -245,6 +245,24 @@ class ScreenshotTest {
         compose.onRoot().captureRoboImage("build/capturas/17_sonando.png")
     }
 
+    // Doble toque: el vinilo entero, con el brazo.
+    @Test fun pantalla_sonando_vinilo_entero() {
+        val art = fakeArt()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            VegaScreen(
+                model(base.copy(media = song, mediaAt = 1_000)).copy(
+                    mediaArt = art, mediaAccent = com.asistente.personal.ui.accentOf(art), clockMs = { 1_000 }, musicDisc = true,
+                ),
+                ScreenActions(),
+            )
+        }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Human Nature").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(1500)
+        compose.onRoot().captureRoboImage("build/capturas/61_sonando_vinilo_entero.png")
+    }
+
     // En pausa: el disco se para y el brazo se aparta.
     @Test fun pantalla_sonando_en_pausa() {
         val art = fakeArt()
@@ -495,6 +513,7 @@ class ScreenshotTest {
         "51_noche_onda_musica",
         model(base.copy(media = song, mediaAt = 1_000)).copy(
             musicLevel = fakeMusic(40), mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D), clockMs = { 1_000 },
+            waveStyle = com.asistente.personal.ui.WaveStyle.BARS,
         ),
         afterMs = 5600,
     )
@@ -512,6 +531,7 @@ class ScreenshotTest {
         "55_noche_onda_barras_cian",
         model(base.copy(media = song, mediaAt = 1_000)).copy(
             musicLevel = fakeMusic(40), mediaAccent = androidx.compose.ui.graphics.Color(0xFF29D3FF), clockMs = { 1_000 },
+            waveStyle = com.asistente.personal.ui.WaveStyle.BARS,
         ),
         afterMs = 5600,
     )
@@ -537,5 +557,50 @@ class ScreenshotTest {
         "53_noche_avisos_sin_borde",
         model(base.copy(pcNotes = notes, freshNotes = setOf(3L), notesKnown = true)).copy(wallMs = 1_761_300_000_000),
         afterMs = 1500,
+    )
+
+    /**
+     * Un fragmento de música sintética (bombo, bajo, caja, platillos y acordes) pasado por el mismo analizador del
+     * servidor: 349 fotogramas de 24 bandas cada 40 ms. Sirve para ver el diseño; NO es audio real de Spotify.
+     */
+    private fun demoSpectrum(from: Int = 0, file: String = "spectrum_demo.txt"): () -> FloatArray {
+        val frames = javaClass.classLoader!!.getResourceAsStream(file)!!.bufferedReader().readLines()
+            .map { line -> line.split(",").map { it.toFloat() }.toFloatArray() }
+        var n = from
+        return { frames[n++ % frames.size] }
+    }
+
+    @Test fun noche_espectro_rosa() = shot(
+        "58_noche_espectro",
+        model(base.copy(media = song, mediaAt = 1_000)).copy(
+            musicSpectrum = demoSpectrum(120), musicLevel = { 0.5f }, mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D), clockMs = { 1_000 },
+        ),
+        afterMs = 3000,
+    )
+
+    @Test fun noche_espectro_cian() = shot(
+        "59_noche_espectro_cian",
+        model(base.copy(media = song, mediaAt = 1_000)).copy(
+            musicSpectrum = demoSpectrum(40), musicLevel = { 0.5f }, mediaAccent = androidx.compose.ui.graphics.Color(0xFF29D3FF), clockMs = { 1_000 },
+        ),
+        afterMs = 3000,
+    )
+
+    @Test fun noche_espectro_sin_datos_cae_a_barras() = shot(
+        "60_noche_espectro_sin_analisis",
+        model(base.copy(media = song, mediaAt = 1_000)).copy(
+            musicLevel = fakeMusic(40), mediaAccent = androidx.compose.ui.graphics.Color(0xFF29D3FF), clockMs = { 1_000 },
+        ),
+        afterMs = 5600,
+    )
+
+    /** El mismo analizador con 16 s de espectro REAL de Spotify (capturados en el PC con la captura por proceso). */
+    @Test fun noche_espectro_real() = shot(
+        "62_noche_espectro_real",
+        model(base.copy(media = song, mediaAt = 1_000)).copy(
+            musicSpectrum = demoSpectrum(60, "spectrum_real.txt"), musicLevel = { 0.5f },
+            mediaAccent = androidx.compose.ui.graphics.Color(0xFFE5303A), clockMs = { 1_000 },
+        ),
+        afterMs = 3000,
     )
 }

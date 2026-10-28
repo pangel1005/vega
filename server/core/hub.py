@@ -297,11 +297,21 @@ class Hub:
         await self.broadcast("phone", MusicSpectrumEvent(bands=bands))
         return True
 
+    async def send_music(self) -> bool:
+        """Manda al teléfono el volumen y el espectro de Spotify.
+
+        El espectro solo si Spotify tiene audio real en este PC: si suena por otro dispositivo, la captura
+        daría silencio y las barras se quedarían planas (engañosas).
+        """
+        level = await self.send_level()
+        if self._level is not None and not level:
+            return False
+        return await self.send_spectrum() or level
+
     async def _level_loop(self) -> None:
         while True:
             try:
-                sent = await self.send_level()
-                sent = await self.send_spectrum() or sent
+                sent = await self.send_music()
             except Exception:
                 log.exception("Fallo al medir la música")
                 sent = False

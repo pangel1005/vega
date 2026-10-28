@@ -118,12 +118,16 @@ data class ScreenModel(
     val orb: Boolean = false,
     /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
     val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
+    /** La pantalla de música enseña el vinilo entero (true) o la portada con el vinilo asomando (false). */
+    val musicDisc: Boolean = false,
     /** Cómo se dibuja la onda de la música de Spotify. */
-    val waveStyle: WaveStyle = WaveStyle.BARS,
+    val waveStyle: WaveStyle = WaveStyle.SPECTRUM,
     /** Volumen real de lo que suena en el PC (0 a 1): con él, la cara se hace onda mientras suena música. */
     val musicLevel: () -> Float = { 0f },
     /** ¿Llega el volumen del PC? Si no, no hay onda que dibujar y se queda la cara. */
     val musicSignal: () -> Boolean = { true },
+    /** Las bandas de frecuencia de Spotify (graves a agudos); vacío si no hay. Para el analizador de espectro. */
+    val musicSpectrum: () -> FloatArray = { FloatArray(0) },
     /** El próximo aviso del propio teléfono (alarma o recordatorio), para cuando el PC no lo cuenta. */
     val localNext: NextAlert? = null,
     /** Modo de lejos: tras 10 minutos sin nadie, solo la hora enorme y la última respuesta. */
@@ -163,6 +167,8 @@ class ScreenActions(
     val dismissNote: (Long?) -> Unit = {},
     val nextTouchFeel: () -> Unit = {},
     val nextWaveStyle: () -> Unit = {},
+    /** Doble toque en la pantalla de música: cambia entre la portada y el vinilo entero. */
+    val toggleMusicDisc: () -> Unit = {},
     val toggleGlass: () -> Unit = {},
     val nextStyle: () -> Unit = {},
     /** Vuelve a cargar la IA del teléfono si falló. */
@@ -532,6 +538,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 MusicScreen(
                     playing, ui.mediaAt, m.clockMs, m.mediaArt, m.mediaAccent, m.clock, m.lyrics,
                     onControl = a.mediaControl, onClose = { showMusic = false }, onSeek = a.mediaSeek,
+                    disc = m.musicDisc, onToggleDisc = a.toggleMusicDisc,
                 )
             }
         }
@@ -607,7 +614,7 @@ private fun FaceCard(
         Box(Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp)) {
             androidx.compose.animation.Crossfade(targetState = waveOn, animationSpec = tween(350), label = "cara u onda") { wave ->
                 if (wave) {
-                    MusicWave(m.musicLevel, m.mediaAccent, m.waveStyle, Modifier.fillMaxSize())
+                    MusicWave(m.musicLevel, m.musicSpectrum, m.mediaAccent, m.waveStyle, Modifier.fillMaxSize())
                 } else {
                     LedFaceView(
                         mood = mood,

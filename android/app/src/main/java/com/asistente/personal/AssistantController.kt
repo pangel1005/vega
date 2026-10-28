@@ -31,6 +31,7 @@ private const val KEY_FACE_COLOR = "color_cara"
 private const val KEY_BRAIN = "cerebro_telefono"
 private const val KEY_TOUCH = "vibracion_toque"
 private const val KEY_WAVE = "estilo_onda"
+private const val KEY_DISC = "musica_vinilo"
 
 /** Cuánto tiempo sin recibir volumen antes de dar la señal por perdida (el servidor manda ~20 por segundo). */
 const val MUSIC_SIGNAL_MS = 1_500L
@@ -117,6 +118,15 @@ class AssistantController(context: Context) {
             orb = false
         }
         prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).putBoolean(KEY_ORB, orb).apply()
+    }
+
+    /** La pantalla de música enseña el vinilo entero (true) o la portada con el vinilo asomando (false, de serie). */
+    var musicDisc by mutableStateOf(prefs.getBoolean(KEY_DISC, false))
+        private set
+
+    fun toggleMusicDisc() {
+        musicDisc = !musicDisc
+        prefs.edit().putBoolean(KEY_DISC, musicDisc).apply()
     }
 
     /** Cómo se dibuja la onda de la música de Spotify (se recuerda entre reinicios). */
@@ -304,8 +314,14 @@ class AssistantController(context: Context) {
     /** Volumen real de lo que suena en el PC (0 a 1); 0 si hace más de medio segundo que no llega nada. Se lee sin recomponer. */
     fun musicLevel(): Float = if (android.os.SystemClock.elapsedRealtime() - musicLevelAt > 600) 0f else musicLevelRaw
 
-    /** ¿Está llegando el volumen del PC? Sin señal (Spotify no suena en el PC o se desconectó) no hay onda que dibujar. */
-    fun musicSignal(): Boolean = android.os.SystemClock.elapsedRealtime() - musicLevelAt <= MUSIC_SIGNAL_MS
+    @Volatile private var spectrumRaw: FloatArray = FloatArray(0)
+    @Volatile private var spectrumAt = 0L
+
+    /** Las bandas de frecuencia de Spotify ahora (de graves a agudos, 0 a 1); vacío si hace más de medio segundo que no llegan. */
+    fun musicSpectrum(): FloatArray = if (android.os.SystemClock.elapsedRealtime() - spectrumAt > 600) FloatArray(0) else spectrumRaw
+
+    /** ¿Está llegando el volumen (o el espectro) del PC? Sin señal (Spotify no suena en el PC o se desconectó) no hay onda que dibujar. */
+    fun musicSignal(): Boolean = android.os.SystemClock.elapsedRealtime() - maxOf(musicLevelAt, spectrumAt) <= MUSIC_SIGNAL_MS
 
     /** Próxima alarma o recordatorio del teléfono (hora real), para las pantallas de lejos y de dormida. */
     var localNext by mutableStateOf<com.asistente.personal.ui.NextAlert?>(null)
@@ -521,6 +537,9 @@ class AssistantController(context: Context) {
                 dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
             } else if (event is ServerEvent.Media) {
                 dispatch(Action.Media(event.media, android.os.SystemClock.elapsedRealtime()))
+            } else if (event is ServerEvent.MusicSpectrum) {
+                spectrumRaw = event.bands.toFloatArray()
+                spectrumAt = android.os.SystemClock.elapsedRealtime()
             } else if (event is ServerEvent.MusicLevel) {
                 // 20 lecturas por segundo: no pasan por el estado de la pantalla (recompondría sin parar).
                 musicLevelRaw = event.level

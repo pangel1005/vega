@@ -455,3 +455,29 @@ Los gestos se prueban con toques simulados (`VinylTest`): girar a la derecha/izq
 un giro minúsculo que sigue siendo un toque. No se pudo abrir la pantalla en el Redmi por `adb` (los toques están
 bloqueados): se probó con capturas y toques simulados, no a mano.
 
+## Etapa 31 — Analizador de espectro estilo radio de coche y portada con vinilo
+
+**Analizador de espectro.** La onda de Spotify ya es, de serie, un analizador como los de las radios de coche de los
+2000: 24 columnas de segmentos de LED (graves a la izquierda, agudos a la derecha) que suben de golpe y bajan suave,
+con un pico que se queda arriba un instante y cae como con gravedad, colores por zonas (el color de la canción, más
+claro arriba y rojo anaranjado en la punta) y un reflejo en el «suelo». Se elige en «Más → Onda» (Espectro, Barras,
+Neón, Silueta; `phone_control wave_next`).
+
+Es **espectro real**: el servidor (`server/device/audio_capture.py`) pide a Windows el audio de Spotify solo
+(«captura de bucle por proceso», código propio sobre `comtypes`, sin binarios de terceros), calcula una FFT en
+memoria y manda al teléfono 24 números por instante (`music_spectrum`). El audio no se graba, no se guarda y no sale
+del PC; solo se captura mientras suena Spotify, y se apaga con `[media] spectrum = false`. Comprobado en el PC con un
+tono de 1 kHz (cae en su banda, el resto a 0) y con Spotify real (24 bandas, ±0,09 de movimiento en bruto: por eso el
+dibujo resalta lo que sobresale del nivel habitual de cada banda, si no saldría una pared).
+
+Si Spotify suena por otro dispositivo (sin audio en el PC) no se manda nada y el teléfono vuelve a la cara; si el
+espectro no llega, cae a las barras de volumen.
+
+**Portada.** La pantalla de música enseña ahora la **portada** como una funda de disco con el vinilo asomando por
+detrás (girando si suena). Un **doble toque** cambia al vinilo entero con el brazo, y otro vuelve; se recuerda. En la
+portada se toca en cualquier parte para pausar; el vinilo entero se sigue girando con el dedo para adelantar o
+retroceder. Un toque suelto espera unos 0,26 s por si llega el segundo.
+
+Sobre el proyecto «Familiar»: no hay en este PC una carpeta con ese nombre ni nada parecido (se buscó por nombre y
+contenido en Descargas, Documentos, Escritorio y OneDrive); si está en otro disco o en la nube, hay que decir dónde.
+
