@@ -4,13 +4,19 @@ import com.asistente.personal.state.Message
 import com.asistente.personal.state.Role
 import com.asistente.personal.ui.SCOPE_BARS
 import com.asistente.personal.ui.SCOPE_ROWS
+import com.asistente.personal.net.DeckAction
+import com.asistente.personal.net.MediaInfo
+import com.asistente.personal.ui.KeyState
 import com.asistente.personal.ui.earsText
+import com.asistente.personal.ui.keyState
+import com.asistente.personal.ui.lowBattery
 import com.asistente.personal.ui.recentChat
 import com.asistente.personal.ui.scopeLit
 import com.asistente.personal.ui.scopePush
 import com.asistente.personal.ui.tempFraction
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BodyTest {
@@ -53,5 +59,35 @@ class BodyTest {
         assertEquals(0.5f, tempFraction(37.5f), 1e-6f)
         assertEquals(1f, tempFraction(50f), 0f)
         assertEquals(1f, tempFraction(70f), 0f)
+    }
+
+    private fun key(id: String, label: String, icon: String = "app") = DeckAction(id, label, "", icon, "orange", false, quick = true)
+    private fun song(app: String = "Spotify", playing: Boolean = true) = MediaInfo(
+        app = app, title = "t", artist = "a", album = "", playing = playing, position = 0.0, duration = 10.0, art = "",
+        canPrevious = true, canNext = true,
+    )
+
+    @Test fun `la tecla de reproducir dice lo que hara y se enciende mientras suena`() {
+        val play = key("play", "Play / Pausa", icon = "play")
+        assertEquals(KeyState("Play / Pausa", false), keyState(play, null)) // nada suena: como siempre
+        assertEquals(KeyState("Pausa", true), keyState(play, song(playing = true)))
+        assertEquals(KeyState("Play", false), keyState(play, song(playing = false)))
+    }
+
+    @Test fun `la tecla de la app que suena se enciende y las demas no`() {
+        assertEquals(KeyState("Spotify", true), keyState(key("spotify", "Spotify"), song("Spotify")))
+        assertEquals(KeyState("Spotify", true), keyState(key("spotify", "Spotify"), song("spotify.exe"))) // el nombre del proceso lleva la extensi\u00f3n
+        assertEquals(KeyState("Spotify", false), keyState(key("spotify", "Spotify"), song("Spotify", playing = false))) // en pausa, no
+        assertEquals(KeyState("Discord", false), keyState(key("discord", "Discord"), song("Spotify")))
+        assertEquals(KeyState("PC", false), keyState(key("pc", "PC"), song("Spotify PC"))) // un nombre de 2 letras no coincide por casualidad
+        assertEquals(KeyState("Grabar", false), keyState(key("grabar", "Grabar", icon = "record"), null))
+    }
+
+    @Test fun `la bateria baja avisa solo sin cargador`() {
+        assertTrue(lowBattery(15, charging = false))
+        assertTrue(lowBattery(3, false))
+        assertTrue(!lowBattery(16, false))
+        assertTrue(!lowBattery(10, charging = true))
+        assertTrue(!lowBattery(-1, false)) // sin lectura no se avisa
     }
 }

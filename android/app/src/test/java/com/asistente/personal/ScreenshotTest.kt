@@ -423,4 +423,29 @@ class ScreenshotTest {
         model(base).copy(far = true, localTimerEndsAt = 1_000 + 299_000),
         afterMs = 700,
     )
+
+    // --- Noche: música que tiñe, agenda de tres avisos, teclas vivas, batería baja ---
+
+    private val agenda = telemetry.copy(
+        upcoming = listOf(
+            Upcoming("timer", "temporizador de 5 minutos", 299),
+            Upcoming("reminder", "llamar a mamá", 3600),
+            Upcoming("reminder", "sacar la basura", 9000),
+        ),
+    )
+
+    @Test fun noche_agenda() = shot("46_noche_agenda", model(base.copy(telemetry = agenda)), afterMs = 700)
+
+    @Test fun noche_musica_tine() = shot(
+        "48_noche_musica_tine",
+        model(base.copy(media = song, mediaAt = 1_000))
+            .copy(mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D), clockMs = { 1_000 }),
+        afterMs = 700,
+    )
+
+    @Test fun noche_bateria_baja() = shot(
+        "47_noche_bateria_baja",
+        model(base).copy(battery = 12, charging = false),
+        afterMs = 700,
+    )
 }

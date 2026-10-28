@@ -326,7 +326,8 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     val aura by animateColorAsState(
         when (mood) {
             Mood.LISTEN, Mood.THINK, Mood.TALK -> color.copy(alpha = 0.38f)
-            else -> Vega.Line
+            // En reposo con música, los bordes toman el color de la carátula.
+            else -> if (mood == Mood.IDLE && ui.media?.playing == true) m.mediaAccent.copy(alpha = 0.3f) else Vega.Line
         },
         tween(450),
         label = "aura",
@@ -438,6 +439,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     },
                     modifier = Modifier.fillMaxWidth().height(66.dp).cached(),
                     icons = m.icons,
+                    media = ui.media,
                 )
             }
             AnimatedVisibility(
@@ -540,7 +542,8 @@ private fun FaceCard(
     val notice = m.ui.notice?.takeIf { it.reminder }
     // Un halo muy suave del color de Vega detrás de la cara: da profundidad y cambia con su
     // estado (escuchando, pensando, avisando…). Solo se redibuja cuando cambia el color.
-    val glow by animateColorAsState(if (notice != null) Vega.Amber else color, tween(700), label = "halo")
+    val music = mood == Mood.IDLE && m.ui.media?.playing == true
+    val glow by animateColorAsState(if (notice != null) Vega.Amber else if (music) m.mediaAccent else color, tween(700), label = "halo")
     Column(
         modifier.card(border).drawBehind {
             drawRect(
@@ -704,7 +707,8 @@ private fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Mod
                     LinkStatus.RECONNECTING -> "Reconectando…" to Vega.Amber
                     LinkStatus.DENIED -> "Acceso denegado" to Vega.Red
                 }
-                Text(link, maxLines = 1, style = Vega.label.copy(color = linkColor))
+                if (lowBattery(m.battery, m.charging)) Text("Batería ${m.battery} %", maxLines = 1, style = Vega.label.copy(color = Vega.Red))
+                else Text(link, maxLines = 1, style = Vega.label.copy(color = linkColor))
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -731,19 +735,28 @@ private fun StatusCard(
         StatRow("Memoria gráfica", t?.vramUsed?.let { "${gb(it)} GB" }, vram)
         StatRow("Batería", if (battery >= 0) "$battery %" else null, if (battery >= 0) battery / 100f else null, invert = true, charging = charging)
         Spacer(Modifier.weight(1f))
-        val next = upcoming.firstOrNull()
-        if (next == null) {
-            Text("Sin recordatorios pendientes", maxLines = 1, style = Vega.label.copy(color = Vega.Ink3))
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(countdown(next.dueIn - elapsed), style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Vega.Amber))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    next.text + if (upcoming.size > 1) "  +${upcoming.size - 1}" else "",
-                    maxLines = 2,
-                    style = Vega.label.copy(fontSize = 12.sp, lineHeight = 14.sp, color = Vega.Ink),
-                )
-            }
+        if (upcoming.isEmpty()) Text("Sin recordatorios pendientes", maxLines = 1, style = Vega.label.copy(color = Vega.Ink3))
+        else UpcomingList(upcoming, elapsed, extra = 2)
+    }
+}
+
+/** El próximo aviso en grande con su cuenta atrás y, debajo, hasta `extra` más en una línea cada uno (con `extra` = 0, solo «+n»). */
+@Composable
+private fun UpcomingList(upcoming: List<Upcoming>, elapsed: Long, extra: Int) {
+    val next = upcoming.first()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(countdown(next.dueIn - elapsed), style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Vega.Amber))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            next.text + if (extra == 0 && upcoming.size > 1) "  +${upcoming.size - 1}" else "",
+            maxLines = 2,
+            style = Vega.label.copy(fontSize = 12.sp, lineHeight = 14.sp, color = Vega.Ink),
+        )
+    }
+    upcoming.drop(1).take(extra).forEach { u ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(countdown(u.dueIn - elapsed), style = Vega.label.copy(fontSize = 12.sp, color = Vega.Amber.copy(alpha = 0.8f)), modifier = Modifier.width(52.dp))
+            Text(u.text, maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Ink2))
         }
     }
 }

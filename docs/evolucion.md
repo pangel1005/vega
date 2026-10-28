@@ -374,3 +374,13 @@ disponible en «Más → Estilo» y se rediseña a fondo.
 - **Modo de lejos:** tras 10 minutos sin nadie (cuando baja el brillo) la pantalla pasa a negro con la hora enorme,
   el estado en una palabra, el temporizador y la última respuesta en letra grande; un toque la devuelve.
 - 6 pruebas nuevas y capturas `42` a `45`.
+
+## Etapa 26 — Noche: teclas vivas, agenda, música que tiñe y batería baja
+
+- **Teclas vivas:** la tira de luz de «Play» se enciende y la tecla pasa a decir «Pausa» mientras suena algo (y «Play»
+  si está en pausa); la tecla de la app que suena (p. ej. Spotify) también se enciende.
+- **Agenda:** la tarjeta del PC enseña los próximos 3 avisos (el primero en grande, los otros en una línea).
+- **La música tiñe la pantalla:** en reposo y con música, el halo de la cara y los bordes de las tarjetas toman el
+  color de la carátula.
+- **Batería baja:** con 15 % o menos y sin cargador, «En línea» pasa a «Batería N %» en rojo.
+- 3 pruebas nuevas y capturas `46` a `48`.

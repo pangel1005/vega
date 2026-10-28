@@ -209,3 +209,22 @@ fun AlertFrame(modifier: Modifier = Modifier) {
     )
     Box(modifier.fillMaxSize().border(4.dp, Vega.Red.copy(alpha = alpha), RoundedCornerShape(18.dp)))
 }
+
+/** Cómo se ve una tecla según lo que suena en el PC: su nombre y si está «viva» (tira de luz encendida). */
+data class KeyState(val label: String, val live: Boolean)
+
+fun keyState(action: com.asistente.personal.net.DeckAction, media: com.asistente.personal.net.MediaInfo?): KeyState {
+    val playing = media?.playing == true
+    return when {
+        // La tecla de reproducir: dice lo que hará al pulsarla y se enciende mientras suena algo.
+        action.icon == "play" && media != null -> KeyState(if (playing) "Pausa" else "Play", playing)
+        // La tecla de la app que suena (Spotify…): viva mientras suena.
+        playing && action.label.length >= 4 && media != null && media.app.isNotBlank() &&
+            (media.app.contains(action.label, ignoreCase = true) || action.label.contains(media.app, ignoreCase = true)) ->
+            KeyState(action.label, true)
+        else -> KeyState(action.label, false)
+    }
+}
+
+/** Batería a punto de acabarse y sin cargador. */
+fun lowBattery(battery: Int, charging: Boolean): Boolean = battery in 0..15 && !charging

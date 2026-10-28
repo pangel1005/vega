@@ -50,11 +50,13 @@ fun KeyRow(
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
     icons: Map<String, ImageBitmap> = emptyMap(),
+    media: com.asistente.personal.net.MediaInfo? = null,
 ) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         favorites.take(6).forEach { a ->
+            val state = keyState(a, media)
             Key(
-                label = a.label, icon = a.icon, color = deckColor(a.color), enabled = enabled, image = icons[a.id], id = a.id,
+                label = state.label, live = state.live, icon = a.icon, color = deckColor(a.color), enabled = enabled, image = icons[a.id], id = a.id,
                 confirming = pending?.id == a.id, secondsLeft = secondsLeft, onClick = { onPress(a.id) },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
@@ -82,6 +84,7 @@ fun Key(
     modifier: Modifier = Modifier,
     image: ImageBitmap? = null,
     id: String = label,
+    live: Boolean = false,
 ) {
     val pressed = remember { mutableStateOf(false) }
     val down = pressed.value
@@ -140,7 +143,7 @@ fun Key(
                     maxLines = 1,
                     style = TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Vega.Ink),
                 )
-                LightStrip(color, glow)
+                LightStrip(color, glow, live)
             }
         }
     }
@@ -148,12 +151,12 @@ fun Key(
 
 /** Cinco LED en fila bajo el nombre de la tecla: tenues en reposo, encendidos al pulsar (del centro afuera). */
 @Composable
-private fun LightStrip(color: Color, glow: Float) {
+private fun LightStrip(color: Color, glow: Float, live: Boolean = false) {
     Canvas(Modifier.size(width = 34.dp, height = 4.dp)) {
         val pitch = size.width / 5
         for (i in 0 until 5) {
             val fromCenter = kotlin.math.abs(i - 2) / 2f
-            val on = (glow * 1.6f - fromCenter * 0.6f).coerceIn(0f, 1f)
+            val on = if (live) 1f else (glow * 1.6f - fromCenter * 0.6f).coerceIn(0f, 1f) // viva: toda encendida
             drawCircle(color.copy(alpha = 0.22f + 0.78f * on), size.height / 2, androidx.compose.ui.geometry.Offset(pitch * (i + 0.5f), size.height / 2))
         }
     }
