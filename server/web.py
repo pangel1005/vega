@@ -6,15 +6,16 @@ import asyncio
 import html
 import json
 import logging
+import re
 from collections.abc import Callable
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from server.core.config import ROOT
-from server.device.lyrics import LyricsFinder
+from server.device.lyrics import NOT_FOUND, LyricsFinder
 from server.tools.app_icons import AppIcons
 
 log = logging.getLogger(__name__)
@@ -97,11 +98,20 @@ def register_phone_models(app: FastAPI, models: Path = PHONE_MODELS) -> None:
 
     @app.get("/app/models/{path:path}", include_in_schema=False)
     async def model_file(path: str) -> Response:
-        target = (models / path).resolve()
-        # Solo archivos dentro de data/telefono (nada de «../» para salir de la carpeta).
-        if not target.is_file() or not target.is_relative_to(models.resolve()):
+        # Se mira el texto ANTES de construir ninguna ruta: en Windows, `Path(base) / "//equipo/recurso/x"`
+        # descarta la base y `resolve()` abriría una conexión de red a ese equipo (se filtraría el hash NTLM).
+        if not _MODEL_PATH.fullmatch(path) or ".." in path.split("/"):
+            return Response(status_code=404)
+        base = models.resolve()
+        target = (base / path).resolve()
+        # Solo archivos dentro de data/telefono.
+        if not target.is_relative_to(base) or not target.is_file():
             return Response(status_code=404)
         return FileResponse(target, media_type="application/octet-stream")
+
+
+# Letras, cifras, «.», «-», «_», espacio y «!» (hay archivos así en espeak-ng-data); nada de «\», «:» ni «//».
+_MODEL_PATH = re.compile(r"[A-Za-z0-9._ !-]+(?:/[A-Za-z0-9._ !-]+)*")
 
 
 def register_notification_icons(app: FastAPI, icon: Callable[[str], bytes | None]) -> None:
@@ -131,9 +141,14 @@ def register_lyrics(app: FastAPI, finder: LyricsFinder) -> None:
 
     @app.get("/app/media/lyrics", include_in_schema=False)
     async def lyrics(
-        artist: str = "", title: str = "", album: str = "", duration: float = 0
+        artist: str = Query("", max_length=200),
+        title: str = Query("", max_length=200),
+        album: str = Query("", max_length=200),
+        duration: float = 0,
     ) -> dict[str, object]:
-        found = await finder.find(artist, title, album, duration)
+        # Sin artista, «lo que suena» suele ser la pestaña de un navegador («Historias • Instagram»): ni se
+        # busca ni se manda a un tercero.
+        found = await finder.find(artist, title, album, duration) if artist.strip() else NOT_FOUND
         return {
             "synced": found.synced,
             "instrumental": found.instrumental,

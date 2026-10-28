@@ -7,6 +7,7 @@ que usa el servidor); si no lo es, no escribe nada.
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,11 @@ def _backup(path: Path) -> None:
 
 def _write(path: Path, doc: tomlkit.TOMLDocument) -> None:
     _backup(path)
-    path.write_text(tomlkit.dumps(doc), encoding="utf-8", newline="\n")
+    # Se escribe aparte y se renombra de golpe: un corte a mitad no deja el archivo cortado (el servidor
+    # no arrancaría con él).
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(tomlkit.dumps(doc), encoding="utf-8", newline="\n")
+    os.replace(tmp, path)
 
 
 # --- Botones ---

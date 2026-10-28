@@ -60,12 +60,17 @@ def _seconds(n: str | None, unit: str | None, half: str | None, quarter: str | N
     return _number(n) * _UNITS[key]
 
 
+MAX_SECONDS = 30 * 86_400  # nadie pone un temporizador de más de un mes
+
+
 def parse_in(text: str, now: datetime) -> When | None:
     """«en 20 minutos», «dentro de media hora»…"""
     m = _IN.search(text)
     if not m:
         return None
     secs = _seconds(m["n"], m["u"], m["half"], m["quarter"])
+    if secs > MAX_SECONDS:  # «en 99999999999 días»: timedelta se desbordaría y tiraría la conexión
+        return None
     return When(now + timedelta(seconds=secs), m.span())
 
 
@@ -74,7 +79,8 @@ def parse_duration(text: str) -> tuple[float, tuple[int, int]] | None:
     m = _DURATION.search(text)
     if not m:
         return None
-    return _seconds(m["n"], m["u"], m["half"]), m.span()
+    secs = _seconds(m["n"], m["u"], m["half"])
+    return (secs, m.span()) if secs <= MAX_SECONDS else None
 
 
 def parse_at(text: str, now: datetime) -> When | None:

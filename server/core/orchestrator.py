@@ -22,7 +22,7 @@ from typing import Any
 
 from server.core.clock import time_context
 from server.llm.base import ChatMessage, ChatModel, LlmUnavailable
-from server.memory.personal import PersonalMemory, Reminder
+from server.memory.personal import PersonalMemory, Reminder, naive_local
 from server.memory.store import ConversationStore
 from server.skills.router import SkillRouter
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
@@ -279,7 +279,7 @@ class Orchestrator:
             await asyncio.to_thread(self._memory.add_note, note)
         for r in data.reminders:
             try:
-                due = datetime.fromisoformat(r.due_at)
+                due = naive_local(datetime.fromisoformat(r.due_at))
             except ValueError:
                 continue
             await asyncio.to_thread(self._memory.add_reminder, r.kind, r.text, due)
@@ -412,7 +412,7 @@ class Orchestrator:
         if self._skills is not None:
             reply = await asyncio.to_thread(self._skills.handle, command)
             if reply is not None:
-                await self._skill_reply(command, reply.text, sleep=reply.sleep)
+                await self._skill_reply(command, reply.text, sleep=reply.sleep, persist=reply.persist)
                 return
         action = self._actions.match(command) if (spoken and self._actions) else None
         if action is not None:
@@ -422,17 +422,18 @@ class Orchestrator:
             return
         await self.handle_text(command)
 
-    async def _skill_reply(self, command: str, text: str, sleep: bool = False) -> None:
-        """Respuesta de una habilidad: se muestra, se dice y se guarda en el historial."""
+    async def _skill_reply(self, command: str, text: str, sleep: bool = False, persist: bool = True) -> None:
+        """Respuesta de una habilidad: se muestra, se dice y (salvo `persist=False`) se guarda."""
         await self._set_state(State.SPEAKING)
         await self._emit(TokenEvent(text=text))
         await self._emit(DoneEvent(text=text))
-        conversation = await asyncio.to_thread(self._store.latest_conversation)
-        await asyncio.to_thread(
-            self._store.add_messages,
-            conversation,
-            [ChatMessage("user", command), ChatMessage("assistant", text)],
-        )
+        if persist:
+            conversation = await asyncio.to_thread(self._store.latest_conversation)
+            await asyncio.to_thread(
+                self._store.add_messages,
+                conversation,
+                [ChatMessage("user", command), ChatMessage("assistant", text)],
+            )
         await self.speak(text)
         await self._set_state(State.IDLE)
         if sleep:
@@ -462,11 +463,20 @@ class Orchestrator:
     async def send_event(self, event: ServerEvent) -> None:
         await self._emit(event)
 
-    def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
+    def _spawn(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
         task = asyncio.create_task(coro)
         self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
+        task.add_done_callback(self._finished)
         return task
+
+    def _finished(self, task: asyncio.Task[Any]) -> None:
+        self._tasks.discard(task)
+        if not task.cancelled() and (exc := task.exception()) is not None:
+            log.error("Falló una tarea en segundo plano", exc_info=exc)
+
+    def spawn(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+        """Lanza algo sin esperar (un botón mientras Vega contesta: «cancelar apagado» no puede esperar)."""
+        return self._spawn(coro)
 
     async def close(self) -> None:
         for task in list(self._tasks):

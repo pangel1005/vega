@@ -386,12 +386,15 @@ class Maintenance:
             try:
                 if not path.is_dir() or _is_link(path):
                     return path.lstat().st_mtime < limit
+                any_file = False
                 for dirpath, dirnames, filenames in os.walk(path):
                     dirnames[:] = [d for d in dirnames if not _is_link(Path(dirpath, d))]
                     for name in filenames:
+                        any_file = True
                         if os.lstat(os.path.join(dirpath, name)).st_mtime >= limit:
                             return False
-                return True
+                # Sin archivos dentro, vale la fecha de la carpeta (un programa puede acabar de crearla).
+                return True if any_file else path.lstat().st_mtime < limit
             except OSError:
                 return False
 

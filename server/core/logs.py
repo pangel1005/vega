@@ -12,6 +12,16 @@ LOG_FILE = "server.log"
 AUDIT_FILE = "audit.log"
 
 
+class _HideQuery(logging.Filter):
+    """Quita de las líneas de acceso de uvicorn lo que va tras «?» (títulos de canciones, artistas…)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str) and "?" in args[2]:
+            record.args = (*args[:2], args[2].split("?", 1)[0] + "?…", *args[3:])
+        return True
+
+
 def setup_logging(settings: LoggingSettings) -> None:
     settings.path.mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter(FORMAT)
@@ -44,3 +54,7 @@ def setup_logging(settings: LoggingSettings) -> None:
         lg = logging.getLogger(name)
         lg.handlers.clear()
         lg.propagate = True
+    logging.getLogger("uvicorn.access").addFilter(_HideQuery())
+    logging.getLogger("httpx").setLevel(
+        logging.WARNING
+    )  # a INFO escribe cada URL, con el título de lo que suena

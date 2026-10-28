@@ -33,6 +33,9 @@ from server.skills.when import parse_duration, parse_when, spoken_time
 class SkillReply:
     text: str  # lo que se dice y se muestra
     sleep: bool = False  # después de decirlo, el teléfono pasa a dormir
+    persist: bool = (
+        True  # False: no se guarda en el historial (p. ej. los mensajes que otras personas te mandan)
+    )
 
 
 def _cut(text: str, span: tuple[int, int]) -> str:
@@ -297,11 +300,12 @@ class SkillRouter:
             n = notes[0]
             ago = _ago(self._now().timestamp() - n.at)
             who = n.app if n.title == n.app else f"{n.title}, por {n.app}"
-            return SkillReply(f"{who}, {ago}: {n.body or n.title}")
+            return SkillReply(f"{who}, {ago}: {n.body or n.title}", persist=False)
         parts = [n.app if n.title == n.app else f"{n.app} de {n.title}" for n in notes[:5]]
         more = f" y {len(notes) - 5} más" if len(notes) > 5 else ""
         return SkillReply(
-            f"Tienes {len(notes)} notificaci{'ón' if len(notes) == 1 else 'ones'}: {_list(parts)}{more}."
+            f"Tienes {len(notes)} notificaci{'ón' if len(notes) == 1 else 'ones'}: {_list(parts)}{more}.",
+            persist=False,  # lo que otros te escriben no se guarda en tu historial
         )
 
     # --- Resumen del día ---

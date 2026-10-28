@@ -166,7 +166,7 @@ def create_app(
     async def shutdown(request: Request) -> Response:
         """Apagado limpio (lo usa scripts/stop.ps1): cerrar a la fuerza dejó una vez el proceso
         medio muerto 2 minutos, con el puerto ocupado. Pide el token del servidor."""
-        if not secrets.compare_digest(request.headers.get("x-token", ""), token):
+        if not secrets.compare_digest(request.headers.get("x-token", "").encode("latin-1"), token.encode()):
             return Response(status_code=403)
         log.info("Apagado pedido por scripts/stop.ps1")
         # Un poco después, para que la respuesta llegue antes de cerrar (Ctrl+C: uvicorn se apaga ordenado).

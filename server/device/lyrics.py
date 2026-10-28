@@ -127,5 +127,5 @@ class LyricsFinder:
                 best = next((r for r in results if r.get("syncedLyrics")), results[0] if results else None)
                 return from_api(best) if best else NOT_FOUND
         except (httpx.HTTPError, ValueError) as exc:
-            log.info("No pude buscar la letra de «%s»: %s", title, exc)
+            log.info("No pude buscar una letra: %s", type(exc).__name__)  # sin el título
             return None

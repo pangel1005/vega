@@ -144,7 +144,9 @@ class Hub:
                 except Exception:  # un cliente que se cae no debe impedir avisar a los demás
                     log.exception("No pude avisar a un cliente")
             await asyncio.to_thread(self._memory.mark_delivered, reminder.id)
-            log.info("Recordatorio entregado: %s", reminder.text)
+            log.info(
+                "Recordatorio %d entregado (%s)", reminder.id, reminder.kind
+            )  # sin el texto: lo dijiste en voz alta
         return len(due)
 
     def telemetry(self) -> TelemetryEvent:

@@ -87,7 +87,7 @@ class PersonalMemory:
         rows = self._db.query(
             "SELECT * FROM reminders WHERE delivered_at IS NULL AND cancelled = 0 ORDER BY due_at"
         )
-        return [_reminder(r) for r in rows]
+        return [rem for r in rows if (rem := _reminder(r)) is not None]
 
     def due(self, now: datetime) -> list[Reminder]:
         return [r for r in self.pending() if r.due_at <= now]
@@ -127,5 +127,13 @@ def to_you(text: str) -> str:
     return re.sub(r"\b\w+\b", swap, text)
 
 
-def _reminder(r: sqlite3.Row) -> Reminder:
-    return Reminder(r["id"], r["kind"], r["text"], datetime.fromisoformat(r["due_at"]))
+def naive_local(moment: datetime) -> datetime:
+    """Una hora con zona («…Z», «+02:00») pasa a la hora local sin zona, que es como se guarda todo."""
+    return moment.astimezone().replace(tzinfo=None) if moment.tzinfo else moment
+
+
+def _reminder(r: sqlite3.Row) -> Reminder | None:
+    try:
+        return Reminder(r["id"], r["kind"], r["text"], naive_local(datetime.fromisoformat(r["due_at"])))
+    except ValueError:
+        return None  # una fila ilegible no debe impedir que suenen las demás

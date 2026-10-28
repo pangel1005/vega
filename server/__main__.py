@@ -20,7 +20,7 @@ from server.device.usb import UsbWatcher, find_adb
 from server.speech.base import SttUnavailable
 from server.speech.tts import KokoroTTS, PiperTTS, TtsUnavailable, VoiceRouter
 from server.speech.whisper import WhisperSTT
-from server.tools.actions import ActionConfigError, ActionRunner, load_actions
+from server.tools.actions import ACTIONS_FILE, ActionConfigError, ActionRunner, load_actions
 from server.tools.app_icons import AppIcons
 from server.tools.windows import WindowsExecutor
 
@@ -101,12 +101,22 @@ def main() -> int:
         print(f"Error de configuración: {exc}", file=sys.stderr)
         return 2
     setup_logging(settings.logging)
+    maintenance = Maintenance(ollama_url=settings.llm.url)
     try:
-        maintenance = Maintenance(ollama_url=settings.llm.url)
-        actions = ActionRunner(load_actions(), WindowsExecutor(maintenance))
+        loaded = load_actions()
     except ActionConfigError as exc:
+        # Un actions.toml a medias (corte de luz al guardar) no debe dejar a Vega sin arrancar:
+        # se prueba la última copia buena y, si tampoco vale, se arranca sin botones y se dice bien claro.
+        log.error("Error en los botones (%s). Se prueba la última copia buena.", exc)
         print(f"Error en los botones: {exc}", file=sys.stderr)
-        return 2
+        try:
+            loaded = load_actions(ACTIONS_FILE.with_suffix(".toml.bak"))
+        except ActionConfigError:
+            log.error(
+                "Tampoco vale la copia: Vega arranca sin botones hasta que se arregle config/actions.toml"
+            )
+            loaded = []
+    actions = ActionRunner(loaded, WindowsExecutor(maintenance))
     log.info("Panel con %d botones", len(actions.actions))
     token = load_or_create_token()
     usb = build_usb_watcher(settings, token)
