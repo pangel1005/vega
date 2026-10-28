@@ -118,6 +118,8 @@ data class ScreenModel(
     val orb: Boolean = false,
     /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
     val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
+    /** Modo de lejos: tras 10 minutos sin nadie, solo la hora enorme y la última respuesta. */
+    val far: Boolean = false,
     /** Memoria usada del teléfono (0 a 1), para la tarjeta «Cuerpo». */
     val phoneRam: () -> Float? = { null },
     /** Iconos de las apps que mandan notificaciones en el PC, por id de icono. */
@@ -150,6 +152,8 @@ class ScreenActions(
     val nextTouchFeel: () -> Unit = {},
     val toggleGlass: () -> Unit = {},
     val nextStyle: () -> Unit = {},
+    /** Vuelve a cargar la IA del teléfono si falló. */
+    val retryBrain: () -> Unit = {},
     val sleep: () -> Unit = {},
     val wake: () -> Unit = {},
 )
@@ -337,7 +341,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     Box(modifier.fillMaxSize().background(Vega.Bg)) {
         if (m.glass) AuroraBackground(aurora)
         androidx.compose.runtime.CompositionLocalProvider(LocalAurora provides if (m.glass) aurora else null) {
-        if (sleepFade < 1f) Box(
+        if (sleepFade < 1f && !m.far) Box(
             Modifier.fillMaxSize().graphicsLayer {
                 alpha = 1f - sleepFade
                 scaleX = 1f - 0.05f * sleepFade
@@ -367,6 +371,8 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     FaceCard(
                         mood, color, m, glance, aura,
                         onChat = { if (recentChat(ui.messages).isNotEmpty()) showChat = true },
+                        confirmFraction = ui.pending?.let { if (it.expiresIn > 0) secondsLeft.toFloat() / it.expiresIn else 0f },
+                        onRetry = a.retryBrain,
                         modifier = Modifier.weight(1f).fillMaxHeight()
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { a.attention() },
                     )
@@ -479,6 +485,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
             }
         }
         }
+        if (m.far && sleepFade == 0f) FarScreen(m)
         if (sleepFade > 0f) {
             SleepScreen(
                 m,
@@ -493,6 +500,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     },
             )
         }
+        if (ui.pending != null && sleepFade == 0f && !m.far) AlertFrame()
         AnimatedVisibility(visible = showChat && sleepFade == 0f, enter = fadeIn(tween(160)), exit = fadeOut(tween(160))) {
             ConversationOverlay(ui.messages, ui.assistant, onClose = { showChat = false })
         }
@@ -519,7 +527,8 @@ private fun Modifier.cached(): Modifier = graphicsLayer { compositingStrategy = 
 /** La cara de LED con su estado arriba y lo último que dijo abajo. */
 @Composable
 private fun FaceCard(
-    mood: Mood, color: Color, m: ScreenModel, glance: Glance?, aura: Color, onChat: () -> Unit = {}, modifier: Modifier = Modifier,
+    mood: Mood, color: Color, m: ScreenModel, glance: Glance?, aura: Color, onChat: () -> Unit = {},
+    confirmFraction: Float? = null, onRetry: () -> Unit = {}, modifier: Modifier = Modifier,
 ) {
     val border by animateColorAsState(
         if (mood == Mood.ALERT || mood == Mood.ERROR) Vega.Red.copy(alpha = 0.7f) else aura,
@@ -569,8 +578,23 @@ private fun FaceCard(
                 glance = glance,
                 modifier = Modifier.fillMaxSize(),
             )
-            // Mientras te escucha, la onda de tu voz (se ve que te oye sin leer nada).
-            if (mood == Mood.LISTEN) VoiceScope(m.pulse, m.pulseAmount, color, Modifier.align(Alignment.BottomCenter).fillMaxWidth(0.55f).height(20.dp))
+            // Bajo la cara, según lo que pase: la cuenta atrás de una confirmación (roja), la carga de la IA
+            // (verde, o un botón para reintentar si falló) o, mientras te escucha, la onda de tu voz.
+            val load = if (m.brainOnPhone) brainLoad(m.brainLabel) else BrainLoad.None
+            val bottom = Modifier.align(Alignment.BottomCenter).fillMaxWidth(0.55f)
+            when {
+                confirmFraction != null -> LedBar(confirmFraction, Vega.Red, bottom.height(10.dp))
+                load.busy -> LedBar(load.fraction, Vega.Mint, bottom.height(10.dp))
+                load.failed -> Row(
+                    bottom.height(18.dp).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onRetry),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    LedBar(1f, Vega.Red, Modifier.weight(1f).height(10.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Reintentar", maxLines = 1, style = Vega.label.copy(color = Vega.Red))
+                }
+                mood == Mood.LISTEN -> VoiceScope(m.pulse, m.pulseAmount, color, bottom.height(20.dp))
+            }
         }
         // Tocar la respuesta abre la conversación reciente en letra grande.
         Subtitle(
@@ -739,7 +763,7 @@ private fun BodyCard(m: ScreenModel, upcoming: List<Upcoming>, elapsed: Long, mo
     }
     val t = m.ui.telemetry.takeIf { m.ui.link == LinkStatus.OPEN }
     Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        TextRow("Cerebro", m.brainLabel.removePrefix("IA: "), Vega.Mint)
+        brainLoad(m.brainLabel).let { TextRow("Cerebro", m.brainLabel.removePrefix("IA: "), if (it.failed) Vega.Red else if (it.busy) Vega.Amber else Vega.Mint) }
         TextRow("Oído hoy", if (m.micOn) earsText(ears.heard, ears.calls) else "micro apagado", if (m.micOn) Vega.Ink else Vega.Amber)
         TextRow("PC", t?.let { "CPU ${it.cpu} %" + (it.gpuTemp?.let { g -> " · $g °C" } ?: "") } ?: "sin enlace", if (t != null) Vega.Ink else Vega.Ink3)
         StatRow("Memoria", ram?.let { "${(it * 100).toInt()} %" }, ram)

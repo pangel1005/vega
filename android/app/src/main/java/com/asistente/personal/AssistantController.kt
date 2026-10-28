@@ -187,6 +187,13 @@ class AssistantController(context: Context) {
         syncMic()
     }
 
+    /** Si la IA del teléfono falló (error o sin modelos), la vuelve a cargar. */
+    fun retryBrain() {
+        if (!brainOnPhone || local != null || localJob?.isActive == true) return
+        brainStatus = ""
+        startLocal()
+    }
+
     private fun brainMessage(): String =
         JSONObject().put("type", "brain").put("where", if (brainOnPhone) "phone" else "pc").toString()
 

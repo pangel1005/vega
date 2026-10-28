@@ -364,3 +364,13 @@ disponible en «Más → Estilo» y se rediseña a fondo.
   la voz, anillo rojo que se vacía en la confirmación, estrellas de fondo y teclas con el icono real de cada app.
 - Medido en el Redmi: sin recortes circulares ni resplandor enorme gasta menos CPU que Noche en reposo (~18 fps).
 - 24 pruebas nuevas y capturas `40`, `41` (Noche) y las del Orbe (`33` a `39`).
+
+## Etapa 25 — Noche: carga de la IA, alerta y modo de lejos
+
+- **Barra de LED bajo la cara** según lo que pase: verde con el porcentaje mientras baja el modelo, una luz que corre
+  mientras carga, y roja con «Reintentar» (toca para volver a cargar) si falló. Se lee de la pastilla de la IA.
+- **Alerta al confirmar:** el marco de toda la pantalla late en rojo y bajo la cara una barra roja se vacía en los
+  8 segundos de la cuenta atrás (la cara con la X y «Confirma» ya existían).
+- **Modo de lejos:** tras 10 minutos sin nadie (cuando baja el brillo) la pantalla pasa a negro con la hora enorme,
+  el estado en una palabra, el temporizador y la última respuesta en letra grande; un toque la devuelve.
+- 6 pruebas nuevas y capturas `42` a `45`.

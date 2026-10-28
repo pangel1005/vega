@@ -6,9 +6,17 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -129,4 +137,65 @@ fun ConversationOverlay(messages: List<Message>, assistant: String, onClose: () 
         }
         if (shown.isEmpty()) Text("Todavía no hemos hablado.", TextStyle(fontFamily = Vega.Sans, fontSize = 20.sp, color = Vega.Ink2))
     }
+}
+
+/** En qué punto está la IA del teléfono, sacado de lo que dice la pastilla («Bajando IA 45 %», «Cargando IA…», «IA: error»). */
+data class BrainLoad(val busy: Boolean, val fraction: Float?, val failed: Boolean) {
+    companion object {
+        val None = BrainLoad(busy = false, fraction = null, failed = false)
+    }
+}
+
+fun brainLoad(label: String): BrainLoad {
+    val percent = Regex("""Bajando IA (\d+) ?%""").find(label)?.groupValues?.get(1)?.toIntOrNull()
+    return when {
+        percent != null -> BrainLoad(busy = true, fraction = (percent / 100f).coerceIn(0f, 1f), failed = false)
+        label.startsWith("Cargando IA") -> BrainLoad(busy = true, fraction = null, failed = false) // sin porcentaje: barra que corre
+        label == "IA: error" || label == "IA: sin modelos" -> BrainLoad(busy = false, fraction = null, failed = true)
+        else -> BrainLoad.None
+    }
+}
+
+const val LED_BAR_DOTS = 40
+
+/** Cuántos puntos de la barra se encienden para una fracción (0 a 1). */
+fun ledBarLit(fraction: Float, dots: Int = LED_BAR_DOTS): Int = (fraction.coerceIn(0f, 1f) * dots + 0.5f).toInt()
+
+/** ¿Está encendido el punto `i` de la barra «que corre» (sin porcentaje) en el paso `step`? Una ventana de `width` puntos que da la vuelta. */
+fun ledBarRuns(i: Int, step: Int, dots: Int = LED_BAR_DOTS, width: Int = 6): Boolean {
+    val cycle = dots + width
+    return (((step - i) % cycle) + cycle) % cycle < width
+}
+
+/** Barra de LED: con `fraction` se llena; sin ella (null) una luz corre de lado a lado. */
+@Composable
+fun LedBar(fraction: Float?, color: Color, modifier: Modifier = Modifier) {
+    var step by remember { mutableIntStateOf(0) }
+    if (fraction == null) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(55)
+                step++
+            }
+        }
+    }
+    val off = ledOff
+    Canvas(modifier) {
+        val w = size.width / LED_BAR_DOTS
+        val r = minOf(w, size.height) * 0.4f
+        val lit = if (fraction != null) ledBarLit(fraction) else 0
+        for (i in 0 until LED_BAR_DOTS) {
+            val on = if (fraction != null) i < lit else ledBarRuns(i, step)
+            drawCircle(if (on) color else off, r, Offset(w * (i + 0.5f), size.height / 2))
+        }
+    }
+}
+
+/** Marco rojo que late por todo el borde de la pantalla mientras hay que confirmar algo peligroso. */
+@Composable
+fun AlertFrame(modifier: Modifier = Modifier) {
+    val alpha by rememberInfiniteTransition(label = "alerta").animateFloat(
+        0.25f, 0.95f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "latido",
+    )
+    Box(modifier.fillMaxSize().border(4.dp, Vega.Red.copy(alpha = alpha), RoundedCornerShape(18.dp)))
 }

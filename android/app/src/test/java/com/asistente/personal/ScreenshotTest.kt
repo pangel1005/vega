@@ -397,4 +397,30 @@ class ScreenshotTest {
         compose.mainClock.advanceTimeBy(300)
         compose.onRoot().captureRoboImage("build/capturas/41_noche_conversacion.png")
     }
+
+    // --- Noche: carga de la IA, alerta, modo de lejos ---
+
+    @Test fun noche_descargando_ia() = shot(
+        "42_noche_descargando_ia",
+        model(base).copy(brainOnPhone = true, brainLabel = "Bajando IA 62 %"),
+        afterMs = 700,
+    )
+
+    @Test fun noche_ia_fallo() = shot(
+        "43_noche_ia_fallo",
+        model(base).copy(brainOnPhone = true, brainLabel = "IA: error"),
+        afterMs = 700,
+    )
+
+    @Test fun noche_alerta() = shot(
+        "44_noche_alerta",
+        model(base.copy(pending = PendingConfirm("n1", "apagar", "\u00bfApagar el PC? Se cerrar\u00e1 todo.", 8))),
+        afterMs = 700,
+    )
+
+    @Test fun noche_de_lejos() = shot(
+        "45_noche_de_lejos",
+        model(base).copy(far = true, localTimerEndsAt = 1_000 + 299_000),
+        afterMs = 700,
+    )
 }

@@ -17,6 +17,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
@@ -85,7 +87,7 @@ class MainActivity : ComponentActivity() {
 
         controller = VegaRuntime.controller(applicationContext)
         takeToken(intent)
-        setContent { AssistantScreen(controller, ::openAndroid, ::dimScreen) }
+        setContent { AssistantScreen(controller, ::openAndroid, ::dimScreen, far = ambient) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -142,7 +144,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private var sleepDim = false
-    private var ambient = false
+    private var ambient by mutableStateOf(false)
     private var lastActive = SystemClock.elapsedRealtime()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -210,7 +212,7 @@ class MainActivity : ComponentActivity() {
 
 /** Une el controlador (estado vivo) con la pantalla, que no sabe nada de él. */
 @Composable
-private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sleepChanged: (Boolean) -> Unit) {
+private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sleepChanged: (Boolean) -> Unit, far: Boolean = false) {
     val ui = c.ui
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val clock by produceState("" to "") {
@@ -246,6 +248,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             nextTouchFeel = c::nextTouchFeel,
             toggleGlass = c::toggleGlass,
             nextStyle = c::nextStyle,
+            retryBrain = c::retryBrain,
             sleep = c::sleep,
             wake = c::wake,
         )
@@ -288,6 +291,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             glass = c.glass,
             terminal = c.terminal,
             orb = c.orb,
+            far = far,
             ears = c::earsStats,
             phoneRam = { com.asistente.personal.ui.phoneMemoryUsed(appContext) },
             sleeping = c.sleeping,
