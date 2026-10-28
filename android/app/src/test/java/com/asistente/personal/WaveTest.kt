@@ -1,48 +1,68 @@
 package com.asistente.personal
 
-import com.asistente.personal.net.ServerEvent
 import com.asistente.personal.net.Protocol
+import com.asistente.personal.net.ServerEvent
 import com.asistente.personal.ui.WAVE_COLS
-import com.asistente.personal.ui.WAVE_HALF
 import com.asistente.personal.ui.WaveState
-import com.asistente.personal.ui.waveLit
+import com.asistente.personal.ui.isSpotify
+import com.asistente.personal.ui.waveTaper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WaveTest {
-    @Test fun `cada lectura entra por la derecha y la onda se desplaza a la izquierda`() {
+    private fun steady(level: Float, times: Int = 80) = WaveState().apply { repeat(times) { push(level) } }
+
+    @Test fun `cada lectura entra por la derecha y la silueta se desliza a la izquierda`() {
         val w = WaveState()
         w.push(1f)
-        assertEquals(1f, w.bars[WAVE_COLS - 1], 1e-6f)
+        val first = w.env[WAVE_COLS - 1]
+        assertTrue(first > 0.5f)
         w.push(0f)
-        assertEquals(1f, w.bars[WAVE_COLS - 2], 1e-6f) // el pico pasó una posición a la izquierda
-        assertTrue(w.bars[WAVE_COLS - 1] < 1f) // y entra lo nuevo: baja suave, no de golpe
+        assertEquals(first, w.env[WAVE_COLS - 2], 1e-6f) // lo que entró pasó una posición a la izquierda
+        assertTrue(w.env[WAVE_COLS - 1] < first) // y lo nuevo, ya en silencio, baja suave
+    }
+
+    @Test fun `un golpe levanta un pico por encima del volumen sostenido`() {
+        val w = steady(0.3f)
+        val sustained = w.env[WAVE_COLS - 1]
+        w.push(0.9f) // sube de golpe
+        assertTrue(w.env[WAVE_COLS - 1] > sustained)
+        assertEquals(1f, w.env[WAVE_COLS - 1], 1e-6f) // y llega arriba del todo
+    }
+
+    @Test fun `una cancion con ritmo se ve distinta de una plana`() {
+        val flat = steady(0.5f, 300)
+        val beat = WaveState().apply { repeat(300) { push(if (it % 6 == 0) 0.9f else 0.2f) } }
+        val recent = WAVE_COLS / 2 // lo ya asentado, sin el arranque
+        val flatSpread = flat.env.takeLast(recent).let { it.max() - it.min() }
+        val beatSpread = beat.env.takeLast(recent).let { it.max() - it.min() }
+        assertTrue("plana $flatSpread, con ritmo $beatSpread", beatSpread > flatSpread + 0.2f)
     }
 
     @Test fun `sube de golpe y baja suave`() {
-        val w = WaveState()
-        repeat(5) { w.push(1f) }
+        val w = steady(1f)
+        val top = w.env[WAVE_COLS - 1]
         w.push(0f)
-        val after = w.bars[WAVE_COLS - 1]
-        assertEquals(WaveState.RELEASE, after, 1e-6f) // 1 * 0,6
+        val after = w.env[WAVE_COLS - 1]
+        assertEquals(top * WaveState.RELEASE, after, 1e-5f)
         w.push(0f)
-        assertTrue(w.bars[WAVE_COLS - 1] < after)
+        assertTrue(w.env[WAVE_COLS - 1] < after)
     }
 
-    @Test fun `el silencio no se amplifica`() {
+    @Test fun `el silencio no se amplifica y al callar se apaga`() {
         val w = WaveState()
         repeat(50) { w.push(0.02f) } // casi nada: ruido de fondo
-        assertTrue(w.bars.max() < 0.5f) // no se estira hasta llenar la onda
-        repeat(WAVE_COLS + 10) { w.push(0f) } // las 64 columnas se renuevan
-        assertEquals(0, waveLit(w.bars.max())) // al callar baja suave hasta no encender ningún punto
+        assertTrue(w.env.max() < 0.6f) // no se estira hasta llenar la onda
+        repeat(WAVE_COLS + 10) { w.push(0f) }
+        assertTrue(w.env.max() < 0.02f) // las columnas se renuevan y baja hasta casi nada
     }
 
     @Test fun `con volumen bajo o alto se ve igual de viva gracias al pico reciente`() {
-        val quiet = WaveState().apply { repeat(60) { push(0.3f) } }
-        val loud = WaveState().apply { repeat(60) { push(0.9f) } }
-        assertEquals(quiet.bars.last(), loud.bars.last(), 1e-6f) // los dos llenan igual: se normaliza con su propio pico
-        assertTrue(quiet.bars.last() > 0.9f)
+        val quiet = steady(0.3f)
+        val loud = steady(0.9f)
+        assertEquals(quiet.env.last(), loud.env.last(), 1e-6f) // los dos llenan igual
+        assertTrue(quiet.env.last() > 0.8f)
     }
 
     @Test fun `el pico recuerda un golpe fuerte y se olvida poco a poco`() {
@@ -50,16 +70,17 @@ class WaveTest {
         w.push(1f)
         val high = w.peak
         repeat(300) { w.push(0.3f) }
-        assertTrue(w.peak < high) // se fue olvidando
+        assertTrue(w.peak < high)
         assertTrue(w.peak >= WaveState.MIN_PEAK)
     }
 
-    @Test fun `los puntos encendidos van de cero a la mitad de la altura`() {
-        assertEquals(0, waveLit(0f))
-        assertEquals(WAVE_HALF, waveLit(1f))
-        assertEquals(WAVE_HALF, waveLit(3f))
-        assertEquals(0, waveLit(-1f))
-        assertEquals(5, waveLit(0.5f))
+    @Test fun `los extremos se afinan como una linea y el centro llega a todo`() {
+        assertEquals(1f, waveTaper(0.5f), 1e-5f)
+        assertTrue(waveTaper(0f) < 0.05f)
+        assertTrue(waveTaper(1f) < 0.05f)
+        assertEquals(waveTaper(0.2f), waveTaper(0.8f), 1e-3f) // simétrica
+        assertTrue(waveTaper(0.25f) > waveTaper(0.1f)) // crece hacia el centro
+        assertEquals(waveTaper(0f), waveTaper(-3f), 0f) // fuera de rango se recorta
     }
 
     @Test fun `el volumen del PC llega como evento y se recorta a 0 y 1`() {
@@ -67,4 +88,14 @@ class WaveTest {
         assertEquals(ServerEvent.MusicLevel(1f), Protocol.parse("""{"type":"music_level","level":7}"""))
         assertEquals(ServerEvent.MusicLevel(0f), Protocol.parse("""{"type":"music_level"}"""))
     }
+
+    @Test fun `la onda es solo de Spotify`() {
+        assertTrue(isSpotify("Spotify"))
+        assertTrue(isSpotify("spotify.exe"))
+        assertTrue(isSpotify("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"))
+        assertTrue(!isSpotify("Opera"))
+        assertTrue(!isSpotify("chrome.exe"))
+        assertTrue(!isSpotify(""))
+    }
 }
+

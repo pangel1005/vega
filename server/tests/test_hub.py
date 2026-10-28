@@ -298,3 +298,20 @@ def test_without_a_meter_no_level_is_sent() -> None:
     hub.add(phone)
     asyncio.run(hub.send_media())
     assert asyncio.run(hub.send_level()) is False
+
+
+def test_music_level_ignores_other_apps_than_spotify() -> None:
+    media, phone = FakeMedia(), Client()
+    hub = Hub(
+        PersonalMemory(ConversationStore(":memory:")),
+        now=Clock(),
+        media=media,  # type: ignore[arg-type]
+        level=lambda: 0.5,
+    )
+    hub.add(phone)
+    media.now = NowPlaying("Opera", "Un vídeo", "", "", True, 0.0, 0.0, "", False, False)
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_level()) is False  # suena el navegador: la onda no se mueve
+    media.now = NowPlaying("spotify.exe", "Human Nature", "Madonna", "", True, 0.0, 293.9, "", True, True)
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_level()) is True  # el nombre real de la app lleva «.exe»

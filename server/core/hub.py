@@ -62,9 +62,13 @@ class Hub:
         media: MediaWatcher | None = None,
         notifications: NotificationReader | None = None,
         level: Callable[[], float | None] | None = None,
+        level_apps: tuple[str, ...] = ("spotify",),
     ) -> None:
         self._memory = memory
-        self._level = level  # volumen real de la salida de audio (0 a 1), o None si no se puede medir
+        self._level = level  # volumen real de la app que suena (0 a 1), o None si no se puede medir
+        self._level_apps = (
+            level_apps  # solo se mide si suena una de estas apps (Spotify, no el audio general)
+        )
         self._now = now
         self._sample = sample
         self._media = media
@@ -268,7 +272,8 @@ class Hub:
 
     async def send_level(self) -> bool:
         """Manda el volumen de la música al teléfono, si suena algo; devuelve si mandó algo."""
-        playing = self._media_sent is not None and self._media_sent.playing
+        sent = self._media_sent
+        playing = sent is not None and sent.playing and any(a in sent.app.lower() for a in self._level_apps)
         if self._level is None or not playing or not self._with_role("phone"):
             return False
         level = self._level()

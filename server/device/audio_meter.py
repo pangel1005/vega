@@ -1,7 +1,8 @@
 """Volumen real de lo que suena por los altavoces del PC, para que la cara de Vega se mueva con la música.
 
 Usa el medidor de pico de Windows (IAudioMeterInformation, con pycaw): lo mismo que dibuja el mezclador de
-volumen. No oye ni guarda el audio: solo un número de 0 a 1 que dice cómo de fuerte suena ahora.
+volumen, pero solo el de la sesión de audio de la app pedida (Spotify), no el de todo el PC: así el navegador,
+Discord o los juegos no mueven la onda. No oye ni guarda el audio: solo un número de 0 a 1 (cuánto suena).
 
 Un hilo propio lo lee unas 25 veces por segundo, pero solo mientras alguien lo pide (`poll`):
 sin música, duerme.
@@ -27,23 +28,60 @@ class _Meter(Protocol):
     def GetPeakValue(self) -> float: ...  # noqa: N802 (el nombre es el de la API de Windows)
 
 
-def open_default_meter() -> _Meter:
-    """Abre el medidor de la salida de audio predeterminada (Windows)."""
-    from ctypes import POINTER, cast
+SESSIONS_REFRESH_S = 2.0  # cada cuánto se vuelve a buscar la sesión de la app (nace al empezar a sonar)
 
-    from comtypes import CLSCTX_ALL  # type: ignore[import-untyped]
+
+def windows_sessions() -> list[tuple[str, _Meter]]:
+    """Las sesiones de audio abiertas ahora en Windows: (nombre del programa en minúsculas, su medidor)."""
     from pycaw.pycaw import AudioUtilities, IAudioMeterInformation  # type: ignore[import-untyped]
 
-    device = AudioUtilities.GetSpeakers()
-    endpoint = getattr(device, "_dev", device)  # según la versión de pycaw
-    interface = endpoint.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
-    return cast(interface, POINTER(IAudioMeterInformation))  # type: ignore[no-any-return]
+    found: list[tuple[str, _Meter]] = []
+    for session in AudioUtilities.GetAllSessions():
+        try:
+            process = session.Process
+            if process is None:
+                continue
+            found.append((process.name().lower(), session._ctl.QueryInterface(IAudioMeterInformation)))
+        except Exception:  # un proceso que acaba de cerrarse
+            continue
+    return found
+
+
+class ProcessMeter:
+    """Pico de las sesiones de audio de unos programas (p. ej. `spotify.exe`); 0 si ahora no tienen sesión."""
+
+    def __init__(
+        self,
+        names: tuple[str, ...],
+        sessions: Callable[[], list[tuple[str, _Meter]]] = windows_sessions,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._names = tuple(n.lower() for n in names)
+        self._sessions = sessions
+        self._clock = clock
+        self._meters: list[_Meter] = []
+        self._refreshed = float("-inf")
+
+    def GetPeakValue(self) -> float:  # noqa: N802 (mismo nombre que el medidor de Windows)
+        now = self._clock()
+        if now - self._refreshed >= SESSIONS_REFRESH_S:
+            self._meters = [m for name, m in self._sessions() if name in self._names]
+            self._refreshed = now
+        try:
+            return max((m.GetPeakValue() for m in self._meters), default=0.0)
+        except Exception:  # una sesión que ya no existe: se vuelve a buscar en la próxima lectura
+            self._meters, self._refreshed = [], float("-inf")
+            return 0.0
+
+
+def open_spotify_meter() -> _Meter:
+    return ProcessMeter(("spotify.exe",))
 
 
 class AudioMeter:
     def __init__(
         self,
-        open_meter: Callable[[], _Meter] = open_default_meter,
+        open_meter: Callable[[], _Meter] = open_spotify_meter,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._open = open_meter
@@ -68,7 +106,7 @@ class AudioMeter:
         meter: _Meter | None = None
         com: Any = None
         try:
-            import comtypes
+            import comtypes  # type: ignore[import-untyped]
 
             com = comtypes
             com.CoInitialize()  # cada hilo que usa COM lo inicia

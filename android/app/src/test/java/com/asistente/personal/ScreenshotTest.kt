@@ -465,10 +465,14 @@ class ScreenshotTest {
 
     // --- La cara se hace onda con la música ---
 
-    /** Un volumen que sube y baja como una canción (siempre el mismo, para que la captura no cambie). */
-    private fun fakeMusic(): () -> Float {
-        var n = 0
-        return { (0.15f + 0.8f * kotlin.math.abs(kotlin.math.sin(n++ * 0.45f) * kotlin.math.cos(n * 0.13f))).coerceIn(0f, 1f) }
+    /**
+     * Lecturas reales del volumen del PC (12 s grabados con el medidor de Windows, una cada 30 ms), empezando en
+     * `from`. La captura sale siempre igual y con datos de verdad, no inventados.
+     */
+    private fun fakeMusic(from: Int = 0): () -> Float {
+        val values = javaClass.classLoader!!.getResourceAsStream("real_levels.txt")!!.bufferedReader().readLines().map { it.toFloat() }
+        var n = from
+        return { values[n++ % values.size] }
     }
 
     @Test fun noche_onda_con_musica() = shot(

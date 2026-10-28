@@ -576,7 +576,7 @@ private fun FaceCard(
         }
         // Con música sonando y Vega en reposo, la cara se hace onda (el volumen real del PC); en cuanto pasa algo
         // (le hablas, piensa, contesta, avisa…) vuelve la cara, y la onda regresa a los segundos de quedarse quieta.
-        val musicPlaying = m.ui.media?.playing == true && m.ui.link == LinkStatus.OPEN
+        val musicPlaying = m.ui.media?.let { it.playing && isSpotify(it.app) } == true && m.ui.link == LinkStatus.OPEN
         val resting = mood == Mood.IDLE && notice == null
         var faceHeld by remember { mutableStateOf(false) }
         LaunchedEffect(resting) {

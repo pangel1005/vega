@@ -1,6 +1,6 @@
 import time
 
-from server.device.audio_meter import AudioMeter
+from server.device.audio_meter import SESSIONS_REFRESH_S, AudioMeter, ProcessMeter, _Meter
 
 
 class FakeMeter:
@@ -54,3 +54,37 @@ def test_if_the_meter_cannot_open_the_level_is_none_not_invented() -> None:
     time.sleep(0.2)
     assert m.poll() is None
     m.stop()
+
+
+def test_process_meter_reads_only_the_sessions_of_the_asked_program() -> None:
+    sessions: list[tuple[str, _Meter]] = [
+        ("opera.exe", FakeMeter([0.9])),  # el navegador suena muy fuerte...
+        ("discord.exe", FakeMeter([0.8])),
+        ("spotify.exe", FakeMeter([0.2])),  # ...pero la onda es solo de Spotify
+        ("spotify.exe", FakeMeter([0.35])),  # Spotify puede tener varias sesiones: vale la más fuerte
+    ]
+    m = ProcessMeter(("Spotify.exe",), sessions=lambda: sessions)
+    assert m.GetPeakValue() == 0.35
+
+
+def test_process_meter_is_silent_without_a_session_and_finds_it_when_it_appears() -> None:
+    now = [0.0]
+    sessions: list[tuple[str, _Meter]] = []
+    m = ProcessMeter(("spotify.exe",), sessions=lambda: list(sessions), clock=lambda: now[0])
+    assert m.GetPeakValue() == 0.0  # Spotify no suena: silencio, no el audio de otro programa
+    sessions.append(("spotify.exe", FakeMeter([0.6])))
+    assert m.GetPeakValue() == 0.0  # aún no ha vuelto a buscar
+    now[0] += SESSIONS_REFRESH_S
+    assert m.GetPeakValue() == 0.6
+
+
+def test_process_meter_recovers_when_a_session_dies() -> None:
+    class Dying:
+        def GetPeakValue(self) -> float:  # noqa: N802
+            raise OSError("sesión cerrada")
+
+    now = [0.0]
+    lists: list[list[tuple[str, _Meter]]] = [[("spotify.exe", Dying())], [("spotify.exe", FakeMeter([0.4]))]]
+    m = ProcessMeter(("spotify.exe",), sessions=lambda: lists.pop(0), clock=lambda: now[0])
+    assert m.GetPeakValue() == 0.0  # la sesión murió: no se cae
+    assert m.GetPeakValue() == 0.4  # y la siguiente lectura busca de nuevo

@@ -395,12 +395,15 @@ disponible en «Más → Estilo» y se rediseña a fondo.
 
 ## Etapa 28 — La cara se hace onda con la música, avisos sin borde y una IA que recuerda
 
-- **Onda de música:** mientras suena algo en el PC y Vega está en reposo, la cara de LED se convierte en una onda de
-  barras simétricas (como una onda de audio) del color de la carátula. Es el **volumen real**: el servidor lee el pico
-  de la salida de audio de Windows (`server/device/audio_meter.py`, con `pycaw`; no oye ni guarda audio, solo un número)
-  y lo manda al teléfono unas 20 veces por segundo, solo mientras suena algo. En cuanto le hablas, piensa, contesta o
-  avisa vuelve la cara, y a los 4 s en reposo regresa la onda. La onda se normaliza con el pico reciente para verse
-  igual de viva con el volumen alto o bajo.
+- **Onda de música:** mientras suena **Spotify** y Vega está en reposo, la cara de LED se convierte en la silueta de
+  una onda de audio (forma continua con brillo, picos en cada golpe y extremos que se afinan hasta una línea), del
+  color de la carátula. Sigue **solo a Spotify**: el servidor lee el pico de *su* sesión de audio de Windows
+  (`server/device/audio_meter.py`, con `pycaw`), no el del PC entero, así que el navegador, Discord o los juegos no la
+  mueven (y tampoco depende del volumen general de Windows). No oye ni guarda audio, solo un número. Lo manda al
+  teléfono unas 20 veces por segundo y solo mientras suena Spotify. La silueta resalta lo que sobresale de la media
+  reciente (los golpes) y se normaliza con el pico reciente. Medido: el medidor de Windows se actualiza cada ~50 ms,
+  así que no hay más detalle real que ese; no hay adornos aleatorios. En cuanto le hablas, piensa, contesta o avisa
+  vuelve la cara, y a los 4 s en reposo regresa la onda.
 - **Barra de avisos:** sin el borde naranja (ahora como el resto de tarjetas), el número en blanco y el punto de
   «nuevo» también.
 - **Animaciones:** los puntos de las barras de estado se encienden de uno en uno al cambiar el valor y la hora cambia
