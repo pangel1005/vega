@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.CacheDrawScope
 import androidx.compose.ui.draw.drawWithCache
@@ -157,9 +158,13 @@ fun LedFaceView(
 
     LaunchedEffect(pulse) { if (pulse > 0) level[0] = maxOf(level[0], pulseAmount) }
     LaunchedEffect(noticeKey) { if (notice != null) animator.showText(notice) }
+    val currentNotice by rememberUpdatedState(notice)
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) {
+            // En reposo no hace falta un cuadro cada 16 ms: se espera y se pinta solo cuando toca.
+            val pause = framePacingMs(currentMood, currentRainbow, currentNotice != null)
+            if (pause > 0) delay(pause)
             withFrameMillis { now ->
                 val dt = if (last == 0L) 0.016f else ((now - last) / 1000f).coerceAtMost(0.1f)
                 last = now

@@ -15,6 +15,9 @@ import kotlin.math.sin
 fun interface Gate {
     /** `window`: el principio de la frase (hasta 2,4 s) en muestras entre −1 y 1. */
     fun passes(window: FloatArray): Boolean
+
+    /** Probabilidad de la última frase (NaN si no se sabe). Solo para el registro. */
+    val lastScore: Float get() = Float.NaN
 }
 
 /**
@@ -63,7 +66,14 @@ class WakeGate(weights: ByteArray) : Gate {
         require(!buf.hasRemaining()) { "wake_gate.bin tiene datos de más" }
     }
 
-    override fun passes(window: FloatArray): Boolean = probability(window) >= threshold
+    @Volatile override var lastScore: Float = Float.NaN
+        private set
+
+    override fun passes(window: FloatArray): Boolean {
+        val p = probability(window)
+        lastScore = p
+        return p >= threshold
+    }
 
     fun probability(window: FloatArray): Float = (1.0 / (1.0 + exp(-logit(window).toDouble()))).toFloat()
 

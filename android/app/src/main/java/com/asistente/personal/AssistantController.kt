@@ -16,6 +16,7 @@ import com.asistente.personal.net.ServerEvent
 import com.asistente.personal.state.Action
 import com.asistente.personal.state.UiState
 import com.asistente.personal.state.reduce
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.math.min
@@ -121,6 +122,9 @@ class AssistantController(context: Context) {
     )
     private val phoneMemory = com.asistente.personal.local.LocalMemory(java.io.File(context.filesDir, "memoria-telefono.json"))
     @Volatile private var local: com.asistente.personal.local.LocalAssistant? = null
+
+    /** La IA que se está cargando ahora mismo (~400 MB nativos): si se cancela la carga, hay que cerrarla. */
+    @Volatile private var loading: com.asistente.personal.local.LocalAssistant? = null
     /** Filtro barato de «Vega» (assets/wake_gate.bin): si falta o no se lee, Whisper mira todo, como antes. */
     private val wakeGate: com.asistente.personal.local.WakeGate? by lazy {
         try {
@@ -174,7 +178,7 @@ class AssistantController(context: Context) {
             brainStatus = "Cargando IA…"
             val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    com.asistente.personal.local.LocalAssistant(
+                    val created = com.asistente.personal.local.LocalAssistant(
                         name = ui.assistant.ifEmpty { "Vega" },
                         skills = com.asistente.personal.local.Skills(phoneMemory, battery = { battery.takeIf { it >= 0 } }),
                         memory = phoneMemory,
@@ -196,18 +200,33 @@ class AssistantController(context: Context) {
                         talker = models.llm.takeIf { it.isFile }?.let { com.asistente.personal.local.PhoneLlm(it, log = { m -> android.util.Log.i("Vega", m) }) },
                         gate = wakeGate,
                     )
+                    loading = created
+                    // Cancelada mientras cargaba (cambio de IA, «Dormir»…): withContext tiraría el resultado
+                    // y esos modelos se quedarían en memoria sin dueño. Aquí se cierran.
+                    if (!isActive) {
+                        loading = null
+                        created.close()
+                        null
+                    } else {
+                        created
+                    }
                 } catch (e: Throwable) {
                     android.util.Log.e("Vega", "No arranca la IA del teléfono", e)
                     null
                 }
             }
-            if (!brainOnPhone) return@launch // se cambió de idea mientras cargaba
+            if (!brainOnPhone) { // se cambió de idea mientras cargaba
+                loading = null
+                loaded?.close()
+                return@launch
+            }
             if (loaded == null) {
                 brainStatus = "IA: error"
                 dispatch(Action.LocalError("No pude arrancar la IA del teléfono."))
                 return@launch
             }
             local = loaded
+            loading = null
             brainStatus = ""
             tickJob?.cancel()
             tickJob = scope.launch {
@@ -377,6 +396,8 @@ class AssistantController(context: Context) {
         local?.close()
         localTimerEndsAt = null
         localJob?.cancel()
+        loading?.close() // la que estaba a medio cargar
+        loading = null
         tickJob?.cancel()
         local = null
         brainStatus = ""
@@ -451,7 +472,7 @@ class AssistantController(context: Context) {
         },
     )
 
-    private val mic = Microphone { pcm, length, level ->
+    private val mic = Microphone(onDied = { mainThread.post { micDied() } }) { pcm, length, level ->
         // Mientras Vega habla no se manda el micrófono: así no se escucha a sí misma.
         // Medio segundo más: el altavoz aún suena un poco tras el último trozo y se oía a sí misma.
         if (player.speaking || android.os.SystemClock.elapsedRealtime() - voiceEndedAt < ECHO_GUARD_MS) return@Microphone
@@ -657,6 +678,17 @@ class AssistantController(context: Context) {
         syncMic()
     }
 
+    private var micRetries = 0
+
+    /** El micrófono se paró solo: se quita «Oyendo» y se reintenta con espera creciente (2, 4, 8… hasta 30 s). */
+    private fun micDied() {
+        if (!micOn) return
+        android.util.Log.w("Vega", "El micrófono se paró solo; se reintenta")
+        stopMic()
+        val wait = minOf(30_000L, 2_000L shl minOf(micRetries++, 4))
+        mainThread.postDelayed({ syncMic() }, wait)
+    }
+
     /** Abre o cierra el micrófono según el enlace, el permiso y el botón de silencio. */
     private fun syncMic() {
         // Con la IA en el teléfono se escucha aunque el PC no esté.
@@ -665,9 +697,11 @@ class AssistantController(context: Context) {
         if (want && !micOn) {
             if (mic.start()) {
                 micOn = true
+                micRetries = 0
                 if (!brainOnPhone) socket.send(JSONObject().put("type", "wake_mode").put("on", true).toString())
             } else {
-                dispatch(Action.LocalError("No pude abrir el micrófono. ¿Lo está usando otra app?"))
+                if (micRetries == 0) dispatch(Action.LocalError("No pude abrir el micrófono. ¿Lo está usando otra app?"))
+                mainThread.postDelayed({ syncMic() }, minOf(30_000L, 2_000L shl minOf(micRetries++, 4))) // y se vuelve a intentar
             }
         } else if (!want && micOn) {
             stopMic()

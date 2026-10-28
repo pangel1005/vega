@@ -3,6 +3,7 @@ package com.asistente.personal.audio
 import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.audiofx.AudioEffect
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AutomaticGainControl
@@ -14,6 +15,9 @@ import kotlin.math.sqrt
 const val SAMPLE_RATE = 16_000
 /** 100 ms de PCM16 mono a 16 kHz: el mismo tamaño de bloque que la interfaz web. */
 const val CHUNK_BYTES = SAMPLE_RATE / 10 * 2
+
+/** Bloques de 100 ms seguidos con silencio exacto (5 s) tras los que se da el micrófono por muerto. */
+const val SILENT_CHUNKS_LIMIT = 50
 
 /** Volumen eficaz (RMS) entre 0 y 1 de un bloque PCM16 little-endian. */
 fun rmsPcm16(buf: ByteArray, length: Int): Float {
@@ -31,7 +35,11 @@ fun rmsPcm16(buf: ByteArray, length: Int): Float {
  * Micrófono → bloques PCM16 a 16 kHz. Se abre solo mientras se graba; la lectura va
  * en un hilo propio para no tocar el hilo de la interfaz.
  */
-class Microphone(private val onChunk: (ByteArray, Int, Float) -> Unit) {
+class Microphone(
+    /** El micrófono dejó de funcionar solo (error de lectura o el sistema lo silenció): hay que reabrirlo. */
+    private val onDied: () -> Unit = {},
+    private val onChunk: (ByteArray, Int, Float) -> Unit,
+) {
     @Volatile private var running = false
     private var worker: Thread? = null
 
@@ -59,29 +67,59 @@ class Microphone(private val onChunk: (ByteArray, Int, Float) -> Unit) {
             record.release()
             return false
         }
+        // Se guardan los efectos: si no, el recolector de basura los libera y la reducción de ruido, la
+        // ganancia y el eco desaparecen al cabo de un rato sin avisar.
         val session = record.audioSessionId
-        if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(session)?.enabled = true
-        if (AutomaticGainControl.isAvailable()) AutomaticGainControl.create(session)?.enabled = true
-        if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(session)?.enabled = true
-
+        val effects = buildList<AudioEffect> {
+            if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(session)?.let { it.enabled = true; add(it) }
+            if (AutomaticGainControl.isAvailable()) AutomaticGainControl.create(session)?.let { it.enabled = true; add(it) }
+            if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(session)?.let { it.enabled = true; add(it) }
+        }
+        try {
+            record.startRecording() // falla si otra app tiene el micrófono en exclusiva
+        } catch (_: IllegalStateException) {
+            effects.forEach(AudioEffect::release)
+            record.release()
+            return false
+        }
         running = true
-        record.startRecording()
         worker = thread(name = "microfono", priority = Thread.MAX_PRIORITY) {
             val buf = ByteArray(CHUNK_BYTES)
+            var died = false
+            var silent = 0
             try {
                 while (running) {
                     var filled = 0
                     while (running && filled < CHUNK_BYTES) {
                         val n = record.read(buf, filled, CHUNK_BYTES - filled)
-                        if (n < 0) running = false // error del micrófono: se deja de grabar
+                        if (n < 0) { // error del micrófono: se deja de grabar y se avisa
+                            died = true
+                            running = false
+                        }
                         if (n <= 0) break
                         filled += n
                     }
-                    if (filled > 0) onChunk(buf.copyOf(filled), filled, rmsPcm16(buf, filled))
+                    if (filled > 0) {
+                        val level = rmsPcm16(buf, filled)
+                        // Silencio digital exacto durante 5 s: el sistema le quitó el micrófono a la app
+                        // (otra app lo usa) y entrega ceros sin fallar. Un micrófono vivo siempre tiene ruido.
+                        silent = if (level == 0f) silent + 1 else 0
+                        if (silent >= SILENT_CHUNKS_LIMIT) {
+                            died = true
+                            running = false
+                        } else {
+                            onChunk(buf.copyOf(filled), filled, level)
+                        }
+                    }
                 }
             } finally {
-                record.stop()
+                try {
+                    record.stop()
+                } catch (_: IllegalStateException) {
+                }
                 record.release()
+                effects.forEach(AudioEffect::release)
+                if (died) onDied()
             }
         }
         return true

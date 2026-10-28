@@ -9,6 +9,7 @@ import com.asistente.personal.ui.led.LedFace
 import com.asistente.personal.ui.led.LedFaceAnimator
 import com.asistente.personal.ui.led.LedFont
 import com.asistente.personal.ui.led.Mood
+import com.asistente.personal.ui.led.framePacingMs
 import com.asistente.personal.ui.moodFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -84,6 +85,37 @@ class LedFaceTest {
         val still = LedFaceAnimator(Random(5))
         repeat(120) { still.step(1 / 60f, 0f, Mood.ERROR, 0f) }
         assertFalse(still.step(1 / 60f, 0f, Mood.ERROR, 0f))
+    }
+
+    @Test fun `el ritmo de dibujo baja en reposo y es completo cuando Vega actua`() {
+        for (mood in listOf(Mood.LISTEN, Mood.THINK, Mood.TALK, Mood.HAPPY, Mood.ALERT, Mood.ERROR)) {
+            assertEquals("$mood se pinta a toda velocidad", 0L, framePacingMs(mood, rainbow = false, scrolling = false))
+        }
+        assertEquals(100L, framePacingMs(Mood.SLEEP, rainbow = false, scrolling = false))
+        assertEquals(66L, framePacingMs(Mood.OFFLINE, rainbow = false, scrolling = false))
+        assertEquals(33L, framePacingMs(Mood.IDLE, rainbow = false, scrolling = false))
+        assertEquals(50L, framePacingMs(Mood.IDLE, rainbow = true, scrolling = false)) // el arcoíris da una vuelta cada 8 s
+        assertEquals(0L, framePacingMs(Mood.IDLE, rainbow = true, scrolling = true)) // un aviso cruzando la cara se ve fluido
+        assertEquals(0L, framePacingMs(Mood.SLEEP, rainbow = false, scrolling = true))
+    }
+
+    @Test fun `con el ritmo de reposo se dibuja mucho menos que a 60 cuadros por segundo`() {
+        // 5 s a 60 Hz: antes, un paso (y un redibujado) en cada cuadro = 300.
+        val anim = LedFaceAnimator(Random(7))
+        val pause = framePacingMs(Mood.SLEEP, rainbow = false, scrolling = false) / 1000f
+        var steps = 0
+        var acc = 0f
+        var t = 0f
+        repeat(300) {
+            acc += 1 / 60f
+            if (acc >= pause) {
+                anim.step(acc, t, Mood.SLEEP, 0f)
+                steps++
+                acc = 0f
+            }
+            t += 1 / 60f
+        }
+        assertTrue("dormida debe pintar ≤ 10 veces por segundo, pintó $steps en 5 s", steps <= 55)
     }
 
     @Test fun `la cara refleja lo que pasa de verdad`() {

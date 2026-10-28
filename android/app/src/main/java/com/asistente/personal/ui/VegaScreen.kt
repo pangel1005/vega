@@ -544,7 +544,7 @@ private fun FaceCard(mood: Mood, color: Color, m: ScreenModel, glance: Glance?, 
             glance = glance,
             modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
         )
-        Subtitle(m, Modifier.fillMaxWidth().height(42.dp).cached())
+        Subtitle(m, Modifier.fillMaxWidth().height(56.dp).cached()) // 42 dp cortaba la segunda línea
     }
 }
 

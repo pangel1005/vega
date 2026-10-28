@@ -11,6 +11,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -31,7 +36,7 @@ object Vega {
 
     val Ink = Color(0xFFF5F2ED)
     val Ink2 = Color(0xFF9A968F)
-    val Ink3 = Color(0xFF55524E)
+    val Ink3 = Color(0xFF7A766F) // era #55524E (2,5:1 sobre las tarjetas); así llega a ~4,6:1
 
     val Light = Color(0xFFFFF1DE) // luz de la cara en reposo: blanco cálido
     val Coral = Color(0xFFFF6A3D)
@@ -112,7 +117,19 @@ fun Modifier.instantPress(enabled: Boolean, pressed: MutableState<Boolean>, onPr
     val view = LocalView.current
     val action = rememberUpdatedState(onPress)
     val on = rememberUpdatedState(enabled)
-    return pointerInput(Unit) {
+    // Los gestos van con pointerInput (la acción salta al tocar, no al soltar), que TalkBack no ve: se declara
+    // aquí que es un botón y qué hace, para que el lector de pantalla pueda activarlo.
+    return semantics(mergeDescendants = true) {
+        role = Role.Button
+        if (enabled) {
+            onClick {
+                action.value()
+                true
+            }
+        } else {
+            disabled()
+        }
+    }.pointerInput(Unit) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             if (!on.value) return@awaitEachGesture

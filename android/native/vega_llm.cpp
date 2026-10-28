@@ -72,9 +72,7 @@ std::string to_string(JNIEnv * env, jstring s) {
 
 }  // namespace
 
-extern "C" JNIEXPORT jlong JNICALL
-Java_com_asistente_personal_local_LlamaNative_load(
-    JNIEnv * env, jobject, jstring path, jint threads, jint threads_batch, jint n_ctx) {
+static jlong load_impl(JNIEnv * env, jstring path, jint threads, jint threads_batch, jint n_ctx) {
     llama_backend_init();
     auto mparams = llama_model_default_params();
     llama_model * model = llama_model_load_from_file(to_string(env, path).c_str(), mparams);
@@ -94,8 +92,7 @@ Java_com_asistente_personal_local_LlamaNative_load(
 }
 
 // Lee las instrucciones una vez y guarda su estado; `reply` parte siempre de él.
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_asistente_personal_local_LlamaNative_prime(JNIEnv * env, jobject, jlong handle, jstring jprefix) {
+static jboolean prime_impl(JNIEnv * env, jlong handle, jstring jprefix) {
     auto * b = reinterpret_cast<Brain *>(handle);
     const std::string prefix = to_string(env, jprefix);
     b->prefix.clear();
@@ -115,9 +112,7 @@ Java_com_asistente_personal_local_LlamaNative_prime(JNIEnv * env, jobject, jlong
     return JNI_TRUE;
 }
 
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_asistente_personal_local_LlamaNative_reply(
-    JNIEnv * env, jobject, jlong handle, jstring jprompt, jint max_tokens, jobject on_piece) {
+static jstring reply_impl(JNIEnv * env, jlong handle, jstring jprompt, jint max_tokens, jobject on_piece) {
     auto * b = reinterpret_cast<Brain *>(handle);
     const std::string prompt = to_string(env, jprompt);
 
@@ -161,6 +156,11 @@ Java_com_asistente_personal_local_LlamaNative_reply(
                 jstring js = to_jstring(env, piece);
                 jboolean more = env->CallBooleanMethod(on_piece, emit, js);
                 env->DeleteLocalRef(js);
+                // Si el código de Kotlin lanzó una excepción, no se puede seguir llamando a JNI con ella pendiente.
+                if (env->ExceptionCheck()) {
+                    env->ExceptionClear();
+                    break;
+                }
                 if (!more) break;  // la app ya tiene bastante (o la interrumpieron)
             }
         }
@@ -170,11 +170,50 @@ Java_com_asistente_personal_local_LlamaNative_reply(
     return to_jstring(env, all);
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_asistente_personal_local_LlamaNative_free(JNIEnv *, jobject, jlong handle) {
+static void free_impl(jlong handle) {
     auto * b = reinterpret_cast<Brain *>(handle);
     if (!b) return;
     llama_free(b->ctx);
     llama_model_free(b->model);
     delete b;
+}
+
+// Puerta de entrada desde Kotlin. Una excepción de C++ (p. ej. `std::bad_alloc` con poca memoria) que
+// cruzara el límite de JNI tumbaría la app entera (`std::terminate`): aquí se convierte en un fallo normal
+// (modelo sin cargar, respuesta vacía) que Kotlin ya sabe tratar.
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_asistente_personal_local_LlamaNative_load(
+    JNIEnv * env, jobject, jstring path, jint threads, jint threads_batch, jint n_ctx) {
+    try {
+        return load_impl(env, path, threads, threads_batch, n_ctx);
+    } catch (...) {
+        return 0;
+    }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_asistente_personal_local_LlamaNative_prime(JNIEnv * env, jobject, jlong handle, jstring jprefix) {
+    try {
+        return prime_impl(env, handle, jprefix);
+    } catch (...) {
+        return JNI_FALSE;
+    }
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_asistente_personal_local_LlamaNative_reply(
+    JNIEnv * env, jobject, jlong handle, jstring jprompt, jint max_tokens, jobject on_piece) {
+    try {
+        return reply_impl(env, handle, jprompt, max_tokens, on_piece);
+    } catch (...) {
+        return to_jstring(env, "");
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_asistente_personal_local_LlamaNative_free(JNIEnv *, jobject, jlong handle) {
+    try {
+        free_impl(handle);
+    } catch (...) {
+    }
 }

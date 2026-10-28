@@ -41,6 +41,17 @@ class WakeGateTest {
         assertFalse(gate.passes(clips[3].samples))
     }
 
+    @Test fun apuntaLaProbabilidadDeLaUltimaFrase() {
+        assertTrue(gate.lastScore.isNaN()) // aún no ha visto ninguna
+        val clips = fixture()
+        gate.passes(clips[0].samples)
+        val llamada = gate.lastScore
+        gate.passes(clips[2].samples)
+        val otra = gate.lastScore
+        assertTrue(llamada in 0f..1f && otra in 0f..1f)
+        assertTrue("la llamada puntúa más que la frase ajena", llamada > otra)
+    }
+
     @Test fun elSilencioNoPasa() {
         assertFalse(gate.passes(FloatArray(WakeGate.WINDOW)))
     }

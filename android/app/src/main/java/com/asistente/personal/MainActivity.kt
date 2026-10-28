@@ -5,6 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
@@ -96,6 +99,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         controller.start()
+        lastActive = SystemClock.elapsedRealtime()
+        handler.postDelayed(ambientTick, 15_000)
         // Escucha continua: hace falta el permiso de micrófono (se pide una sola vez).
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             controller.micPermission(true)
@@ -109,6 +114,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        handler.removeCallbacks(ambientTick)
         // Sin el servicio, en segundo plano no se mantiene la conexión ni el micrófono.
         controller.stop()
         super.onStop()
@@ -135,11 +141,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var sleepDim = false
+    private var ambient = false
+    private var lastActive = SystemClock.elapsedRealtime()
+    private val handler = Handler(Looper.getMainLooper())
+
     /** Con Vega dormida (PC apagado) la pantalla baja casi al mínimo; al despertar, vuelve a la normal. */
     private fun dimScreen(dim: Boolean) {
+        sleepDim = dim
+        applyBrightness()
+    }
+
+    private fun applyBrightness() {
         window.attributes = window.attributes.apply {
-            screenBrightness = if (dim) 0.02f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            screenBrightness = when {
+                sleepDim -> 0.02f
+                ambient -> AMBIENT_BRIGHTNESS
+                else -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
         }
+    }
+
+    /** Cada 15 s mira si pasó algo; tras 10 minutos sin nada, baja el brillo («modo ambiente»). */
+    private val ambientTick = object : Runnable {
+        override fun run() {
+            val now = SystemClock.elapsedRealtime()
+            val c = controller
+            if (c.ui.state != AssistantState.IDLE || c.speaking || c.ui.notice != null) lastActive = now
+            val due = ambientDue(lastActive, now)
+            if (due != ambient) {
+                ambient = due
+                applyBrightness()
+            }
+            handler.postDelayed(this, 15_000)
+        }
+    }
+
+    /** Un toque (en cualquier sitio) cuenta como actividad y devuelve el brillo normal. */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        lastActive = SystemClock.elapsedRealtime()
+        if (ambient) {
+            ambient = false
+            applyBrightness()
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     private fun takeToken(intent: Intent?): Boolean {

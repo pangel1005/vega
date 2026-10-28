@@ -19,6 +19,9 @@ fun interface Mouth {
 /** Tras oír su voz, cuánto tiempo se le puede seguir hablando sin decir «Vega» (como en el PC). */
 const val FOLLOW_UP_MS = 8_000L
 
+/** Cuánto tiempo (ms) puede esperar una frase que llegó con Vega ocupada antes de que ya no valga la pena. */
+const val WAITING_MS = 3_000L
+
 /** Tras hablar, cuánto tiempo puede volver su voz como eco por el micrófono. */
 const val ECHO_MEMORY_MS = 6_000L
 
@@ -85,6 +88,7 @@ class LocalAssistant(
      * haciendo (todo va en el mismo hilo) y después ya no atiende más audio.
      */
     fun close() {
+        if (closed) return // cerrar dos veces liberaría dos veces los modelos nativos
         closed = true
         runner(Runnable {
             (ears as? AutoCloseable)?.close()
@@ -93,19 +97,37 @@ class LocalAssistant(
         })
     }
 
+    /** La última frase que llegó mientras trabajaba (con cuándo): si sigue fresca, se atiende después. */
+    @Volatile private var waiting: Pair<ByteArray, Long>? = null
+
     /** Audio del micrófono (desde su hilo). */
     fun hear(pcm: ByteArray, length: Int = pcm.size) {
         if (closed) return
         for (phrase in segmenter.feed(pcm, length)) {
-            if (!busy.compareAndSet(false, true)) continue
-            runner(Runnable {
-                try {
-                    process(phrase)
-                } finally {
-                    busy.set(false)
-                }
-            })
+            if (!busy.compareAndSet(false, true)) {
+                waiting = phrase to clock() // antes se tiraba: una llamada a «Vega» justo tras un ruido se perdía
+                continue
+            }
+            start(phrase)
         }
+    }
+
+    private fun start(phrase: ByteArray) {
+        runner(Runnable {
+            try {
+                process(phrase)
+            } finally {
+                busy.set(false)
+                resumeWaiting()
+            }
+        })
+    }
+
+    private fun resumeWaiting() {
+        val (phrase, since) = waiting ?: return
+        waiting = null
+        if (closed || clock() - since > WAITING_MS) return // ya es vieja: no tiene sentido contestarla
+        if (busy.compareAndSet(false, true)) start(phrase)
     }
 
     /** Tocar la cara: la próxima frase es una orden aunque no digas «Vega». */
@@ -170,7 +192,8 @@ class LocalAssistant(
         if (!following && gate != null) {
             val t0 = clock()
             val pass = gate.passes(samples.copyOf(minOf(samples.size, WakeGate.WINDOW)))
-            log("filtro de «$name»: ${if (pass) "pasa" else "descartada"} en ${clock() - t0} ms (frase de ${samples.size / 16} ms)")
+            val p = gate.lastScore // la probabilidad, no lo dicho: sirve para recalibrar el filtro con datos reales
+            log("filtro de «$name»: ${if (pass) "pasa" else "descartada"} en ${clock() - t0} ms (frase de ${samples.size / 16} ms, p=${"%.3f".format(p)})")
             if (!pass) return
         }
         val text = try {

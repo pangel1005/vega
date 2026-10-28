@@ -42,7 +42,10 @@ class LocalAssistantTest {
         talker: com.asistente.personal.local.Talker? = null,
         ears: com.asistente.personal.local.Ears? = null,
         gate: com.asistente.personal.local.Gate? = null,
+        queued: Boolean = false,
     ) {
+        val jobs = ArrayDeque<Runnable>()
+        val logs = mutableListOf<String>()
         var slept = 0
         val pcSaid = mutableListOf<String>()
         val heardSizes = mutableListOf<Int>()
@@ -63,12 +66,19 @@ class LocalAssistantTest {
             audio = { _, _ -> },
             clock = { clock },
             now = { now },
-            runner = { it.run() }, // sin hilo: la prueba ve el resultado al momento
+            // sin hilo: la prueba ve el resultado al momento (o, con `queued`, cuando ella lo decide)
+            runner = { if (queued) jobs.addLast(it) else it.run() },
+            log = { logs += it },
             pc = { askedPc += it; pcAnswers[it] },
             pcVoice = { if (pcSpeaks) pcSaid += it; pcSpeaks },
             talker = talker,
             gate = gate,
         )
+
+        /** Ejecuta lo que quedó en cola (solo con `queued`), incluido lo que se encole por el camino. */
+        fun runAll() {
+            while (jobs.isNotEmpty()) jobs.removeFirst().run()
+        }
 
         /** Alguien habla 5 s seguidos (charla, la tele…). */
         fun longPhrase() {
@@ -326,5 +336,49 @@ class LocalAssistantTest {
         rig.phrase() // sigue la conversación: no hace falta decir «Vega», y tampoco pasa por el filtro
         assertEquals(1, asked)
         assertEquals("Apuntado: pan.", rig.said.last())
+    }
+
+    // --- Frases que llegan con Vega ocupada ---
+
+    @Test fun unaFraseQueLlegaMientrasTrabajaNoSePierde() {
+        val rig = Rig(listOf("Vega, ¿qué hora es?", "Vega, apunta pan"), queued = true)
+        rig.phrase() // la primera empieza a procesarse (queda en cola)
+        rig.phrase() // la segunda llega con Vega ocupada: antes se tiraba
+        rig.clock = 1_000
+        rig.runAll()
+        assertEquals(listOf("Son las tres de la tarde.", "Apuntado: pan."), rig.said)
+    }
+
+    @Test fun unaFraseEnEsperaQueYaEsVieja() {
+        val rig = Rig(listOf("Vega, ¿qué hora es?", "Vega, apunta pan"), queued = true)
+        rig.phrase()
+        rig.phrase()
+        rig.clock = com.asistente.personal.local.WAITING_MS + 1 // tardó demasiado: ya no tiene sentido contestarla
+        rig.runAll()
+        assertEquals(listOf("Son las tres de la tarde."), rig.said)
+    }
+
+    @Test fun elRegistroDelFiltroLlevaLaProbabilidadPeroNuncaLoDicho() {
+        val gate = object : com.asistente.personal.local.Gate {
+            override fun passes(window: FloatArray) = true
+            override val lastScore: Float get() = 0.5f
+        }
+        val rig = Rig(listOf("Vega, apunta mi contraseña secreta"), gate = gate)
+        rig.phrase()
+        assertTrue(rig.logs.any { "p=0,500" in it || "p=0.500" in it })
+        assertTrue(rig.logs.none { "contraseña" in it })
+    }
+
+    @Test fun cerrarDosVecesLiberaLosModelosUnaSolaVez() {
+        class Counting : com.asistente.personal.local.Ears, AutoCloseable {
+            var closed = 0
+            override fun transcribe(samples: FloatArray) = ""
+            override fun close() { closed++ }
+        }
+        val ears = Counting()
+        val rig = Rig(emptyList(), ears = ears)
+        rig.vega.close()
+        rig.vega.close()
+        assertEquals(1, ears.closed)
     }
 }

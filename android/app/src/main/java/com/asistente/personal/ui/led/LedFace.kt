@@ -23,6 +23,23 @@ const val TEXT_SPEED = 30f
 /** Estado de ánimo que se ve en la cara. Lo decide la pantalla a partir del estado real. */
 enum class Mood { IDLE, LISTEN, THINK, TALK, HAPPY, SLEEP, ERROR, ALERT, OFFLINE }
 
+/**
+ * Cada cuántos milisegundos hace falta redibujar la cara (0 = en cada cuadro de pantalla).
+ *
+ * Medido en el Redmi (informe del 28-10): la app pintaba 60 cuadros por segundo sin parar, hasta dormida
+ * (RenderThread al 53 % de un núcleo, 1,2 millones de cuadros en 5,6 h). En reposo nada se mueve tan
+ * deprisa como para necesitarlo: el arcoíris da una vuelta cada 8 s, los «zzz» y el punto sin enlace van
+ * despacio, y un parpadeo a 30 cuadros por segundo se sigue viendo suave. Cuando Vega escucha, piensa o
+ * habla, o pasa un aviso por la cara, sí se pinta a toda velocidad.
+ */
+fun framePacingMs(mood: Mood, rainbow: Boolean, scrolling: Boolean): Long = when {
+    scrolling -> 0L // un aviso que cruza la cara se leería a trompicones
+    mood == Mood.SLEEP -> 100L
+    mood == Mood.OFFLINE -> 66L
+    mood == Mood.IDLE -> if (rainbow) 50L else 33L
+    else -> 0L
+}
+
 /** Brillo (0–1) de cada punto. */
 class Frame(val cols: Int = FACE_COLS, val rows: Int = FACE_ROWS) {
     val v = FloatArray(cols * rows)
