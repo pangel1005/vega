@@ -1,5 +1,7 @@
 package com.asistente.personal
 
+import com.asistente.personal.local.HINT_BEFORE
+import com.asistente.personal.local.HINT_NOW
 import com.asistente.personal.local.LlmBackend
 import com.asistente.personal.local.PhoneLlm
 import org.junit.Assert.assertEquals
@@ -39,7 +41,7 @@ class PhoneLlmTest {
         assertTrue(llm.loaded)
         llm.reply("otra") { true }
         assertEquals(1, fake.loads) // la segunda vez ya está cargado
-        assertTrue(fake.prompts[0].contains("<|im_start|>user\n¿qué tal?<|im_end|>"))
+        assertTrue(fake.prompts[0].contains("<|im_start|>user\n¿qué tal?$HINT_NOW<|im_end|>"))
         assertTrue(fake.prompts[0].endsWith("<|im_start|>assistant\n")) // LFM: sin bloque <think>
         llm.close()
         assertEquals(1, fake.frees)
@@ -75,6 +77,7 @@ class PhoneLlmTest {
         llm.reply("segunda") { true }
         assertEquals(1, fake.primes)
         assertTrue(fake.prefixes[0].startsWith("<|im_start|>system\n") && fake.prefixes[0].contains("Si no sabes algo"))
+        assertFalse("<|im_start|>assistant" in fake.prefixes[0]) // sin ejemplos de respuesta: descontrolaban al modelo (medido)
         assertTrue(fake.prompts.none { "<|im_start|>system" in it }) // las instrucciones ya están en el estado guardado
         llm.close()
     }
@@ -84,7 +87,7 @@ class PhoneLlmTest {
         val llm = PhoneLlm(model, backend = fake)
         llm.reply("hola") { true }
         assertTrue(fake.prompts[0].startsWith("<|im_start|>system\n"))
-        assertTrue(fake.prompts[0].contains("<|im_start|>user\nhola<|im_end|>"))
+        assertTrue(fake.prompts[0].contains("<|im_start|>user\nhola$HINT_NOW<|im_end|>"))
         llm.close()
     }
 
@@ -107,5 +110,44 @@ class PhoneLlmTest {
         llm.reply("hola") { true }
         assertTrue(fake.prompts[0].endsWith("<think>\n\n</think>\n\n"))
         llm.close()
+    }
+
+    @Test fun `recuerda los dos ultimos intercambios para entender un seguimiento`() {
+        val fake = Fake()
+        val llm = PhoneLlm(model, backend = fake)
+        llm.reply("¿quién escribió Don Quijote?") { true }
+        assertFalse("Hola mundo." in fake.prompts[0]) // la primera pregunta no arrastra nada
+        llm.reply("¿y cuándo nació?") { true }
+        // La segunda lleva la primera pregunta y lo que contestó, antes de su propia pregunta.
+        val second = fake.prompts[1]
+        assertTrue(second.indexOf("¿quién escribió Don Quijote?") < second.indexOf("Hola mundo."))
+        assertTrue(second.indexOf("Hola mundo.") < second.indexOf("¿y cuándo nació?"))
+        assertTrue(second.endsWith("<|im_start|>user\n¿y cuándo nació?$HINT_NOW<|im_end|>\n<|im_start|>assistant\n"))
+        assertTrue("¿quién escribió Don Quijote?$HINT_BEFORE" in second) // lo anterior lleva la pista suave
+        llm.reply("tercera") { true }
+        llm.reply("cuarta") { true }
+        val fourth = fake.prompts[3]
+        assertFalse("¿quién escribió Don Quijote?" in fourth) // solo se recuerdan dos
+        assertTrue("¿y cuándo nació?" in fourth && "tercera" in fourth)
+        llm.close()
+    }
+
+    @Test fun `al soltar el modelo se olvida la conversacion`() {
+        val fake = Fake()
+        var now = 1_000L
+        val llm = PhoneLlm(model, idleMs = 1_000, backend = fake, clock = { now })
+        llm.reply("secreto de la primera") { true }
+        now += 2_000
+        llm.unloadIfIdle()
+        llm.reply("otra") { true }
+        assertFalse("secreto de la primera" in fake.prompts[1])
+        llm.close()
+    }
+
+    @Test fun `de una respuesta larga solo se recuerdan las dos primeras frases`() {
+        assertEquals("Una. Dos.", com.asistente.personal.local.rememberedAnswer("Una. Dos. Tres. Cuatro."))
+        assertEquals("Hola mundo.", com.asistente.personal.local.rememberedAnswer("  Hola\nmundo.  "))
+        val long = "x".repeat(400)
+        assertTrue(com.asistente.personal.local.rememberedAnswer(long).length <= 241)
     }
 }

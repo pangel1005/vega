@@ -40,6 +40,18 @@ const val TALK_SYSTEM = "Eres Vega, una asistente de voz que vive en un teléfon
     "con una o dos frases cortas y naturales, sin listas, sin emojis y sin inventar datos. " +
     "Si no sabes algo o no puedes saberlo (la hora, el tiempo, las noticias), di que no lo sabes."
 
+/**
+ * Pistas que se pegan a cada pregunta. Medido en el Redmi con LFM2.5 1.2B: sin ellas, las preguntas cortas
+ * («¿y la de Italia?») se contestaban a veces en inglés o vacías; con la fuerte en la pregunta de ahora y la
+ * suave en las anteriores, 5 de 5 casos que fallaban salieron bien. (Probado también con ejemplos de
+ * respuesta en las instrucciones: el modelo se descontrolaba, así que no se usan.)
+ */
+const val HINT_NOW = " (Responde solo en español, nunca en inglés.)"
+const val HINT_BEFORE = " (Responde en español.)"
+
+/** Cuántos intercambios anteriores (pregunta y respuesta) recuerda el modelo para entender un «¿y cuándo nació?». */
+const val TALK_MEMORY_TURNS = 2
+
 /** Formato de mensajes ChatML (Qwen, LFM). La parte fija, que se lee una sola vez. */
 fun chatPrefix(system: String = TALK_SYSTEM): String = "<|im_start|>system\n$system<|im_end|>\n"
 
@@ -47,8 +59,15 @@ fun chatPrefix(system: String = TALK_SYSTEM): String = "<|im_start|>system\n$sys
  * La parte que cambia en cada pregunta. Qwen 3.5 necesita además el bloque `<think>` vacío (sin
  * «pensar en voz alta»); LFM no lo usa.
  */
-fun chatSuffix(question: String, emptyThink: Boolean = false): String =
-    "<|im_start|>user\n$question<|im_end|>\n<|im_start|>assistant\n" + if (emptyThink) "<think>\n\n</think>\n\n" else ""
+fun chatSuffix(question: String, emptyThink: Boolean = false, history: List<Pair<String, String>> = emptyList()): String =
+    history.joinToString("") { (q, a) -> "<|im_start|>user\n$q$HINT_BEFORE<|im_end|>\n<|im_start|>assistant\n$a<|im_end|>\n" } +
+        "<|im_start|>user\n$question$HINT_NOW<|im_end|>\n<|im_start|>assistant\n" + if (emptyThink) "<think>\n\n</think>\n\n" else ""
+
+/** Lo que se recuerda de una respuesta: sus dos primeras frases, sin pasar de 240 letras (lo que se oyó, no todo lo escrito). */
+fun rememberedAnswer(answer: String): String {
+    val short = answer.replace('\n', ' ').trim().split(Regex("(?<=[.!?…])\\s+")).take(2).joinToString(" ")
+    return if (short.length <= 240) short else short.take(240).trimEnd() + "…"
+}
 
 /** Lo que necesita `PhoneLlm` del modelo (en el teléfono, llama.cpp; en las pruebas, uno de mentira). */
 interface LlmBackend {
@@ -94,6 +113,9 @@ class PhoneLlm(
     private val timer = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "vega-llm-reloj").apply { isDaemon = true } }
     private var pending: ScheduledFuture<*>? = null
 
+    /** Los últimos intercambios (pregunta, respuesta), para que «¿y la de Italia?» se entienda. Se olvidan al soltar el modelo. */
+    private val history = ArrayDeque<Pair<String, String>>()
+
     /** Los Qwen piden el bloque `<think>` vacío; los demás (LFM, Gemma) no. */
     private val emptyThink = model.name.contains("qwen", ignoreCase = true)
 
@@ -121,9 +143,13 @@ class PhoneLlm(
                 log(if (primed) "instrucciones leídas una vez en ${clock() - primedAt} ms" else "sin caché de instrucciones: se leen en cada pregunta")
             }
             pending?.cancel(false)
-            val prompt = (if (primed) "" else chatPrefix()) + chatSuffix(question, emptyThink)
+            val prompt = (if (primed) "" else chatPrefix()) + chatSuffix(question, emptyThink, history.toList())
             val text = backend.reply(handle, prompt, MAX_TOKENS, onText).trim()
             lastUse = clock()
+            if (text.isNotEmpty()) {
+                history.addLast(question to rememberedAnswer(text))
+                while (history.size > TALK_MEMORY_TURNS) history.removeFirst()
+            }
             pending = timer.schedule({ unloadIfIdle() }, idleMs, TimeUnit.MILLISECONDS)
             return text.ifEmpty { null }
         }
@@ -136,6 +162,7 @@ class PhoneLlm(
                 backend.free(handle)
                 handle = 0L
                 primed = false
+                history.clear()
                 log("modelo de charla descargado (sin uso)")
             }
         }
@@ -148,11 +175,12 @@ class PhoneLlm(
             if (handle != 0L) backend.free(handle)
             handle = 0L
             primed = false
+            history.clear()
         }
     }
 
     companion object {
-        private const val CONTEXT = 512 // instrucciones + pregunta + respuesta corta
+        private const val CONTEXT = 1024 // instrucciones (~70) + dos intercambios + pregunta + respuesta corta
         private const val MAX_TOKENS = 80
         const val IDLE_MS = 180_000L // 3 minutos
     }
