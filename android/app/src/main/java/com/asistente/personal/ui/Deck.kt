@@ -40,8 +40,8 @@ fun Deck(
     onToggleBrain: () -> Unit = {},
     touchLabel: String = TouchFeel.SOFT.label,
     onNextTouch: () -> Unit = {},
-    glass: Boolean = false,
-    onToggleGlass: () -> Unit = {},
+    styleName: String = "Noche",
+    onNextStyle: () -> Unit = {},
     onOpenAndroid: () -> Unit = {},
 ) {
     Column(modifier.card(fill = Vega.Card.copy(alpha = 0.98f), overlay = true).padding(12.dp)) {
@@ -51,8 +51,8 @@ fun Deck(
             // Dónde piensa Vega: en el teléfono, el PC suelta la gráfica (para jugar sin estorbos).
             Pill(brainLabel, if (brainOnPhone) Vega.Mint else Vega.Ink2, onToggleBrain, filled = brainOnPhone)
             Spacer(Modifier.width(8.dp))
-            // Estilo: «Noche» (tarjetas lisas) o «Cristal» (aurora y cristal, prototipo).
-            Pill(if (glass) "Estilo: Cristal" else "Estilo: Noche", if (glass) Vega.Sky else Vega.Ink2, onToggleGlass)
+            // Estilo: «Noche» (tarjetas lisas), «Cristal» (aurora y cristal) o «Nostromo» (terminal ámbar).
+            Pill("Estilo: $styleName", when (styleName) { "Cristal" -> Vega.Sky; "Nostromo" -> Vega.Amber; else -> Vega.Ink2 }, onNextStyle)
             Spacer(Modifier.width(8.dp))
             // Vibración al tocar: fuerte, suave o sin vibrar.
             Pill("Toque: $touchLabel", Vega.Ink2, onNextTouch)

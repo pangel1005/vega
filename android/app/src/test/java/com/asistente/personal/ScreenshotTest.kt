@@ -295,4 +295,41 @@ class ScreenshotTest {
         compose.onRoot().captureRoboImage("build/capturas/20_transicion_final.png")
         compose.onNodeWithText("I musta been crazy").assertExists()
     }
+
+    // --- Estilo «Nostromo» ---
+
+    private val conversation = base.copy(
+        model = "qwen3.5:4b",
+        messages = listOf(
+            Message(1, Role.USER, "¿cómo está el PC?"),
+            Message(2, Role.ASSISTANT, "El PC va bien: procesador al 21 %, la gráfica a 62 grados y con 7 de 8 GB ocupados."),
+        ),
+    )
+
+    @Test fun nostromo_reposo() = shot(
+        "29_nostromo_reposo",
+        model(conversation).copy(terminal = true, brainOnPhone = true, brainLabel = "IA: teléfono", ears = { com.asistente.personal.local.EarsSnapshot(684, 642, 3) }),
+        afterMs = 1500,
+    )
+
+    @Test fun nostromo_escuchando() = shot(
+        "30_nostromo_escuchando",
+        model(conversation, AssistantState.LISTENING).copy(terminal = true),
+        afterMs = 600,
+    )
+
+    @Test fun nostromo_confirmar() = shot(
+        "31_nostromo_confirmar",
+        model(conversation.copy(pending = PendingConfirm("apagar", "n1", "¿Seguro?", 8))).copy(terminal = true),
+        afterMs = 600,
+    )
+
+    @Test fun nostromo_hoja_mas() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent { VegaScreen(model(base).copy(terminal = true), ScreenActions()) }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("F7 MÁS").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(600)
+        compose.onRoot().captureRoboImage("build/capturas/32_nostromo_hoja_mas.png")
+    }
 }

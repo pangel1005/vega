@@ -307,6 +307,20 @@ prueba:
 - Descarga de modelos sin reanudar, servicio en primer plano ante reinicios del sistema y llamadas WinRT en el
   hilo del bucle (posible causa de dos parones de 21 y 25 s): sospechado, sin reproducir.
 
+## 21. Estilo «Nostromo» (28-10)
+
+Primer rediseño completo elegido entre ocho propuestas ([docs/propuestas-diseno-2.html](propuestas-diseno-2.html)): una **terminal de
+fósforo ámbar** en vez de la cara de LED, inspirada en las consolas de nave de *Alien*. Cuenta en vivo qué oye
+(frases, llamadas), qué cerebro usa, el estado del PC, el próximo aviso y lo que suena, escribe la conversación
+como un log (la respuesta de Vega se teclea letra a letra) y tiene teclas F1 a F6 con la misma confirmación
+de siempre (`¿SEGURO? 8`) y F7 para «Más». Tocar el log equivale a tocar la cara (atención).
+
+- Se elige en «Más → Estilo» (Noche → Cristal → Nostromo) o desde el PC (`phone_control terminal_on/off`).
+- Fuente VT323 (licencia OFL), líneas de barrido y viñeta dibujadas en el momento; sin animación continua (se pinta
+  cuando hay algo que contar), así que gasta menos que la cara.
+- Los contadores del oído son solo cifras (frases, pasadas por el filtro, llamadas; a cero cada día), nunca lo dicho.
+- 11 pruebas nuevas y 4 capturas (`29` a `32` en `app/build/capturas`).
+
 ## Lo que se mantuvo desde el principio
 
 - Piezas pequeñas, **probadas** y explicadas.

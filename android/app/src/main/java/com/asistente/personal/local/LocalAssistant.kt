@@ -72,6 +72,8 @@ class LocalAssistant(
      * Whisper en ella (en el teléfono casi todo lo que oye es ruido o conversación ajena).
      */
     private val gate: Gate? = null,
+    /** Cuántas frases oyó hoy, cuántas pasaron el filtro y cuántas la llamaron (solo cifras). */
+    val stats: EarsStats = EarsStats(),
     private val runner: (Runnable) -> Unit = Executors.newSingleThreadExecutor { Thread(it, "vega-local") }::execute,
 ) {
     private val segmenter = Segmenter()
@@ -187,6 +189,7 @@ class LocalAssistant(
 
     private fun process(phrase: ByteArray) {
         val samples = pcm16ToFloat(phrase)
+        stats.phrase()
         val started = clock()
         val following = attentive || clock() < listenUntil
         if (!following && gate != null) {
@@ -195,6 +198,7 @@ class LocalAssistant(
             val p = gate.lastScore // la probabilidad, no lo dicho: sirve para recalibrar el filtro con datos reales
             log("filtro de «$name»: ${if (pass) "pasa" else "descartada"} en ${clock() - t0} ms (frase de ${samples.size / 16} ms, p=${"%.3f".format(p)})")
             if (!pass) return
+            stats.passedFilter()
         }
         val text = try {
             // Whisper tarda según lo larga que sea la frase (Redmi: 1,2 s una de 1 s; 5,5 s una de
@@ -211,6 +215,7 @@ class LocalAssistant(
         }
         val elapsed = (clock() - started).toInt()
         val wake = parseWake(text, name)
+        if (wake.woke) stats.call()
         val asked = wake.woke || attentive // la llamaste o tocaste la cara: una orden seguro
         log("frase de ${samples.size / 16} ms → texto en $elapsed ms; nombre: ${wake.woke}, seguimiento: $following")
         if (!wake.woke && !following) return // no era para Vega: no se guarda

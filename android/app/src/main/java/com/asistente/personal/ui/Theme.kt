@@ -47,6 +47,9 @@ object Vega {
 
     /** Números y titulares: tipografía de puntos (como la cara). */
     val Dots = FontFamily(Font(R.font.doto_black, FontWeight.Black))
+
+    /** La fuente de la terminal del estilo «Nostromo» (VT323, licencia OFL). */
+    val Terminal = FontFamily(Font(R.font.vt323, FontWeight.Normal))
     val Sans = FontFamily(
         Font(R.font.space_grotesk_regular, FontWeight.Normal),
         Font(R.font.space_grotesk_medium, FontWeight.Medium),

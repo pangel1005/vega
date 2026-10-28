@@ -87,6 +87,8 @@ conversación. Tocar la cara tiene el mismo efecto.
 - **Cara de LED con personalidad.** Mira alrededor, parpadea, guiña y tiene manías en
   reposo. Tiene expresiones para escuchar, pensar, hablar, contenta, dormida, error,
   confirmar algo peligroso y sin conexión.
+- **Tres estilos** («Más → Estilo»): **Noche** (tarjetas lisas), **Cristal** (aurora y cristal) y **Nostromo** (una terminal de fósforo
+  ámbar que cuenta en vivo qué oye, piensa y hace).
 - **Color de la cara elegible:** cálido, coral, cielo, menta, violeta, rosa o
   **arcoíris**.
 - **Teclas que actúan al tocar**, sin esperar a soltar, con una vibración corta. Las

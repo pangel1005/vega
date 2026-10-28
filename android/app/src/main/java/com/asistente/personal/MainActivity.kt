@@ -244,6 +244,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             dismissNote = c::dismissNote,
             nextTouchFeel = c::nextTouchFeel,
             toggleGlass = c::toggleGlass,
+            nextStyle = c::nextStyle,
             sleep = c::sleep,
             wake = c::wake,
         )
@@ -284,6 +285,8 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             localTimerEndsAt = c.localTimerEndsAt,
             touchFeel = c.touchFeel,
             glass = c.glass,
+            terminal = c.terminal,
+            ears = c::earsStats,
             sleeping = c.sleeping,
         ),
         actions,

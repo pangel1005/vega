@@ -27,7 +27,8 @@ Cliente → servidor:
     {"type": "phone_state", "brain": "pc|phone", "sleeping": false, "mic": true, "battery": 91,
      "charging": true, "glass": false, "touch": "soft", "face": "WARM", "version": 428883}
                                          (teléfono) su estado, para que lo vea la app del PC
-    {"type": "phone_control", "command": "sleep|wake|brain_pc|brain_phone|glass_on|glass_off|mic_on|mic_off"}
+    {"type": "phone_control", "command": "sleep|wake|brain_pc|brain_phone|glass_on|glass_off|
+                                          terminal_on|terminal_off|mic_on|mic_off"}
                                          (app del PC) manda una orden al teléfono
     {"type": "reload_actions"}           vuelve a leer config/actions.toml y reparte los botones
     {"type": "reload_car"}               (app del PC) vuelve a leer config/car.toml y la reparte
@@ -198,7 +199,16 @@ class PhoneState(_Msg):
 
 
 PhoneCommandName = Literal[
-    "sleep", "wake", "brain_pc", "brain_phone", "glass_on", "glass_off", "mic_on", "mic_off"
+    "sleep",
+    "wake",
+    "brain_pc",
+    "brain_phone",
+    "glass_on",
+    "glass_off",
+    "terminal_on",
+    "terminal_off",
+    "mic_on",
+    "mic_off",
 ]
 
 

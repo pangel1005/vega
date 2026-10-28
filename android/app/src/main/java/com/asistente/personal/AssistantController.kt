@@ -31,6 +31,7 @@ private const val KEY_FACE_COLOR = "color_cara"
 private const val KEY_BRAIN = "cerebro_telefono"
 private const val KEY_TOUCH = "vibracion_toque"
 private const val KEY_GLASS = "estilo_cristal"
+private const val KEY_TERMINAL = "estilo_terminal"
 private const val ECHO_GUARD_MS = 500L
 
 /**
@@ -83,9 +84,26 @@ class AssistantController(context: Context) {
     var glass by mutableStateOf(prefs.getBoolean(KEY_GLASS, false))
         private set
 
+    /** Estilo «Nostromo» (terminal de fósforo ámbar): excluyente con «Cristal». */
+    var terminal by mutableStateOf(prefs.getBoolean(KEY_TERMINAL, false))
+        private set
+
+    /** Lo que oyó hoy (cifras), para la terminal. */
+    fun earsStats(): com.asistente.personal.local.EarsSnapshot = local?.stats?.snapshot() ?: com.asistente.personal.local.EarsSnapshot()
+
+    /** Noche → Cristal → Nostromo → Noche. */
+    fun nextStyle() = setStyle((styleIndex(glass, terminal) + 1) % 3)
+
+    private fun setStyle(index: Int) {
+        glass = index == 1
+        terminal = index == 2
+        prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).apply()
+    }
+
     fun toggleGlass() {
         glass = !glass
-        prefs.edit().putBoolean(KEY_GLASS, glass).apply()
+        if (glass) terminal = false
+        prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).apply()
     }
 
     fun nextTouchFeel() {
@@ -364,6 +382,8 @@ class AssistantController(context: Context) {
             "brain_phone" -> if (!brainOnPhone) toggleBrain()
             "brain_pc" -> if (brainOnPhone) toggleBrain()
             "glass_on" -> if (!glass) toggleGlass()
+            "terminal_on" -> setStyle(2)
+            "terminal_off" -> if (terminal) setStyle(0)
             "glass_off" -> if (glass) toggleGlass()
             "mic_on" -> if (!listenEnabled) toggleListening()
             "mic_off" -> if (listenEnabled) toggleListening()
@@ -744,4 +764,13 @@ class AssistantController(context: Context) {
     fun send(text: String) {
         if (socket.send(Protocol.chat(text))) dispatch(Action.Sent(text))
     }
+}
+
+/** 0 = Noche, 1 = Cristal, 2 = Nostromo. */
+fun styleIndex(glass: Boolean, terminal: Boolean): Int = if (terminal) 2 else if (glass) 1 else 0
+
+fun styleName(index: Int): String = when (index) {
+    1 -> "Cristal"
+    2 -> "Nostromo"
+    else -> "Noche"
 }

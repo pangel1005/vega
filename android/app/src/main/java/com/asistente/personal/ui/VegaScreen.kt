@@ -58,6 +58,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.personal.net.AssistantState
+import com.asistente.personal.styleIndex
+import com.asistente.personal.styleName
 import com.asistente.personal.net.LinkStatus
 import com.asistente.personal.net.Telemetry
 import com.asistente.personal.net.Upcoming
@@ -109,6 +111,10 @@ data class ScreenModel(
     val brainOnPhone: Boolean = false,
     /** Estilo «Cristal» (aurora y cristal) en vez de «Noche» (PROTOTIPO). */
     val glass: Boolean = false,
+    /** Estilo «Nostromo»: terminal de fósforo ámbar en vez de la cara de LED. */
+    val terminal: Boolean = false,
+    /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
+    val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
     /** Iconos de las apps que mandan notificaciones en el PC, por id de icono. */
     val noteIcons: Map<String, ImageBitmap> = emptyMap(),
     /** Hora real (ms desde 1970) para «hace 5 min» en las notificaciones. */
@@ -138,6 +144,7 @@ class ScreenActions(
     val dismissNote: (Long?) -> Unit = {},
     val nextTouchFeel: () -> Unit = {},
     val toggleGlass: () -> Unit = {},
+    val nextStyle: () -> Unit = {},
     val sleep: () -> Unit = {},
     val wake: () -> Unit = {},
 )
@@ -331,7 +338,9 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 scaleY = 1f - 0.05f * sleepFade
             },
         ) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (m.terminal) NostromoScreen(
+                m, secondsLeft, canAct, onPress = press, onMore = { showMore = true }, onAttention = a.attention,
+            ) else Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (ui.pcNotes.isNotEmpty()) {
                         NotesRail(
@@ -447,8 +456,8 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         onToggleBrain = a.toggleBrain,
                         touchLabel = m.touchFeel.label,
                         onNextTouch = a.nextTouchFeel,
-                        glass = m.glass,
-                        onToggleGlass = a.toggleGlass,
+                        styleName = styleName(styleIndex(m.glass, m.terminal)),
+                        onNextStyle = a.nextStyle,
                         onOpenAndroid = a.openAndroid,
                         // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.
                         modifier = Modifier.fillMaxSize().pointerInput(Unit) {

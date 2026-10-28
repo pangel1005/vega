@@ -381,4 +381,20 @@ class LocalAssistantTest {
         rig.vega.close()
         assertEquals(1, ears.closed)
     }
+
+    // --- Contadores del oído ---
+
+    @Test fun cuentaFrasesFiltroYLlamadasSinGuardarLoDicho() {
+        var pass = true
+        val gate = com.asistente.personal.local.Gate { pass }
+        val rig = Rig(listOf("y entonces le dije que no", "Vega, ¿qué hora es?", "otra cosa"), gate = gate)
+        rig.phrase() // pasa el filtro pero no la llama
+        rig.phrase() // la llama
+        pass = false
+        rig.phrase() // el filtro la descarta
+        val s = rig.vega.stats.snapshot()
+        assertEquals(3, s.heard)
+        assertEquals(2, s.passed)
+        assertEquals(1, s.calls)
+    }
 }
