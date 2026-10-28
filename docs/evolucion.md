@@ -473,11 +473,18 @@ dibujo resalta lo que sobresale del nivel habitual de cada banda, si no saldría
 Si Spotify suena por otro dispositivo (sin audio en el PC) no se manda nada y el teléfono vuelve a la cara; si el
 espectro no llega, cae a las barras de volumen.
 
-**Portada.** La pantalla de música enseña ahora la **portada** como una funda de disco con el vinilo asomando por
-detrás (girando si suena). Un **doble toque** cambia al vinilo entero con el brazo, y otro vuelve; se recuerda. En la
-portada se toca en cualquier parte para pausar; el vinilo entero se sigue girando con el dedo para adelantar o
-retroceder. Un toque suelto espera unos 0,26 s por si llega el segundo.
+**Portada hecha disco (inspirada en «Familiar»).** El proyecto de escritorio `familiar-digital` (Electron: una esfera
+viva que, al sonar música, pasa a ser *la carátula redonda girando* sobre un brillo, y reacciona al audio) marcó la
+idea: no un vinilo literal negro con surcos, sino **la portada como disco**. En la pantalla de música (`AlbumDisc.kt`)
+la carátula es redonda y gira despacio (una vuelta cada ~9 s, con inercia al pausar), sobre un brillo del color de la
+canción que late con el volumen real, y con un **anillo de barras de LED** alrededor que es el espectro real de
+Spotify (24 bandas en espejo, con picos). Mejora lo del original, que oía el micrófono: aquí es el audio de Spotify.
 
-Sobre el proyecto «Familiar»: no hay en este PC una carpeta con ese nombre ni nada parecido (se buscó por nombre y
-contenido en Descargas, Documentos, Escritorio y OneDrive); si está en otro disco o en la nube, hay que decir dónde.
+- **Girar el disco con el dedo** adelanta (derecha) o retrasa (izquierda) la canción: 1 vuelta = 30 s, se ve «+0:12»
+  y al soltar Spotify salta ahí.
+- **Un toque** pausa o reanuda; **doble toque** cambia entre el disco y la **portada plana** (cuadrada, quieta, con
+  sombra, brillo que late y barras de espectro debajo); se recuerda. Un toque suelto espera ~0,26 s por si llega el
+  segundo. En la portada plana vale tocar en cualquier parte y no se gira.
 
+El proyecto «Familiar» estaba en `C:/Users/pange/.gemini/antigravity/scratch/familiar-digital` (fuera de las
+carpetas habituales).
