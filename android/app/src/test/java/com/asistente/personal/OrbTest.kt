@@ -5,12 +5,14 @@ import com.asistente.personal.net.AssistantState
 import com.asistente.personal.net.Telemetry
 import com.asistente.personal.ui.OrbMotion
 import com.asistente.personal.ui.Vega
+import com.asistente.personal.ui.confirmSweep
 import com.asistente.personal.ui.moteRadius
 import com.asistente.personal.ui.orbColor
 import com.asistente.personal.ui.orbFrameMs
 import com.asistente.personal.ui.orbLegend
 import com.asistente.personal.ui.orbMotion
 import com.asistente.personal.ui.orbRings
+import com.asistente.personal.ui.orbWaveAmp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -66,7 +68,7 @@ class OrbTest {
 
     @Test fun `la esfera se repinta despacio en reposo y a toda velocidad cuando actua`() {
         assertEquals(16L, orbFrameMs(AssistantState.SPEAKING, sleeping = false))
-        assertEquals(40L, orbFrameMs(AssistantState.IDLE, false))
+        assertEquals(55L, orbFrameMs(AssistantState.IDLE, false))
         assertEquals(120L, orbFrameMs(AssistantState.SPEAKING, sleeping = true))
     }
 
@@ -75,5 +77,22 @@ class OrbTest {
         assertEquals(3, styleIndex(glass = true, terminal = true, orb = true)) // si hubiera varios, manda el orbe
         assertEquals(2, styleIndex(glass = false, terminal = true)) // sin el tercer dato, como antes
         assertEquals(listOf("Noche", "Cristal", "Nostromo", "Orbe"), (0 until STYLE_COUNT).map(::styleName))
+    }
+
+    @Test fun `el contorno vibra mas con la voz, el remolino y al hablar`() {
+        val quiet = orbWaveAmp(0f, OrbMotion(0f, 0f, 0f))
+        assertTrue(quiet in 0.005f..0.02f) // un temblor mínimo en reposo
+        assertTrue(orbWaveAmp(1f, OrbMotion(0f, 1f, 0f)) > quiet * 4)
+        assertTrue(orbWaveAmp(0f, OrbMotion(1f, 0f, 0f)) > quiet)
+        assertTrue(orbWaveAmp(0f, OrbMotion(0f, 0f, 1f)) > quiet)
+        assertEquals(orbWaveAmp(1f, OrbMotion(0f, 0f, 0f)), orbWaveAmp(9f, OrbMotion(0f, 0f, 0f)), 0f) // el volumen se recorta
+    }
+
+    @Test fun `el anillo de confirmacion se vacia con los segundos`() {
+        assertEquals(360f, confirmSweep(8, 8), 0f)
+        assertEquals(180f, confirmSweep(4, 8), 0f)
+        assertEquals(0f, confirmSweep(0, 8), 0f)
+        assertEquals(360f, confirmSweep(20, 8), 0f) // nunca pasa de la vuelta entera
+        assertEquals(0f, confirmSweep(3, 0), 0f) // sin tiempo total no se divide por cero
     }
 }

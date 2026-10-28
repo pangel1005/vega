@@ -375,4 +375,26 @@ class ScreenshotTest {
         compose.mainClock.advanceTimeBy(500)
         compose.onRoot().captureRoboImage("build/capturas/39_orbe_hoja_mas.png")
     }
+
+    // --- Noche evolucionada: tarjeta «Cuerpo», osciloscopio de voz y conversación en grande ---
+
+    @Test fun noche_cuerpo() = shot(
+        "40_noche_cuerpo",
+        model(base).copy(
+            brainOnPhone = true, brainLabel = "IA: teléfono", phoneRam = { 0.62f },
+            ears = { com.asistente.personal.local.EarsSnapshot(684, 642, 3) },
+        ),
+        afterMs = 1500,
+    )
+
+    @Test fun noche_conversacion() {
+        val more = base.messages + listOf(
+            Message(3, Role.USER, "¿Y la gráfica?"),
+            Message(4, Role.ASSISTANT, "A 62 grados, con la memoria al 87 %. Todo en orden."),
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent { com.asistente.personal.ui.ConversationOverlay(more, "Vega", onClose = {}) }
+        compose.mainClock.advanceTimeBy(300)
+        compose.onRoot().captureRoboImage("build/capturas/41_noche_conversacion.png")
+    }
 }

@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,11 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -57,10 +63,14 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Estilo «Orbe»: Vega como una esfera de luz que respira, sin cara ni tarjetas. El color dice qué hace
- * (escucha, piensa, habla, o el de la canción que suena); motas de luz fluyen hacia ella al escucharte,
- * remolinean al pensar y salen en ondas al hablar; la CPU, la memoria, la gráfica y la batería son cuatro
- * anillos finos; cada aviso del PC es un satélite; la respuesta va debajo y las teclas son cápsulas.
+ * Estilo «Orbe»: Vega como una esfera de luz que respira, sin cara ni tarjetas.
+ *
+ * - La esfera es de plasma: tres manchas de luz giran por dentro, con un borde de luz y un brillo.
+ * - El color dice qué hace (verde escucha, ámbar piensa, crema habla, rojo confirma) o es el de la canción que suena.
+ * - Su contorno vibra con tu voz y con la suya; motas de luz fluyen hacia ella al escuchar, un cometa gira al
+ *   pensar y salen ondas al hablar.
+ * - Cuatro anillos finos (CPU, RAM, GPU, batería del móvil); cada aviso del PC es un satélite.
+ * - Al pedir confirmación, un anillo rojo se vacía en 8 segundos.
  */
 fun orbColor(state: AssistantState, sleeping: Boolean, pending: Boolean, idle: Color): Color = when {
     pending -> Vega.Red
@@ -91,7 +101,7 @@ fun orbLegend(t: Telemetry?, battery: Int): List<String> = listOf(
 /** Cuánto tarda en repintarse la esfera: a toda velocidad cuando actúa, despacio en reposo (ahorra batería). */
 fun orbFrameMs(state: AssistantState, sleeping: Boolean): Long = when {
     sleeping -> 120L
-    state == AssistantState.IDLE -> 40L
+    state == AssistantState.IDLE -> 55L
     else -> 16L
 }
 
@@ -115,22 +125,39 @@ fun moteRadius(base: Float, flow: Float, inward: Float, outward: Float): Float {
     return base + (toward - base) * inward + (away - base) * outward
 }
 
+/** Cuánto vibra el contorno de la esfera (en radios): un temblor mínimo en reposo, más con la voz, el remolino o al hablar. */
+fun orbWaveAmp(level: Float, motion: OrbMotion): Float =
+    0.012f + 0.075f * level.coerceIn(0f, 1f) + 0.014f * motion.swirl + 0.018f * motion.outward
+
+/** Cuánto del anillo de confirmación queda (en grados): 360 al empezar, 0 al acabarse el tiempo. */
+fun confirmSweep(secondsLeft: Int, total: Int): Float = if (total <= 0) 0f else 360f * (secondsLeft.coerceIn(0, total).toFloat() / total)
+
 private const val MOTES = 36
+private const val STARS = 44
 private const val TAU = (2 * PI).toFloat()
 
-private class Motes {
-    val angle = FloatArray(MOTES)
-    val radius = FloatArray(MOTES)
-    val speed = FloatArray(MOTES)
-    val size = FloatArray(MOTES)
+/** Puntos que no cambian entre capturas ni entre pantallas: siempre las mismas posiciones. */
+private class Sky {
+    val motesAngle = FloatArray(MOTES)
+    val motesRadius = FloatArray(MOTES)
+    val motesSpeed = FloatArray(MOTES)
+    val motesSize = FloatArray(MOTES)
+    val starX = FloatArray(STARS)
+    val starY = FloatArray(STARS)
+    val starAlpha = FloatArray(STARS)
 
     init {
-        val rnd = java.util.Random(7) // siempre las mismas, para que las capturas de pantalla no cambien
+        val rnd = java.util.Random(7)
         for (i in 0 until MOTES) {
-            angle[i] = rnd.nextFloat() * TAU
-            radius[i] = 1.9f + rnd.nextFloat() * 0.5f
-            speed[i] = (0.05f + rnd.nextFloat() * 0.12f) * if (rnd.nextBoolean()) 1f else -1f
-            size[i] = 0.9f + rnd.nextFloat() * 1.6f
+            motesAngle[i] = rnd.nextFloat() * TAU
+            motesRadius[i] = 1.9f + rnd.nextFloat() * 0.5f
+            motesSpeed[i] = (0.05f + rnd.nextFloat() * 0.12f) * if (rnd.nextBoolean()) 1f else -1f
+            motesSize[i] = 0.9f + rnd.nextFloat() * 1.6f
+        }
+        for (i in 0 until STARS) {
+            starX[i] = rnd.nextFloat()
+            starY[i] = rnd.nextFloat()
+            starAlpha[i] = 0.08f + rnd.nextFloat() * 0.22f
         }
     }
 }
@@ -157,7 +184,8 @@ fun OrbScreen(
     val swirl by animateFloatAsState(motion.swirl, tween(700), label = "remolino")
     val inward by animateFloatAsState(motion.inward, tween(700), label = "hacia dentro")
     val outward by animateFloatAsState(motion.outward, tween(700), label = "hacia fuera")
-    val motes = remember { Motes() }
+    val sky = remember { Sky() }
+    val wave = remember { Path() }
     val ripples = remember { FloatArray(5) { -100f } }
     var phase by remember { mutableFloatStateOf(0f) }
     var level by remember { mutableFloatStateOf(0f) }
@@ -194,6 +222,7 @@ fun OrbScreen(
     val music = ui.media?.takeIf { playing }?.let { (it.artist + " — " + it.title).trim(' ', '—') }?.takeIf { it.isNotEmpty() }
 
     val last = ui.messages.lastOrNull { it.role == Role.ASSISTANT || it.role == Role.USER }
+    val asked = if (last?.role == Role.ASSISTANT) ui.messages.getOrNull(ui.messages.indexOf(last) - 1)?.takeIf { it.role == Role.USER }?.text else null
     val spoken = last?.text?.replace('\n', ' ') ?: "Di «${ui.assistant.ifEmpty { "Vega" }}» y lo que necesites."
     var shown by remember(last?.id) { mutableIntStateOf(if (last?.role == Role.ASSISTANT) 0 else Int.MAX_VALUE) }
     LaunchedEffect(last?.id, spoken.length) {
@@ -203,7 +232,7 @@ fun OrbScreen(
         }
     }
 
-    Box(modifier.fillMaxSize().background(Color(0xFF030304))) {
+    Box(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF07080C), Color(0xFF020203))))) {
         Canvas(
             Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onAttention() } }
                 .semantics { contentDescription = "Vega: $status" },
@@ -211,15 +240,21 @@ fun OrbScreen(
             val t = phase
             val dim = if (m.sleeping) 0.45f else 1f
             val cx = size.width / 2
-            val cy = size.height * 0.43f
+            val cy = size.height * 0.40f
             val rate = if (pending) 5f else 1.9f
-            val r = size.height * 0.162f * (if (m.sleeping) 0.86f else 1f) * (1f + 0.035f * sin(t * rate) + level * 0.14f)
+            val r = size.height * 0.155f * (if (m.sleeping) 0.86f else 1f) * (1f + 0.035f * sin(t * rate) + level * 0.14f)
             val center = Offset(cx, cy)
+            val soft = lerpColor(color, Color.White, 0.35f)
 
+            // Estrellas lejanas que titilan
+            for (i in 0 until STARS) {
+                val a = sky.starAlpha[i] * (0.65f + 0.35f * sin(t * 0.6f + i * 1.7f)) * dim
+                drawCircle(Color.White.copy(alpha = a), 0.9.dp.toPx(), Offset(sky.starX[i] * size.width, sky.starY[i] * size.height))
+            }
             // Resplandor
             drawCircle(
-                Brush.radialGradient(listOf(color.copy(alpha = 0.34f * dim), color.copy(alpha = 0.08f * dim), Color.Transparent), center, r * 3.4f),
-                radius = r * 3.4f, center = center,
+                Brush.radialGradient(listOf(color.copy(alpha = 0.36f * dim), color.copy(alpha = 0.09f * dim), Color.Transparent), center, r * 3.0f),
+                radius = r * 3.0f, center = center,
             )
             // Ondas que salen con cada trozo de voz
             for (born in ripples) {
@@ -232,10 +267,10 @@ fun OrbScreen(
             val flow = max(inward, outward)
             for (i in 0 until MOTES) {
                 val f = (t * 0.32f + i * 0.61803f) % 1f
-                val a = motes.angle[i] + t * motes.speed[i] * (1f + swirl * 3.2f)
-                val rad = moteRadius(motes.radius[i], f, inward, outward) * r
+                val a = sky.motesAngle[i] + t * sky.motesSpeed[i] * (1f + swirl * 3.2f)
+                val rad = moteRadius(sky.motesRadius[i], f, inward, outward) * r
                 val alpha = (0.22f * (1f - flow) + sin(PI.toFloat() * f) * 0.75f * flow) * dim
-                drawCircle(color.copy(alpha = alpha.coerceIn(0f, 1f)), motes.size[i].dp.toPx(), Offset(cx + cos(a) * rad, cy + sin(a) * rad))
+                drawCircle(color.copy(alpha = alpha.coerceIn(0f, 1f)), sky.motesSize[i].dp.toPx(), Offset(cx + cos(a) * rad, cy + sin(a) * rad))
             }
             // Cometa que gira mientras piensa
             if (swirl > 0.01f) {
@@ -248,83 +283,157 @@ fun OrbScreen(
                     )
                 }
             }
-            // La esfera
-            val glint = sin(t * 0.4f) * r * 0.06f
-            drawCircle(
-                Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.95f * dim), lerpColor(color, Color.White, 0.45f), color, lerpColor(color, Color.Black, 0.62f)),
-                    Offset(cx - r * 0.3f + glint, cy - r * 0.34f), r * 1.55f,
-                ),
-                radius = r, center = center, alpha = dim,
-            )
+
+            // La esfera de plasma: base, tres manchas de luz que giran por dentro, sombra, borde de luz
+            run {
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(lerpColor(color, Color.White, 0.22f), color, lerpColor(color, Color.Black, 0.72f)),
+                        Offset(cx - r * 0.25f, cy - r * 0.3f), r * 1.6f,
+                    ),
+                    radius = r, center = center,
+                )
+                val energy = 1f + swirl * 1.6f + inward * 0.6f + outward * 0.9f + level * 2f
+                val blobs = listOf(lerpColor(color, Color.White, 0.6f), hueShift(color, 28f), hueShift(color, -28f))
+                blobs.forEachIndexed { i, c ->
+                    val a = t * (0.35f + i * 0.17f) * energy + i * 2.1f
+                    val b = t * (0.27f + i * 0.13f) * energy + i * 1.3f
+                    // Sin recortar con un círculo (cuesta mucho en la GPU): las manchas nunca salen de la esfera.
+                    val at = Offset(cx + cos(a) * r * 0.36f, cy + sin(b) * r * 0.36f)
+                    drawCircle(
+                        Brush.radialGradient(listOf(c.copy(alpha = 0.6f), Color.Transparent), at, r * 0.6f),
+                        radius = r * 0.6f, center = at, blendMode = BlendMode.Plus,
+                    )
+                }
+                drawCircle(
+                    Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent), Offset(cx + r * 0.5f, cy + r * 0.55f), r * 1.15f),
+                    radius = r, center = center,
+                )
+                drawCircle(
+                    Brush.radialGradient(
+                        colorStops = arrayOf(0f to Color.Transparent, 0.72f to Color.Transparent, 1f to soft.copy(alpha = 0.65f)),
+                        center = center, radius = r,
+                    ),
+                    radius = r, center = center,
+                )
+            }
+            // Brillo
+            val spec = Offset(cx - r * 0.38f, cy - r * 0.42f)
+            drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.7f), Color.Transparent), spec, r * 0.34f), radius = r * 0.34f, center = spec)
             drawArc(
-                Color.White.copy(alpha = 0.16f * dim), 20f, 130f, false, Offset(cx - r, cy - r), Size(r * 2, r * 2),
+                Color.White.copy(alpha = 0.18f * dim), 200f, 100f, false, Offset(cx - r, cy - r), Size(r * 2, r * 2),
                 style = Stroke(2.dp.toPx(), cap = StrokeCap.Round),
             )
+            // Contorno que vibra con la voz
+            val amp = orbWaveAmp(level, motion.copy(swirl = swirl, outward = outward))
+            for (layer in 0..1) {
+                wave.reset()
+                val n = 96
+                for (k in 0..n) {
+                    val th = TAU * k / n
+                    val d = amp * (sin(3 * th + t * 2.2f + layer) + 0.6f * sin(5 * th - t * 3.1f) + 0.4f * sin(8 * th + t * 4.3f + layer * 2f)) / 2f
+                    val rr = r * (1.07f + layer * 0.05f + d)
+                    val x = cx + cos(th) * rr
+                    val y = cy + sin(th) * rr
+                    if (k == 0) wave.moveTo(x, y) else wave.lineTo(x, y)
+                }
+                wave.close()
+                drawPath(wave, color.copy(alpha = (0.6f - layer * 0.35f) * dim), style = Stroke(1.4.dp.toPx()))
+            }
+            // Cuenta atrás de la confirmación
+            ui.pending?.let { p ->
+                val rr = r * 1.17f
+                drawArc(
+                    Vega.Red, -90f, confirmSweep(secondsLeft, p.expiresIn), false, Offset(cx - rr, cy - rr), Size(rr * 2, rr * 2),
+                    style = Stroke(3.dp.toPx(), cap = StrokeCap.Round),
+                )
+            }
             // Cuatro anillos: PC (procesador, memoria, gráfica) y batería del teléfono
             val stroke = Stroke(3.dp.toPx(), cap = StrokeCap.Round)
             rings.forEachIndexed { i, v ->
-                val rr = r * (1.34f + i * 0.14f)
+                val rr = r * (1.38f + i * 0.14f)
                 val tl = Offset(cx - rr, cy - rr)
                 val box = Size(rr * 2, rr * 2)
                 drawArc(Color(0xFF17171A), 140f, 260f, false, tl, box, style = stroke)
-                if (v != null && v > 0f) drawArc(Ring[i].copy(alpha = dim), 140f, 260f * v, false, tl, box, style = stroke)
+                if (v != null && v > 0f) {
+                    drawArc(Ring[i].copy(alpha = dim), 140f, 260f * v, false, tl, box, style = stroke)
+                    val end = (140f + 260f * v) * PI.toFloat() / 180f
+                    drawCircle(Color.White.copy(alpha = 0.9f * dim), 2.dp.toPx(), Offset(cx + cos(end) * rr, cy + sin(end) * rr))
+                }
             }
             // Un satélite por aviso del PC; los recién llegados brillan
             val notes = ui.pcNotes.take(6)
             notes.forEachIndexed { i, n ->
                 val fresh = n.id in ui.freshNotes
                 val a = TAU * i / notes.size + t * 0.18f
-                val at = Offset(cx + cos(a) * r * 2.0f, cy + sin(a) * r * 2.0f)
+                val at = Offset(cx + cos(a) * r * 2.05f, cy + sin(a) * r * 2.05f)
                 if (fresh) drawCircle(Vega.Amber.copy(alpha = 0.25f * (0.6f + 0.4f * sin(t * 4f))), 9.dp.toPx(), at)
                 drawCircle(if (fresh) Vega.Amber else Color(0xFF8C8578), (if (fresh) 4 else 3).dp.toPx(), at)
             }
         }
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 24.dp, vertical = 10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(m.clock, TextStyle(fontFamily = Vega.Sans, fontSize = 15.sp, color = Color(0xFF6A665F)))
+                Text(m.clock, TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Light, fontSize = 20.sp, color = Color(0xFFB9B4AA)))
                 timer?.let { Text("  ·  %d:%02d".format(it / 60, it % 60), TextStyle(fontFamily = Vega.Sans, fontSize = 15.sp, color = Vega.Amber)) }
                 Text(
                     music?.let { "♪ $it" } ?: "",
-                    TextStyle(fontFamily = Vega.Sans, fontSize = 13.sp, color = color.copy(alpha = 0.75f), textAlign = TextAlign.Center),
+                    TextStyle(fontFamily = Vega.Sans, fontSize = 13.sp, color = color.copy(alpha = 0.8f), textAlign = TextAlign.Center),
                     Modifier.weight(1f).padding(horizontal = 12.dp), maxLines = 1,
                 )
+                Box(Modifier.size(7.dp).background(color, CircleShape))
+                Spacer(Modifier.width(7.dp))
                 Text(
                     status + if (ui.pcNotes.isNotEmpty()) "  ·  ${ui.pcNotes.size} avisos" else "",
-                    TextStyle(fontFamily = Vega.Sans, fontSize = 14.sp, color = Color(0xFF8A857C)),
+                    TextStyle(fontFamily = Vega.Sans, fontSize = 14.sp, color = Color(0xFFA29D93)),
                     maxLines = 1,
                 )
             }
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 legend.forEachIndexed { i, s ->
-                    Text(s, TextStyle(fontFamily = Vega.Sans, fontSize = 12.sp, color = Ring[i].copy(alpha = if (s.endsWith("—")) 0.35f else 0.8f)), maxLines = 1)
+                    val live = !s.endsWith("—")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(5.dp).background(Ring[i].copy(alpha = if (live) 0.9f else 0.3f), CircleShape))
+                        Spacer(Modifier.width(5.dp))
+                        Text(s, TextStyle(fontFamily = Vega.Sans, fontSize = 12.sp, color = Color(0xFFA29D93).copy(alpha = if (live) 1f else 0.5f)), maxLines = 1)
+                    }
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             val userSaid = last?.role == Role.USER
+            Text(
+                asked?.let { "Tú: $it" } ?: "",
+                TextStyle(fontFamily = Vega.Sans, fontSize = 12.sp, color = Color(0xFF6F6B64), textAlign = TextAlign.Center),
+                Modifier.fillMaxWidth().padding(horizontal = 40.dp).height(15.dp), maxLines = 1,
+            )
             Text(
                 if (userSaid) "“${spoken.take(shown)}”" else spoken.take(shown),
                 TextStyle(
                     fontFamily = Vega.Sans, fontSize = 21.sp, lineHeight = 25.sp, textAlign = TextAlign.Center,
-                    color = if (userSaid) Color(0xFF8C8578) else Color(0xFFE8E0D2),
+                    color = if (userSaid) Color(0xFF8C8578) else Color(0xFFEFE8DA),
                 ),
                 Modifier.fillMaxWidth().padding(horizontal = 40.dp).height(52.dp),
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth().height(36.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ui.actions.filter { it.quick }.take(6).forEach { action ->
                     val pressed = remember { mutableStateOf(false) }
                     val isPending = ui.pending?.id == action.id
-                    val tint = if (isPending) Vega.Red else Color(0xFFA29C91)
-                    Box(
-                        Modifier.weight(1f).height(36.dp)
-                            .background(if (pressed.value) Color(0x22FFFFFF) else Color(0x0DFFFFFF), RoundedCornerShape(18.dp))
-                            .border(1.dp, if (isPending) Vega.Red else Color(0xFF2A2A2E), RoundedCornerShape(18.dp))
+                    val tint = if (isPending) Vega.Red else Color(0xFFB4AEA3)
+                    val icon = m.icons[action.id]
+                    Row(
+                        Modifier.weight(1f).height(38.dp).clip(RoundedCornerShape(19.dp))
+                            .background(if (pressed.value) Color(0x26FFFFFF) else Color(0x0FFFFFFF))
+                            .border(1.dp, if (isPending) Vega.Red else Color(0xFF2A2A2E), RoundedCornerShape(19.dp))
                             .instantPress(canAct, pressed) { onPress(action.id) },
-                        contentAlignment = Alignment.Center,
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        if (icon != null && !isPending) {
+                            Image(icon, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(
                             if (isPending) "¿Seguro? $secondsLeft" else action.label.substringBefore(" /"),
                             TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = tint),
@@ -334,9 +443,9 @@ fun OrbScreen(
                 }
                 val morePressed = remember { mutableStateOf(false) }
                 Box(
-                    Modifier.width(44.dp).height(36.dp)
-                        .background(if (morePressed.value) Color(0x22FFFFFF) else Color.Transparent, RoundedCornerShape(18.dp))
-                        .border(1.dp, Color(0xFF1F1F22), RoundedCornerShape(18.dp))
+                    Modifier.width(44.dp).height(38.dp).clip(RoundedCornerShape(19.dp))
+                        .background(if (morePressed.value) Color(0x26FFFFFF) else Color.Transparent)
+                        .border(1.dp, Color(0xFF1F1F22), RoundedCornerShape(19.dp))
                         .instantPress(true, morePressed, onMore),
                     contentAlignment = Alignment.Center,
                 ) { Text("···", TextStyle(fontFamily = Vega.Sans, fontSize = 14.sp, color = Color(0xFF8A857C))) }
@@ -348,3 +457,10 @@ fun OrbScreen(
 private fun lerpColor(a: Color, b: Color, t: Float) = Color(
     a.red + (b.red - a.red) * t, a.green + (b.green - a.green) * t, a.blue + (b.blue - a.blue) * t, a.alpha,
 )
+
+/** El mismo color con el tono girado `degrees` grados: las manchas de la esfera son variaciones del color, no colores nuevos. */
+private fun hueShift(c: Color, degrees: Float): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.RGBToHSV((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt(), hsv)
+    return Color.hsv((hsv[0] + degrees + 360f) % 360f, hsv[1], hsv[2])
+}

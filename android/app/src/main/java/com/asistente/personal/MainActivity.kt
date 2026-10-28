@@ -212,6 +212,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sleepChanged: (Boolean) -> Unit) {
     val ui = c.ui
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val clock by produceState("" to "") {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault())
         val day = SimpleDateFormat("EEEE d MMM", Locale.forLanguageTag("es"))
@@ -288,6 +289,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             terminal = c.terminal,
             orb = c.orb,
             ears = c::earsStats,
+            phoneRam = { com.asistente.personal.ui.phoneMemoryUsed(appContext) },
             sleeping = c.sleeping,
         ),
         actions,

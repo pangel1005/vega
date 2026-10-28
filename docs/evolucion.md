@@ -347,3 +347,20 @@ Segundo rediseño de las ocho propuestas: Vega como **una esfera de luz que resp
 - Se repinta a 25 fps en reposo, 8 fps dormida y a pantalla completa solo cuando actúa.
 - Se elige en «Más → Estilo» (Noche → Cristal → Nostromo → Orbe) o desde el PC (`phone_control orb_on/orb_off`).
 - 7 pruebas nuevas y 7 capturas (`33` a `39`).
+
+## Etapa 24 — Noche evoluciona y el Orbe se rediseña
+
+Tras probar el Orbe, se vuelve a **Noche** (la cara de LED original) como estilo activo y se evoluciona; el Orbe sigue
+disponible en «Más → Estilo» y se rediseña a fondo.
+
+**Noche**
+- Tarjeta «Cuerpo»: con la IA en el teléfono, la tarjeta de estado cuenta cómo está el propio Redmi (cerebro, frases y
+  llamadas de hoy, estado del PC, memoria y batería) y el temporizador local; la pestaña pasa a llamarse «Cuerpo».
+- Osciloscopio de voz: mientras te escucha, una onda de LED bajo la cara muestra tu volumen (se ve que te oye sin leer nada).
+- Tocar la respuesta abre la conversación reciente en letra grande; se cierra sola a los 10 s o al tocarla.
+
+**Orbe**
+- Esfera de plasma (tres manchas de luz del mismo tono girando por dentro, borde de luz, brillo), contorno que vibra con
+  la voz, anillo rojo que se vacía en la confirmación, estrellas de fondo y teclas con el icono real de cada app.
+- Medido en el Redmi: sin recortes circulares ni resplandor enorme gasta menos CPU que Noche en reposo (~18 fps).
+- 24 pruebas nuevas y capturas `40`, `41` (Noche) y las del Orbe (`33` a `39`).
