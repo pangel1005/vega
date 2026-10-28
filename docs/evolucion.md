@@ -384,3 +384,11 @@ disponible en «Más → Estilo» y se rediseña a fondo.
   color de la carátula.
 - **Batería baja:** con 15 % o menos y sin cargador, «En línea» pasa a «Batería N %» en rojo.
 - 3 pruebas nuevas y capturas `46` a `48`.
+
+## Etapa 27 — Próximo aviso a la vista
+
+- Las pantallas de **lejos** y de **dormida** enseñan el próximo aviso que no es un temporizador: «Alarma 07:00»,
+  «Alarma mañana 07:00» o «18:30 · llamar a mamá». Cuentan los avisos del PC y los del propio teléfono (así vale
+  también con el PC apagado), y gana el más cercano.
+- La pantalla de lejos avisa en rojo si la batería está baja y sin cargador.
+- 4 pruebas nuevas y capturas `49` y `50`.

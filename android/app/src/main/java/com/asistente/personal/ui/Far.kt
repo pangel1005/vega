@@ -48,6 +48,12 @@ fun FarScreen(m: ScreenModel, modifier: Modifier = Modifier) {
                 word + if (ui.link != LinkStatus.OPEN && !m.brainOnPhone) " · sin PC" else "",
                 TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 28.sp, color = Color(0xFFB9B2A6)), maxLines = 1,
             )
+            nextAlert(ui.telemetry?.upcoming.orEmpty(), ui.telemetryAt, m.nowMs, m.wallMs, m.localNext)?.let {
+                Text(nextAlertLabel(it, m.wallMs), TextStyle(fontFamily = Vega.Sans, fontSize = 18.sp, color = Color(0xFFB98A2E)), maxLines = 1)
+            }
+            if (lowBattery(m.battery, m.charging)) {
+                Text("Batería ${m.battery} %", TextStyle(fontFamily = Vega.Sans, fontSize = 18.sp, color = Vega.Red), maxLines = 1)
+            }
             timer?.let {
                 Text("%d:%02d".format(it / 60, it % 60), TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 30.sp, color = Vega.Amber))
             }

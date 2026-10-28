@@ -118,6 +118,8 @@ data class ScreenModel(
     val orb: Boolean = false,
     /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
     val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
+    /** El próximo aviso del propio teléfono (alarma o recordatorio), para cuando el PC no lo cuenta. */
+    val localNext: NextAlert? = null,
     /** Modo de lejos: tras 10 minutos sin nadie, solo la hora enorme y la última respuesta. */
     val far: Boolean = false,
     /** Memoria usada del teléfono (0 a 1), para la tarjeta «Cuerpo». */
@@ -659,6 +661,10 @@ private fun SleepScreen(m: ScreenModel, modifier: Modifier = Modifier) {
             Text(m.date, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink3))
             Spacer(Modifier.height(18.dp))
             Text(message, style = Vega.body.copy(fontSize = 15.sp, lineHeight = 19.sp, color = Vega.Ink2))
+            nextAlert(m.ui.telemetry?.upcoming.orEmpty(), m.ui.telemetryAt, m.nowMs, m.wallMs, m.localNext)?.let {
+                Spacer(Modifier.height(10.dp))
+                Text(nextAlertLabel(it, m.wallMs), style = Vega.label.copy(fontSize = 13.sp, color = Vega.Amber))
+            }
             if (m.battery >= 0) {
                 Spacer(Modifier.height(10.dp))
                 Text(

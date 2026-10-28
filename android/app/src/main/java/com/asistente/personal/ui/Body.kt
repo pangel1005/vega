@@ -228,3 +228,30 @@ fun keyState(action: com.asistente.personal.net.DeckAction, media: com.asistente
 
 /** Batería a punto de acabarse y sin cargador. */
 fun lowBattery(battery: Int, charging: Boolean): Boolean = battery in 0..15 && !charging
+
+/** El próximo aviso que no es un temporizador (una alarma o un recordatorio): qué es y cuándo, en hora real (ms desde 1970). */
+data class NextAlert(val text: String, val atMs: Long)
+
+/**
+ * El aviso más próximo de los del PC (llegan con la lectura de telemetría: `dueIn` segundos desde `telemetryAt`)
+ * y los del propio teléfono. Los temporizadores no cuentan: ya tienen su cuenta atrás.
+ */
+fun nextAlert(
+    upcoming: List<com.asistente.personal.net.Upcoming>, telemetryAt: Long, nowMs: Long, wallMs: Long, local: NextAlert?,
+): NextAlert? {
+    val pc = upcoming.filter { it.kind != "timer" }.map { NextAlert(it.text, wallMs - (nowMs - telemetryAt) + it.dueIn * 1000L) }
+    return (pc + listOfNotNull(local)).minByOrNull { it.atMs }
+}
+
+/** «Alarma 07:00», «Alarma mañana 07:00» o «18:30 · llamar a mamá». */
+fun nextAlertLabel(a: NextAlert, wallMs: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String {
+    val at = java.time.Instant.ofEpochMilli(a.atMs).atZone(zone)
+    val today = java.time.Instant.ofEpochMilli(wallMs).atZone(zone).toLocalDate()
+    val time = "%02d:%02d".format(at.hour, at.minute)
+    val day = when (java.time.temporal.ChronoUnit.DAYS.between(today, at.toLocalDate())) {
+        0L -> ""
+        1L -> "mañana "
+        else -> "${at.dayOfMonth}/${at.monthValue} "
+    }
+    return if (a.text.contains("alarma", ignoreCase = true)) "Alarma $day$time" else "$day$time · ${a.text}"
+}

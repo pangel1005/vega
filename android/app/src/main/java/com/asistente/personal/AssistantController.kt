@@ -271,6 +271,9 @@ class AssistantController(context: Context) {
                         // Redondeado al segundo: así no cambia (ni redibuja) en cada vuelta.
                         (android.os.SystemClock.elapsedRealtime() + left) / 1000 * 1000
                     }
+                    localNext = phoneMemory.pending().firstOrNull { it.kind != "timer" }?.let {
+                        com.asistente.personal.ui.NextAlert(it.text, it.dueAt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())
+                    }
                     kotlinx.coroutines.delay(1_000)
                 }
             }
@@ -280,6 +283,10 @@ class AssistantController(context: Context) {
 
     /** Fin del temporizador del teléfono (reloj `elapsedRealtime`), para la cuenta atrás en la cara. */
     var localTimerEndsAt by mutableStateOf<Long?>(null)
+        private set
+
+    /** Próxima alarma o recordatorio del teléfono (hora real), para las pantallas de lejos y de dormida. */
+    var localNext by mutableStateOf<com.asistente.personal.ui.NextAlert?>(null)
         private set
 
     @Volatile private var pcAnswer: java.util.concurrent.CompletableFuture<ServerEvent.PhoneReply>? = null
@@ -433,6 +440,7 @@ class AssistantController(context: Context) {
     private fun stopLocal() {
         local?.close()
         localTimerEndsAt = null
+        localNext = null
         localJob?.cancel()
         loading?.close() // la que estaba a medio cargar
         loading = null
