@@ -156,6 +156,8 @@ class ScreenActions(
     /** Vega se duerme o se despierta: la actividad baja o devuelve el brillo de la pantalla. */
     val sleepChanged: (Boolean) -> Unit = {},
     val mediaControl: (String) -> Unit = {},
+    /** Salta a un punto de la canción (segundos desde el principio). */
+    val mediaSeek: (Double) -> Unit = {},
     val toggleBrain: () -> Unit = {},
     /** Quita una notificación del PC (null = todas). */
     val dismissNote: (Long?) -> Unit = {},
@@ -529,7 +531,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
             if (playing != null) {
                 MusicScreen(
                     playing, ui.mediaAt, m.clockMs, m.mediaArt, m.mediaAccent, m.clock, m.lyrics,
-                    onControl = a.mediaControl, onClose = { showMusic = false },
+                    onControl = a.mediaControl, onClose = { showMusic = false }, onSeek = a.mediaSeek,
                 )
             }
         }

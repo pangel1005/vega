@@ -243,6 +243,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             nextFaceColor = c::nextFaceColor,
             sleepChanged = sleepChanged,
             mediaControl = c::mediaControl,
+            mediaSeek = c::mediaSeek,
             toggleBrain = c::toggleBrain,
             dismissNote = c::dismissNote,
             nextTouchFeel = c::nextTouchFeel,

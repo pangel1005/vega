@@ -217,8 +217,9 @@ object Protocol {
     fun chat(text: String): String = JSONObject().put("type", "chat").put("text", text).toString()
     fun simple(type: String): String = JSONObject().put("type", type).toString()
     fun action(id: String): String = JSONObject().put("type", "action").put("id", id).toString()
-    fun mediaControl(command: String): String =
-        JSONObject().put("type", "media_control").put("command", command).toString()
+    /** `seek` lleva además la posición (segundos) a la que saltar. */
+    fun mediaControl(command: String, position: Double? = null): String =
+        JSONObject().put("type", "media_control").put("command", command).apply { if (position != null) put("position", position) }.toString()
     fun setVoice(id: String): String = JSONObject().put("type", "set_voice").put("voice", id).toString()
     fun confirm(nonce: String): String = JSONObject().put("type", "action_confirm").put("nonce", nonce).toString()
     /** El estado del teléfono para la app del PC (ver `phone_state` en server/ws/protocol.py). */

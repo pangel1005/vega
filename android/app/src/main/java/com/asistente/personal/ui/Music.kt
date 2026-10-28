@@ -254,6 +254,7 @@ fun MusicScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     startWithLyrics: Boolean = false,
+    onSeek: (Double) -> Unit = {},
 ) {
     val artImage = art
     val tint by animateColorAsState(accent, tween(600), label = "color de la carátula")
@@ -262,6 +263,10 @@ fun MusicScreen(
     val lyricsMode = showLyrics && hasLyrics
     // Con letra, la posición se actualiza 5 veces por segundo para que las líneas vayan a tiempo.
     val position = livePosition(media, receivedAt, now, tickMs = if (lyricsMode) 200 else 1000)
+    // Al girar el vinilo se ve a dónde se saltaría; al soltar se mantiene ese punto hasta que el PC confirma el salto.
+    var scrub by remember { mutableStateOf<Double?>(null) }
+    var held by remember { mutableStateOf<Pair<Double, Long>?>(null) }
+    val shownPosition = scrub ?: held?.takeIf { now() - it.second < 2500 && kotlin.math.abs(position - it.first) > 3.0 }?.first ?: position
     Box(
         modifier.fillMaxSize().background(Vega.Bg)
             .background(Brush.horizontalGradient(listOf(tint.copy(alpha = 0.30f), Color.Transparent))),
@@ -321,9 +326,9 @@ fun MusicScreen(
                                 }
                                 Spacer(Modifier.height(16.dp))
                                 Column(Modifier.shared("progreso", staged = true)) {
-                                    Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 5.dp)
+                                    Progress(shownPosition, media.duration, tint, Modifier.fillMaxWidth(), height = 5.dp)
                                     Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(clockTime(position), style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
+                                        Text(clockTime(shownPosition), style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
                                         Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink2))
                                     }
                                 }
@@ -348,7 +353,17 @@ fun MusicScreen(
                         }
                     } else {
                         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                            Art(artImage, tint, art.fillMaxHeight().aspectRatio(1f), 22.dp)
+                            // El vinilo gira con la música; se toca para pausar y se gira para adelantar o retroceder.
+                            Vinyl(
+                                artImage, tint, media.playing, position, media.duration,
+                                onScrub = { scrub = it },
+                                onSeek = { target ->
+                                    held = target to now()
+                                    onSeek(target)
+                                },
+                                onToggle = { onControl("play_pause") },
+                                modifier = art.fillMaxHeight().aspectRatio(1f),
+                            )
                             Spacer(Modifier.width(28.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                                 Text(media.title, maxLines = 2, modifier = Modifier.shared("título"), style = Vega.body.copy(fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold))
@@ -359,9 +374,9 @@ fun MusicScreen(
                                 }
                                 Spacer(Modifier.height(18.dp))
                                 Column(Modifier.shared("progreso", staged = true)) {
-                                    Progress(position, media.duration, tint, Modifier.fillMaxWidth(), height = 6.dp)
+                                    Progress(shownPosition, media.duration, tint, Modifier.fillMaxWidth(), height = 6.dp)
                                     Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(clockTime(position), style = Vega.label.copy(color = Vega.Ink2))
+                                        Text(clockTime(shownPosition), style = Vega.label.copy(color = Vega.Ink2))
                                         Text(if (media.duration > 0) clockTime(media.duration) else "", style = Vega.label.copy(color = Vega.Ink2))
                                     }
                                 }

@@ -437,3 +437,21 @@ en el borde derecho de la onda que habrían roto el dibujo.
 Nuevo en el servidor (para el vinilo): `media_control` con `command: "seek"` y `position` (segundos). Comprobado que
 Spotify acepta el salto (`is_playback_position_enabled`).
 
+## Etapa 30 — Vinilo interactivo en la pantalla de música
+
+La pantalla grande de música (se abre tocando el mini reproductor) tiene ahora un **vinilo** en vez de la carátula
+cuadrada: surcos y separaciones entre canciones, marcas estroboscópicas en el borde que muestran el giro, unos
+arañazos que giran con el disco, la carátula en círculo como etiqueta y un reflejo de luz que no gira (por eso se ve
+girar). Sonando, gira a 33 rpm y el **brazo baja la aguja** al disco; en pausa, el disco se para (con inercia) y el
+brazo se aparta.
+
+Es **interactivo**:
+- Pon el dedo en el disco y se detiene; gíralo **hacia la derecha para adelantar** y **hacia la izquierda para
+  retroceder** (una vuelta = 30 s). Mientras giras se ve cuánto (+0:12) y el tiempo y la barra siguen tu dedo; al
+  soltar, Spotify salta a ese punto (`media_control` con `seek`). Si sueltas en movimiento, sigue girando por inercia.
+- Un toque corto sobre el disco pausa o reanuda; tocar fuera del disco no hace nada.
+
+Los gestos se prueban con toques simulados (`VinylTest`): girar a la derecha/izquierda, toque corto, fuera del disco y
+un giro minúsculo que sigue siendo un toque. No se pudo abrir la pantalla en el Redmi por `adb` (los toques están
+bloqueados): se probó con capturas y toques simulados, no a mano.
+

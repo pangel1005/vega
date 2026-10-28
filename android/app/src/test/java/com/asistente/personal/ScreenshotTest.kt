@@ -245,6 +245,22 @@ class ScreenshotTest {
         compose.onRoot().captureRoboImage("build/capturas/17_sonando.png")
     }
 
+    // En pausa: el disco se para y el brazo se aparta.
+    @Test fun pantalla_sonando_en_pausa() {
+        val art = fakeArt()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            VegaScreen(
+                model(base.copy(media = song.copy(playing = false), mediaAt = 1_000)).copy(mediaArt = art, mediaAccent = com.asistente.personal.ui.accentOf(art), clockMs = { 1_000 }),
+                ScreenActions(),
+            )
+        }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Human Nature").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(2500)
+        compose.onRoot().captureRoboImage("build/capturas/57_sonando_pausa.png")
+    }
+
     // Modo letra: a la izquierda la canción compacta; a la derecha la letra con la línea actual.
     @Test fun pantalla_letra() {
         val art = fakeArt()

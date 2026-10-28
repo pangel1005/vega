@@ -666,6 +666,11 @@ class AssistantController(context: Context) {
     }
 
     /** Pausa/continúa, siguiente o anterior en lo que suena en el PC. */
+    /** Salta a un punto de lo que suena en el PC (segundos desde el principio). */
+    fun mediaSeek(seconds: Double) {
+        socket.send(Protocol.mediaControl("seek", seconds.coerceAtLeast(0.0)))
+    }
+
     fun mediaControl(command: String) {
         socket.send(Protocol.mediaControl(command))
     }
