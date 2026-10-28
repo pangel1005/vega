@@ -69,6 +69,8 @@ Servidor → cliente:
     {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
                                          (lo dice el teléfono con su voz)
     {"type": "notifications", "items": [{"id", "app", "title", "body", "at", "icon"}]}
+    {"type": "music_spectrum", "bands": [0.1, 0.8, ...]}  (teléfono) cuánto suena cada banda de frecuencias
+                                         de Spotify (24 números de 0 a 1, de graves a agudos), ~25 por segundo
     {"type": "music_level", "level": 0.42}  (teléfono) cuánto suena el PC ahora (0 a 1), unas 20 veces por
                                          segundo y solo mientras suena algo: la cara se mueve con la música
 """
@@ -410,6 +412,13 @@ class MusicLevelEvent(_Msg):
     level: float
 
 
+class MusicSpectrumEvent(_Msg):
+    """Cuánto suena cada banda de frecuencias de Spotify (de graves a agudos), solo mientras suena."""
+
+    type: Literal["music_spectrum"] = "music_spectrum"
+    bands: list[float]
+
+
 class MediaEvent(_Msg):
     """Lo que suena en el PC (o `active = false` si nada). La carátula está en
     /app/media/art/<art>.jpg; la posición la avanza el teléfono mientras suena."""
@@ -526,6 +535,7 @@ ServerEvent = (
     | TelemetryEvent
     | MediaEvent
     | MusicLevelEvent
+    | MusicSpectrumEvent
     | NotificationsEvent
     | PhoneReplyEvent
     | SleepEvent

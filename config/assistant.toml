@@ -72,6 +72,10 @@ open_app_on_connect = true
 # Modo letra de la pantalla «Sonando»: busca la letra en lrclib.net (gratis, sin cuenta).
 # Es lo único que usa internet: manda solo título, artista, álbum y duración de la canción.
 lyrics = true
+# Analizador de espectro del teléfono (barras de LED como en una radio de coche). Analiza el audio de Spotify,
+# solo el de Spotify, dentro de la memoria del PC: no se graba, no se guarda y no sale ni un segundo de audio;
+# al teléfono solo viajan ~24 números por cada instante. false = sin espectro.
+spectrum = true
 
 [weather]
 # El tiempo («Vega, ¿qué tiempo hace?»). Apagado de serie: sale a internet (open-meteo.com) y solo envía

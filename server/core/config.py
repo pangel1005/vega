@@ -107,6 +107,11 @@ class MediaSettings(_Section):
     # Letras de canciones desde lrclib.net (lo único que usa internet: título, artista,
     # álbum y duración de la canción). False = sin modo letra.
     lyrics: bool = True
+    # Analizador de espectro estilo radio de coche en el teléfono: analiza el audio de Spotify (solo el de
+    # Spotify) en memoria para saber cuánto suenan graves, medios y agudos. No se guarda ni se manda audio:
+    # solo ~24 números.
+    # False = sin espectro (la onda sigue usando solo el volumen).
+    spectrum: bool = True
 
 
 class NotificationSettings(_Section):

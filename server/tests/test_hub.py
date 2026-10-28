@@ -330,3 +330,41 @@ def test_seek_moves_the_song_and_the_phone_sees_it_at_once() -> None:
     asyncio.run(hub.media_control("seek", 120.5))
     assert media.seeks == [120.5]
     assert phone.media[-1].position == 120.5  # el salto llega sin esperar a la vuelta siguiente
+
+
+def test_spectrum_goes_to_the_phone_only_for_spotify_and_only_if_there_is_one() -> None:
+    from server.ws.protocol import MusicSpectrumEvent
+
+    media, phone, desktop = FakeMedia(), Client(), Client()
+    bands: list[list[float] | None] = [[0.1, 0.9, 0.4]]
+    hub = Hub(
+        PersonalMemory(ConversationStore(":memory:")),
+        now=Clock(),
+        media=media,  # type: ignore[arg-type]
+        spectrum=lambda: bands[0],
+    )
+    hub.add(phone)
+    hub.add(desktop, role="desktop")
+    assert asyncio.run(hub.send_spectrum()) is False  # aún no se sabe qué suena
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_spectrum()) is True
+    assert [e for e in phone.events if isinstance(e, MusicSpectrumEvent)] == [
+        MusicSpectrumEvent(bands=[0.1, 0.9, 0.4])
+    ]
+    assert not [e for e in desktop.events if isinstance(e, MusicSpectrumEvent)]
+    bands[0] = None  # no se puede analizar: no se manda nada inventado
+    assert asyncio.run(hub.send_spectrum()) is False
+    bands[0] = [0.5]
+    media.now = NowPlaying("Opera", "Un vídeo", "", "", True, 0.0, 0.0, "", False, False)
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_spectrum()) is False  # suena el navegador, no Spotify
+    media.now = _song(playing=False)
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_spectrum()) is False  # en pausa
+
+
+def test_music_spectrum_is_on_by_default_and_can_be_turned_off() -> None:
+    from server.core.config import MediaSettings
+
+    assert MediaSettings().spectrum is True
+    assert MediaSettings(spectrum=False).spectrum is False

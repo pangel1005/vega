@@ -21,6 +21,7 @@ from server.skills.status import PcSample, sample_pc
 from server.ws.protocol import (
     MediaEvent,
     MusicLevelEvent,
+    MusicSpectrumEvent,
     NotificationItem,
     NotificationsEvent,
     PhoneControlEvent,
@@ -63,9 +64,11 @@ class Hub:
         notifications: NotificationReader | None = None,
         level: Callable[[], float | None] | None = None,
         level_apps: tuple[str, ...] = ("spotify",),
+        spectrum: Callable[[], list[float] | None] | None = None,
     ) -> None:
         self._memory = memory
         self._level = level  # volumen real de la app que suena (0 a 1), o None si no se puede medir
+        self._spectrum = spectrum  # bandas de frecuencia del audio de Spotify (o None si no se analiza)
         self._level_apps = (
             level_apps  # solo se mide si suena una de estas apps (Spotify, no el audio general)
         )
@@ -261,7 +264,7 @@ class Hub:
     def start(self) -> None:
         if self._task is None:
             self._task = asyncio.create_task(self._loop())
-        if self._level_task is None and self._level is not None:
+        if self._level_task is None and (self._level is not None or self._spectrum is not None):
             self._level_task = asyncio.create_task(self._level_loop())
 
     async def stop(self) -> None:
@@ -282,12 +285,25 @@ class Hub:
         await self.broadcast("phone", MusicLevelEvent(level=round(level, 3)))
         return True
 
+    async def send_spectrum(self) -> bool:
+        """Manda al teléfono las bandas de frecuencia de la música de Spotify; devuelve si mandó algo."""
+        sent = self._media_sent
+        playing = sent is not None and sent.playing and any(a in sent.app.lower() for a in self._level_apps)
+        if self._spectrum is None or not playing or not self._with_role("phone"):
+            return False
+        bands = self._spectrum()
+        if bands is None:
+            return False
+        await self.broadcast("phone", MusicSpectrumEvent(bands=bands))
+        return True
+
     async def _level_loop(self) -> None:
         while True:
             try:
                 sent = await self.send_level()
+                sent = await self.send_spectrum() or sent
             except Exception:
-                log.exception("Fallo al medir el volumen de la música")
+                log.exception("Fallo al medir la música")
                 sent = False
             await asyncio.sleep(LEVEL_SECONDS if sent else 0.5)
 

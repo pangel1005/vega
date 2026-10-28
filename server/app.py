@@ -22,6 +22,7 @@ from server.core.config import ROOT, Settings
 from server.core.hub import Hub
 from server.core.maintenance import Maintenance
 from server.core.stallwatch import StallWatch
+from server.device.audio_capture import SpotifyTap
 from server.device.audio_meter import AudioMeter
 from server.device.lyrics import LyricsFinder
 from server.device.media import MediaWatcher
@@ -134,6 +135,7 @@ def create_app(
         media=media,
         notifications=notifications if settings.notifications.enabled else None,
         level=AudioMeter().poll if media is not None else None,
+        spectrum=SpotifyTap().poll if media is not None and settings.media.spectrum else None,
     )
 
     @asynccontextmanager
