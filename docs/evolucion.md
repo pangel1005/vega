@@ -241,6 +241,40 @@ IA, botones del PC con confirmación y datos del coche.
   **Sin probar:** con el emulador DHU ni con un coche real; hace falta Google Play (que se había quitado)
   y la cuenta del usuario. `tools/phone_dedicate.py --car` lo repone.
 
+## 17. El cerebro del teléfono, medido y arreglado (25-10)
+
+Un agente midió en el Redmi el modelo de charla y salió un fallo de verdad: **`libvegallm.so` se compilaba
+sin instrucciones `sdot`** (PowerShell 5.1 partía el argumento `-DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod` en el
+punto). Con dotprod, leer 137 tokens pasa de 11,5 s a 4–5 s. Además: las instrucciones del modelo se leen
+**una sola vez** y su estado se guarda (primer token de ~4 s a ~0,7 s), 4 hilos para leer y 3 para escribir,
+la frase «si no sabes algo, di que no lo sabes» (trampas bien contestadas de 4 a 8 de 15) y el modelo
+**LFM2.5 1.2B Q4_0** (3,55/5 frente a 2,05/5 del Qwen 0.8B en las mismas 20 preguntas; medidas de una sola
+muestra y subjetivas).
+
+**Filtro barato de «Vega»** (`WakeGate`): una red pequeña decide en ~52 ms (medido en el Redmi) si una frase
+puede llamarla, antes de gastar Whisper. En el PC, con voces sintéticas que no vio al entrenar, dejaba pasar
+el 99 % de las llamadas y descartaba el 64 % del resto. **En el teléfono real descartó solo el 6 %** (698
+frases en ~34 h, 653 pasan): lo ambiental real no se parece a las voces sintéticas con las que se entrenó.
+Lección: sin grabaciones reales (con permiso y para borrarlas después) el filtro no sirve de mucho; por
+suerte el coste real de Whisper es bajo (~20 frases por hora ambiente, ~30 s de procesador por hora).
+
+## 18. Mantenimiento del PC y los huecos de la fila principal (25-10)
+
+- **Liberar RAM / limpiar disco** con vista previa, categorías cerradas y confirmación antes de borrar; botones
+  `Liberar RAM` y `Limpiar disco` también por voz y desde el teléfono (solo lo seguro). Medido: Vega ocupa ~0,6 GB,
+  Ollama ~0,07 GB sin modelo; lo que más RAM gasta es el navegador (~12 GB) y los servicios de Gradle. Reducir lo
+  que ocupa un programa **no** sube el dato de «libres» de Windows (la memoria pasa a la reserva): lo que sí lo
+  sube es descargar el modelo de Ollama o detener Gradle.
+- **Huecos de la fila principal del teléfono** en la página «Botones»: elegir, mover y mandar a «Más».
+
+## 19. Más funciones (28-10)
+
+- **Rutinas** (`kind = "routine"`): varios botones y esperas con una sola orden. Sin rutinas anidadas, máximo 8
+  pasos y 60 s, y la confirmación se hereda (una sola cubre todo). Ejemplo: «Modo noche».
+- **El tiempo** (Open-Meteo, opcional y apagado de serie): se baja en segundo plano cada media hora y se contesta
+  desde una copia local; si no hay internet, con lo último y diciendo de cuándo es.
+- **Resumen del día** («buenos días», «¿qué tengo hoy?») y **alarmas a una hora** («pon una alarma a las 7»).
+
 ## Lo que se mantuvo desde el principio
 
 - Piezas pequeñas, **probadas** y explicadas.

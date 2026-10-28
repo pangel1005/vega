@@ -72,6 +72,11 @@ la CPU. Desde que terminas de hablar hasta que empieza su voz pasan unos 3–4 s
 | «pon un temporizador de 5 minutos» · «qué recordatorios tengo» · «cancela…» | Temporizadores y recordatorios, con cuenta atrás en pantalla |
 | «apunta comprar leche» · «lee mis notas» · «borra mis notas» | Notas |
 | «cómo está el PC» | Procesador, memoria, gráfica (temperatura y uso) y batería del teléfono |
+| «buenos días» · «dame el resumen de hoy» · «¿qué tengo hoy?» | Fecha, recordatorios de hoy, el tiempo (si está activado), notas y avisos del PC sin leer |
+| «¿qué tiempo hace?» · «¿va a llover mañana?» · «¿llevo paraguas?» | El tiempo (opcional: se activa en Ajustes con tu ciudad; sale a internet solo para eso) |
+| «pon una alarma a las 7» | Aviso a esa hora (con duración, un temporizador) |
+| «modo noche» | **Rutinas**: varios botones con una sola orden (se arman en la página «Botones» de la app del PC) |
+| «libera la memoria» · «limpia el disco» | Mantenimiento del PC (página «Mantenimiento» de la app del PC, con vista previa antes de borrar) |
 | «apaga el PC», «sube el volumen», «abre Spotify»… | Botones del panel (frases `say` en `config/actions.toml`) |
 | cualquier otra cosa | Conversación con el modelo de lenguaje |
 
