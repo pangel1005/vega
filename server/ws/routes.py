@@ -21,6 +21,7 @@ from server.llm.base import ChatModel
 from server.memory.personal import PersonalMemory
 from server.memory.store import ConversationStore
 from server.skills.router import SkillRouter
+from server.skills.semantic import SemanticIntents
 from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner, load_actions
@@ -93,6 +94,7 @@ def register_ws(
     hub: Hub | None = None,
     car: CarConfig | None = None,
     maintenance: Maintenance | None = None,
+    semantic: SemanticIntents | None = None,
 ) -> None:
     origins = allowed_origins(settings)
 
@@ -156,6 +158,7 @@ def register_ws(
             emit_audio=emit_audio,
             skills=skills,
             memory=memory,
+            semantic=semantic,
         )
         if hub is not None:
             hub.add(orchestrator, role)

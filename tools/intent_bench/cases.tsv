@@ -1,0 +1,154 @@
+# Banco de frases para medir si Vega entiende qué se le pide.
+# Formato: tipo <TAB> intención esperada <TAB> frase
+# tipos: canon (como está previsto) · parafrasis (otras palabras) · coloquial (como se habla de verdad) ·
+#        ruido (como la transcribe Whisper cuando se equivoca) · trampa (parece una orden pero NO lo es: debe ir a charla)
+# intenciones: skill:<nombre> · action:<id> · chat
+# Las frases las escribe el desarrollador a partir de las órdenes habituales; no son grabaciones de nadie.
+canon	action:apagar	apaga el pc
+canon	action:reiniciar	reinicia el pc
+canon	action:suspender	suspende el pc
+canon	action:bloquear	bloquea el pc
+canon	action:silenciar	silencia
+canon	action:volumen-mas	sube el volumen
+canon	action:volumen-menos	baja el volumen
+canon	action:play-pausa	pausa la música
+canon	action:siguiente	siguiente canción
+canon	action:captura	haz una captura de pantalla
+canon	action:grabar	empieza a grabar
+canon	action:discord	abre discord
+canon	action:spotify	abre spotify
+canon	action:steam	abre steam
+canon	action:liberar-ram	libera la memoria
+canon	action:limpiar-disco	limpia el disco
+parafrasis	action:apagar	quiero que apagues el ordenador
+parafrasis	action:apagar	apágame la computadora
+parafrasis	action:apagar	ya me voy a dormir, apaga todo
+parafrasis	action:reiniciar	vuelve a encender el ordenador
+parafrasis	action:reiniciar	reinicia la computadora por favor
+parafrasis	action:suspender	pon el ordenador en suspensión
+parafrasis	action:bloquear	bloquéame la pantalla
+parafrasis	action:bloquear	bloquea la computadora
+parafrasis	action:silenciar	quita el sonido
+parafrasis	action:silenciar	pon el sonido en silencio
+parafrasis	action:volumen-mas	súbele un poco al volumen
+parafrasis	action:volumen-mas	pon el sonido más alto
+parafrasis	action:volumen-menos	bájale al volumen
+parafrasis	action:volumen-menos	pon la música más bajita
+parafrasis	action:play-pausa	pon pausa
+parafrasis	action:play-pausa	reanuda la música
+parafrasis	action:play-pausa	para la música un momento
+parafrasis	action:siguiente	pasa a la siguiente canción
+parafrasis	action:siguiente	cambia de canción
+parafrasis	action:siguiente	salta esta canción
+parafrasis	action:captura	saca una foto de la pantalla
+parafrasis	action:grabar	graba la pantalla
+parafrasis	action:discord	ábreme discord
+parafrasis	action:discord	pon discord
+parafrasis	action:spotify	pon spotify
+parafrasis	action:spotify	quiero escuchar música en spotify
+parafrasis	action:steam	abre el steam
+parafrasis	action:steam	inicia steam
+parafrasis	action:liberar-ram	libera la ram
+parafrasis	action:liberar-ram	el pc va lento, libera memoria
+parafrasis	action:limpiar-disco	borra los archivos basura
+coloquial	action:apagar	apaga la compu
+coloquial	action:apagar	apaga eso
+coloquial	action:silenciar	mutea
+coloquial	action:silenciar	mata el sonido
+coloquial	action:volumen-mas	súbele
+coloquial	action:volumen-menos	bájale
+coloquial	action:play-pausa	dale pausa
+coloquial	action:siguiente	pásala
+coloquial	action:siguiente	la siguiente
+coloquial	action:discord	métele a discord
+coloquial	action:spotify	dale a spotify
+coloquial	action:captura	capturita de pantalla
+ruido	action:apagar	apaga el pece
+ruido	action:silenciar	silencia lo
+ruido	action:volumen-mas	sube el volumén
+ruido	action:siguiente	sigiente canción
+ruido	action:discord	abre disco
+ruido	action:spotify	abre espotifai
+ruido	action:bloquear	bloquea el pe ce
+canon	skill:timer	pon un temporizador de 5 minutos
+canon	skill:timer	cuánto le queda al temporizador
+canon	skill:timer	pon una alarma a las 7
+canon	skill:reminders	recuérdame llamar a mamá a las 5
+canon	skill:reminders	qué recordatorios tengo
+canon	skill:notes	apunta comprar leche
+canon	skill:notes	qué notas tengo
+canon	skill:notes	borra las notas
+canon	skill:remember	recuerda que mi perro se llama Toby
+canon	skill:forget	olvida que mi perro se llama Toby
+canon	skill:know	qué sabes de mí
+canon	skill:notifs	qué notificaciones tengo
+canon	skill:status	cómo está el pc
+canon	skill:weather	qué tiempo hace
+canon	skill:weather	va a llover mañana
+canon	skill:briefing	qué tengo para hoy
+canon	skill:sleep	duérmete
+canon	skill:aboutme	cómo se llama mi perro
+parafrasis	skill:timer	avísame en diez minutos
+parafrasis	skill:timer	cuenta atrás de un minuto
+parafrasis	skill:timer	despiértame a las seis y media
+parafrasis	skill:timer	ponme el cronómetro de tres minutos
+parafrasis	skill:reminders	no me dejes olvidar sacar la basura a las ocho
+parafrasis	skill:reminders	tengo algo pendiente
+parafrasis	skill:reminders	acuérdame de llamar al dentista mañana
+parafrasis	skill:notes	toma nota de que hay que pagar la luz
+parafrasis	skill:notes	léeme lo que apunté
+parafrasis	skill:notes	anota que el wifi es casa123
+parafrasis	skill:remember	ten en cuenta que no me gusta el café frío
+parafrasis	skill:remember	quiero que sepas que soy alérgico a las nueces
+parafrasis	skill:remember	no olvides que mi cumpleaños es en marzo
+parafrasis	skill:forget	ya no me gusta el café, bórralo
+parafrasis	skill:know	qué te he contado sobre mí
+parafrasis	skill:know	dime todo lo que recuerdas de mí
+parafrasis	skill:notifs	tengo mensajes nuevos
+parafrasis	skill:notifs	me ha escrito alguien
+parafrasis	skill:notifs	lee mis notificaciones
+parafrasis	skill:status	cómo va el ordenador
+parafrasis	skill:status	cuánto consume la gráfica
+parafrasis	skill:status	cuánta memoria está usando el pc
+parafrasis	skill:status	está caliente el pc
+parafrasis	skill:status	cuánta batería le queda al teléfono
+parafrasis	skill:weather	necesito paraguas hoy
+parafrasis	skill:weather	hace frío afuera
+parafrasis	skill:weather	cuántos grados hay
+parafrasis	skill:briefing	repásame el día
+parafrasis	skill:briefing	cómo va mi día
+parafrasis	skill:sleep	vete a dormir
+parafrasis	skill:sleep	ya puedes descansar
+parafrasis	skill:aboutme	qué le gusta tomar a mi mamá
+coloquial	skill:timer	ponme un tiempo de cinco minutos
+coloquial	skill:timer	avísame cuando pasen veinte minutos
+coloquial	skill:reminders	recuérdame mañana lo del banco
+coloquial	skill:notes	apúntame eso
+coloquial	skill:status	cómo anda la compu
+coloquial	skill:weather	qué clima hay hoy
+coloquial	skill:sleep	apágate
+coloquial	skill:briefing	dame el resumen
+ruido	skill:timer	pon un temporizador de cinco minuto
+ruido	skill:timer	pon un temporisador de diez minutos
+ruido	skill:reminders	recuerdame llamar a mama
+ruido	skill:notes	apunta comprar la leche y el pan
+ruido	skill:remember	recuerda que me gusta el cafe con leche
+ruido	skill:status	como esta el pece
+ruido	skill:weather	que tiempo hase
+ruido	skill:sleep	duermete ya
+trampa	chat	cuéntame un chiste
+trampa	chat	qué opinas de la música electrónica
+trampa	chat	por qué el cielo es azul
+trampa	chat	me gusta el tiempo que hace en la serie
+trampa	chat	mi tiempo en el maratón fue de cuatro horas
+trampa	chat	la alarma de mi móvil es muy molesta
+trampa	chat	no quiero apagar nada todavía
+trampa	chat	explícame qué es un temporizador
+trampa	chat	quién inventó el reloj
+trampa	chat	tengo mucho frío
+trampa	chat	qué es spotify
+trampa	chat	cuál es la capital de francia
+trampa	chat	estoy aburrido
+trampa	chat	cómo se dice hola en inglés
+trampa	chat	recomiéndame una película
+trampa	chat	gracias

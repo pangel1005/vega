@@ -27,6 +27,7 @@ dependencies = [
     "winrt-windows-ui-notifications>=3.2.1",
     "winrt-windows-applicationmodel>=3.2.1",
     "pycaw>=20260927",
+    "fastembed>=0.9.1",
 ]
 
 [dependency-groups]

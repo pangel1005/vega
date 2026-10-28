@@ -77,6 +77,16 @@ lyrics = true
 # al teléfono solo viajan ~24 números por cada instante. false = sin espectro.
 spectrum = true
 
+[intents]
+# Entender por significado: además de las frases exactas, Vega entiende «apágame la compu» o «súbele a la
+# música» comparando lo que dices con ejemplos de cada botón (modelo pequeño en el PC; se baja una vez, ~120 MB,
+# y después no usa internet). Si duda, pregunta «¿quieres…?» antes de actuar. false = solo las frases exactas.
+semantic = true
+# act = parecido desde el que lo ejecuta · ask = desde el que pregunta antes · margin = ventaja sobre la 2.ª opción
+act = 0.62
+ask = 0.50
+margin = 0.04
+
 [weather]
 # El tiempo («Vega, ¿qué tiempo hace?»). Apagado de serie: sale a internet (open-meteo.com) y solo envía
 # las coordenadas de la ciudad. Lo más cómodo es activarlo desde Ajustes en la app del PC.

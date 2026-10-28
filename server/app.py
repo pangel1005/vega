@@ -33,6 +33,7 @@ from server.llm.ollama import OllamaChat
 from server.memory.personal import PersonalMemory
 from server.memory.store import ConversationStore
 from server.skills.router import SkillRouter
+from server.skills.semantic import FastEmbedder, SemanticIntents
 from server.skills.weather import WeatherService
 from server.speech.base import SpeechToText
 from server.speech.tts import TextToSpeech
@@ -98,6 +99,7 @@ def create_app(
     weather_transport: httpx.AsyncBaseTransport | None = None,
     weather_refresh: bool = True,
     weather_cache: Path | None = None,
+    semantic: SemanticIntents | None = None,
 ) -> FastAPI:
     """Crea la aplicación. Sin `stt` no hay voz; sin `actions`, el panel no tiene botones."""
     probe = llm_probe or ollama_probe(settings.llm.url)
@@ -130,6 +132,15 @@ def create_app(
         weather=weather.snapshot if weather else None,
         weather_ready=weather is not None,
     )
+    if semantic is None and settings.intents.semantic and actions is not None:
+        run = actions
+        semantic = SemanticIntents(
+            lambda: run.actions,
+            lambda: FastEmbedder(ROOT / "models" / "embeddings"),
+            act=settings.intents.act,
+            ask=settings.intents.ask,
+            margin=settings.intents.margin,
+        )
     hub = Hub(
         memory,
         media=media,
@@ -143,6 +154,8 @@ def create_app(
         hub.start()  # revisa los recordatorios cada segundo
         watch = StallWatch(ROOT / "logs" / "cuelgues")
         watch.start(asyncio.get_running_loop())
+        if semantic is not None:  # el modelo se carga en segundo plano: el arranque no espera
+            asyncio.get_running_loop().run_in_executor(None, semantic.warm)
         weather_task = asyncio.create_task(weather.run()) if weather and weather_refresh else None
         yield
         if weather_task:
@@ -160,7 +173,20 @@ def create_app(
     # «DNS rebinding»: una web maliciosa que apunta su dominio a 127.0.0.1 para leer el token.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(TRUSTED_HOSTS))
     register_ws(
-        app, settings, model, history, token, stt, actions, tts, skills, memory, hub, car, maintenance
+        app,
+        settings,
+        model,
+        history,
+        token,
+        stt,
+        actions,
+        tts,
+        skills,
+        memory,
+        hub,
+        car,
+        maintenance,
+        semantic,
     )
     register_ui(app, token, ui_dist)
     if app_icons is not None:

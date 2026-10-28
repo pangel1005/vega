@@ -196,6 +196,9 @@ class ActionRunner:
     def actions(self) -> list[ActionDef]:
         return list(self._order)
 
+    def get(self, action_id: str) -> ActionDef | None:
+        return self._actions.get(action_id)
+
     def replace(self, actions: list[ActionDef]) -> None:
         """Cambia los botones sin reiniciar (la app del PC edita config/actions.toml)."""
         self._actions = {a.id: a for a in actions}

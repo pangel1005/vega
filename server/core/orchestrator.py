@@ -25,6 +25,7 @@ from server.llm.base import ChatMessage, ChatModel, LlmUnavailable
 from server.memory.personal import PersonalMemory, Reminder, naive_local
 from server.memory.store import ConversationStore
 from server.skills.router import SkillRouter
+from server.skills.semantic import Match, SemanticIntents
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
 from server.speech.listener import SpeechSegmenter, parse_wake, yes_or_no
 from server.speech.sentences import SentenceSplitter, clean_for_speech
@@ -65,6 +66,8 @@ Emit = Callable[[ServerEvent], Awaitable[None]]
 MAX_HISTORY = 4  # las dos últimas preguntas y respuestas
 # Tras decir solo «Vega» (o tocar el rostro), tiempo para decir la orden sin repetir el nombre.
 FOLLOWUP_SECONDS = 8.0
+# Cuánto espera Vega el «sí» o el «no» tras preguntar «¿quieres…?» (cuando duda de lo que pediste).
+ASK_SECONDS = 12.0
 # Al detectar voz se precarga el modelo de lenguaje, como mucho una vez por este intervalo.
 PRELOAD_GAP_SECONDS = 60.0
 
@@ -85,7 +88,9 @@ class Orchestrator:
         emit_audio: EmitAudio | None = None,
         skills: SkillRouter | None = None,
         memory: PersonalMemory | None = None,
+        semantic: SemanticIntents | None = None,
     ) -> None:
+        self._semantic = semantic
         self._skills = skills
         self._memory = memory
         self._now_context = now_context
@@ -103,6 +108,7 @@ class Orchestrator:
         )
         self._voice_task: asyncio.Task[None] | None = None
         self._voice_confirm: tuple[str, float] | None = None  # (código, caduca)
+        self._voice_ask: tuple[str, float] | None = None  # (id del botón sugerido, caduca): «¿quieres…?»
         self._last_preload = -PRELOAD_GAP_SECONDS
         self._tasks: set[asyncio.Task[None]] = set()
         self._model = model
@@ -244,6 +250,20 @@ class Orchestrator:
                     await self._emit(ActionResultEvent(id="", ok=True, message="Cancelado."))
                     await self._emit(PhoneReplyEvent(handled=True, text="Cancelado."))
                 return
+        if self._voice_ask and time.monotonic() < self._voice_ask[1] and self._actions:
+            answer = yes_or_no(text)
+            if answer is not None:
+                action_id, self._voice_ask = self._voice_ask[0], None
+                if not answer:
+                    await self._emit(PhoneReplyEvent(handled=True, text="Vale, no hago nada."))
+                    return
+                outcome = await asyncio.to_thread(self._actions.request, action_id, "voz")
+                pending = await self._handle_outcome(outcome, action_id)
+                if pending:
+                    self._voice_confirm = (pending, time.monotonic() + CONFIRM_SECONDS)
+                say = outcome.message.replace("Pulsa de nuevo", "Di sí") if pending else outcome.message
+                await self._emit(PhoneReplyEvent(handled=True, text=say))
+                return
         if self._skills is not None:
             reply = await asyncio.to_thread(self._skills.handle, text)
             if reply is not None:
@@ -257,6 +277,29 @@ class Orchestrator:
                 await self._emit(PhoneReplyEvent(handled=True, text=reply.text))
                 return
         action = self._actions.match(text) if self._actions else None
+        if action is None and self._actions is not None:
+            match = await self._semantic_match(text)
+            if match is not None and match.kind == "skill" and self._skills is not None:
+                reply = await asyncio.to_thread(self._skills.handle, match.canonical)
+                if reply is not None:
+                    log.info(
+                        "Orden del teléfono: habilidad «%s» por significado (%.2f)", match.id, match.score
+                    )
+                    await self._emit(PhoneReplyEvent(handled=True, text=reply.text))
+                    return
+            elif match is not None and match.kind == "action":
+                action = self._actions.get(match.id)
+                if action is not None and match.mode == "ask":
+                    self._voice_ask = (action.id, time.monotonic() + ASK_SECONDS)
+                    log.info("Orden del teléfono: pregunta por «%s» (%.2f)", action.id, match.score)
+                    await self._emit(
+                        PhoneReplyEvent(
+                            handled=True, text=f"¿Quieres que ejecute «{action.label}»? Di sí o no."
+                        )
+                    )
+                    return
+                if action is not None:
+                    log.info("Orden del teléfono: botón «%s» por significado (%.2f)", action.id, match.score)
         if action is None or self._actions is None:
             log.info("Orden del teléfono: no es cosa del PC")
             await self._emit(PhoneReplyEvent(handled=False))
@@ -408,7 +451,19 @@ class Orchestrator:
 
     async def handle_command(self, command: str, spoken: bool = False) -> None:
         """Una orden (dicha o escrita): primero las habilidades (memoria, recordatorios,
-        notas, estado), luego los botones (solo por voz) y, si nada encaja, el modelo."""
+        notas, estado), luego los botones (solo por voz), luego lo que se parece por significado
+        y, si nada encaja, el modelo."""
+        if self._voice_ask and time.monotonic() < self._voice_ask[1]:
+            answer = yes_or_no(command)
+            if answer is not None:
+                action_id, self._voice_ask = self._voice_ask[0], None
+                if answer:
+                    pending = await self.request_action(action_id, client="voz")
+                    if pending:
+                        self._voice_confirm = (pending, time.monotonic() + CONFIRM_SECONDS)
+                else:
+                    await self._skill_reply(command, "Vale, no hago nada.", persist=False)
+                return
         if self._skills is not None:
             reply = await asyncio.to_thread(self._skills.handle, command)
             if reply is not None:
@@ -420,7 +475,44 @@ class Orchestrator:
             if pending:
                 self._voice_confirm = (pending, time.monotonic() + CONFIRM_SECONDS)
             return
+        match = await self._semantic_match(command) if spoken else None
+        if match is not None and await self._apply_semantic(match, command):
+            return
         await self.handle_text(command)
+
+    async def _semantic_match(self, command: str) -> Match | None:
+        """Lo que más se parece por significado a lo dicho (un hilo aparte: el modelo bloquea un poco)."""
+        if self._semantic is None:
+            return None
+        try:
+            return await asyncio.to_thread(self._semantic.match, command)
+        except Exception:
+            log.exception("Fallo al entender por significado")
+            return None
+
+    async def _apply_semantic(self, match: Match, command: str) -> bool:
+        """Ejecuta (o pregunta por) lo que se entendió por significado. False si no: sigue como charla."""
+        if match.kind == "skill":
+            reply = await asyncio.to_thread(self._skills.handle, match.canonical) if self._skills else None
+            if reply is None:
+                return False
+            log.info("Entendido por significado: habilidad «%s» (%.2f)", match.id, match.score)
+            await self._skill_reply(command, reply.text, sleep=reply.sleep, persist=reply.persist)
+            return True
+        action = self._actions.get(match.id) if self._actions else None
+        if action is None:
+            return False
+        log.info("Entendido por significado: botón «%s» (%.2f, %s)", match.id, match.score, match.mode)
+        if match.mode == "ask":
+            self._voice_ask = (action.id, time.monotonic() + ASK_SECONDS)
+            await self._skill_reply(
+                command, f"¿Quieres que ejecute «{action.label}»? Di sí o no.", persist=False
+            )
+            return True
+        pending = await self.request_action(action.id, client="voz")
+        if pending:
+            self._voice_confirm = (pending, time.monotonic() + CONFIRM_SECONDS)
+        return True
 
     async def _skill_reply(self, command: str, text: str, sleep: bool = False, persist: bool = True) -> None:
         """Respuesta de una habilidad: se muestra, se dice y (salvo `persist=False`) se guarda."""

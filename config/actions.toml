@@ -31,7 +31,7 @@ kind = "power"
 arg = "shutdown"
 confirm = true
 quick = true
-say = ["apaga el pc", "apaga el ordenador", "apaga la computadora", "apagar el pc", "apaga el equipo"]
+say = ["apaga el pc", "apaga el ordenador", "apaga la computadora", "apagar el pc", "apaga el equipo", "apaga la compu"]
 
 
 
@@ -44,7 +44,7 @@ color = "amber"
 kind = "power"
 arg = "restart"
 confirm = true
-say = ["reinicia el pc", "reinicia el ordenador", "reinicia la computadora", "reiniciar el pc"]
+say = ["reinicia el pc", "reinicia el ordenador", "reinicia la computadora", "reiniciar el pc", "reinicia la compu"]
 
 
 
@@ -68,7 +68,7 @@ icon = "sleep"
 kind = "power"
 arg = "sleep"
 confirm = true
-say = ["suspende el pc", "suspende el ordenador", "pon el pc en suspension", "duerme el pc"]
+say = ["suspende el pc", "suspende el ordenador", "pon el pc en suspension", "duerme el pc", "suspende la compu"]
 
 
 
@@ -102,7 +102,7 @@ jp = "施錠"
 icon = "lock"
 kind = "power"
 arg = "lock"
-say = ["bloquea el pc", "bloquea el ordenador", "bloquea la computadora", "bloquea la pantalla"]
+say = ["bloquea el pc", "bloquea el ordenador", "bloquea la computadora", "bloquea la pantalla", "bloquea la compu"]
 
 # --- Grabación y sonido ---
 quick = true
@@ -115,7 +115,7 @@ label = "Volumen −"
 icon = "volume-down"
 kind = "keys"
 arg = "volume_down"
-say = ["baja el volumen", "bajale", "mas bajo", "menos volumen"]
+say = ["baja el volumen", "bajale", "mas bajo", "mas bajito", "mas bajita", "menos volumen", "baja la musica", "baja el sonido"]
 
 
 
@@ -125,7 +125,7 @@ label = "Volumen +"
 icon = "volume-up"
 kind = "keys"
 arg = "volume_up"
-say = ["sube el volumen", "subele", "mas alto", "mas volumen"]
+say = ["sube el volumen", "subele", "mas alto", "mas volumen", "sube la musica", "sube el sonido", "pon el sonido mas alto"]
 
 
 

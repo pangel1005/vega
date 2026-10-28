@@ -114,6 +114,17 @@ class MediaSettings(_Section):
     spectrum: bool = True
 
 
+class IntentSettings(_Section):
+    """Entender por significado: complementa a las reglas con un modelo pequeño en el PC, sin red."""
+
+    # False = solo las reglas de siempre. El modelo (~120 MB) se baja una vez y después no usa internet.
+    # (En el código viene apagado, para que las pruebas no bajen nada; config/assistant.toml lo enciende.)
+    semantic: bool = False
+    act: float = Field(default=0.62, ge=0, le=1)  # parecido desde el que ejecuta la orden
+    ask: float = Field(default=0.50, ge=0, le=1)  # parecido desde el que pregunta «¿quieres…?» antes
+    margin: float = Field(default=0.04, ge=0, le=1)  # ventaja mínima sobre la segunda opción
+
+
 class NotificationSettings(_Section):
     # Ver en el teléfono las notificaciones del PC (solo viajan por el cable; no se guardan).
     enabled: bool = True
@@ -143,6 +154,7 @@ class Settings(_Section):
     media: MediaSettings = MediaSettings()
     notifications: NotificationSettings = NotificationSettings()
     weather: WeatherSettings = WeatherSettings()
+    intents: IntentSettings = IntentSettings()
 
     @property
     def system_prompt(self) -> str:

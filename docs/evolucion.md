@@ -488,3 +488,42 @@ Spotify (24 bandas en espejo, con picos). Mejora lo del original, que oía el mi
 
 El proyecto «Familiar» estaba en `C:/Users/pange/.gemini/antigravity/scratch/familiar-digital` (fuera de las
 carpetas habituales).
+
+## Etapa 32 — Medir cuánto entiende Vega y entender por significado
+
+La sensación de «torpe» se midió: `tools/intent_bench` (148 frases con la intención esperada, escritas por el
+desarrollador a partir de las órdenes habituales; no son grabaciones de nadie) enruta cada frase con las reglas de
+siempre y dice cuántas acierta. **Solo con reglas: 58–64 %.** Con las frases como están previstas acierta el 100 %,
+pero con otras palabras baja al 38–52 %, hablando como se habla de verdad al 20–30 %, y con los errores de oído
+(«espotifai») al 38–57 %. No se pasa de lista: solo activa algo de más en 2 de 16 trampas. O sea: el problema no es
+la inteligencia sino **entender variantes**.
+
+**Qué se hizo** (`server/skills/semantic.py`): un modelo de embeddings pequeño (paraphrase-multilingual-MiniLM,
+~120 MB, ONNX con `fastembed`, en el PC y sin red tras bajarse una vez a `models/embeddings`) compara lo dicho con
+ejemplos de cada botón y habilidad. Solo actúa cuando las reglas no entendieron nada, y con cuidado:
+- se parece mucho → lo ejecuta; se parece algo → **pregunta «¿Quieres que ejecute …? Di sí o no»** (y espera el sí/no
+  ~12 s); no se parece → sigue como charla. Un botón peligroso (apagar) sigue pidiendo confirmación además.
+- un botón no se activa con una frase que niega («no quiero apagar») o que pregunta información («qué es Spotify»);
+  una habilidad (p. ej. «duérmete») tampoco aguanta una negación ni actúa si duda.
+- subir/bajar el volumen lo deciden las palabras (el modelo confunde los opuestos).
+- solo resuelve botones y habilidades sin datos («cómo está el pc», «qué tiempo hace»…). Las que llevan datos
+  («avísame en diez minutos») siguen en manos de sus reglas, que saben sacar el tiempo.
+
+Sirve tanto a la voz del PC como al teléfono con la IA local mientras haya enlace con el PC (el teléfono pregunta
+primero al PC). **No cubre al teléfono sin PC**: ahí siguen las reglas de Kotlin. Se apaga con `[intents] semantic =
+false` en `config/assistant.toml` (viene encendido; en el código viene apagado para que las pruebas no bajen nada) y
+si el modelo no se puede cargar todo sigue como antes.
+
+**Resultado** (mitad «ajuste» y mitad «prueba», esta última sin tocar al ajustar): **58–64 % → 74–81 %**, sin activar
+nada de más en las trampas de la mitad de prueba. Cuidado con leer demasiado: son 74 frases por mitad, las escribió
+quien también escribió los ejemplos, y se añadieron ejemplos y frases a los botones al ver fallos. La cifra real
+saldrá con frases tuyas de verdad.
+
+Lo que encontró probar con el modelo real y no el banco: «súbele a la música» se tomaba por *pausa* (por «música») y
+«no quiero apagar nada» dormía a Vega; ambos corregidos. Sigue sin entender «apágame la compu», «cómo anda la
+compu» ni los datos («despiértame a las seis y media»), y la regla antigua «pon el sonido» (silenciar) se adelantaba a
+«pon el sonido más alto» (se añadieron frases al botón de volumen).
+
+Siguiente: que el modelo **sepa las palabras de tus botones** (más `say` o ejemplos tuyos), mejor oído con el PC
+conectado (Whisper más grande) y entender las órdenes con datos (llamada a herramientas con el modelo del PC).
+
