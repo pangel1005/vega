@@ -82,9 +82,11 @@ def write_actions(actions: list[dict[str, Any]], path: Path = ACTIONS_FILE) -> N
         item = old.get(a["id"])
         if item is None:
             item = tomlkit.table()
+        # Una rutina lleva «steps» en vez de «arg».
+        always = ("id", "label", "kind") if a.get("kind") == "routine" else ("id", "label", "kind", "arg")
         for key in ACTION_FIELDS:
             value = a.get(key)
-            if value in (None, "", [], False) and key not in ("id", "label", "kind", "arg"):
+            if value in (None, "", [], False) and key not in always:
                 if key in item:
                     del item[key]
                 continue

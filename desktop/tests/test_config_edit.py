@@ -99,3 +99,24 @@ def test_car_screen_is_edited_in_place_and_validated(tmp_path: Path, monkeypatch
     with pytest.raises(ConfigError, match="Solo caben 6"):
         config_edit.write_car("Vega", [{**new, "id": f"i{n}"} for n in range(7)], target)
     assert target.read_text(encoding="utf-8") == before
+
+
+def test_routines_round_trip_and_are_validated_with_the_rest(actions_file: Path) -> None:
+    actions = config_edit.read_actions(actions_file)
+    mine = {
+        "id": "mi-rutina",
+        "label": "Mi rutina",
+        "kind": "routine",
+        "steps": ["silenciar", "wait:2", "bloquear"],
+    }
+    config_edit.write_actions([*actions, mine], actions_file)
+    back = {a["id"]: a for a in config_edit.read_actions(actions_file)}
+    assert back["mi-rutina"]["steps"] == ["silenciar", "wait:2", "bloquear"]
+    assert "arg" not in back["mi-rutina"]
+    # Un paso inexistente o una rutina dentro de otra no se guardan.
+    with pytest.raises(ConfigError, match="no existe"):
+        config_edit.write_actions([*actions, {**mine, "steps": ["fantasma"]}], actions_file)
+    with pytest.raises(ConfigError, match="no puede incluir"):
+        config_edit.write_actions(
+            [*actions, mine, {**mine, "id": "otra", "steps": ["mi-rutina"]}], actions_file
+        )
