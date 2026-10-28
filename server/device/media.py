@@ -17,7 +17,8 @@ from typing import Any, Literal
 
 log = logging.getLogger(__name__)
 
-Command = Literal["play_pause", "next", "previous"]
+Command = Literal["play_pause", "next", "previous", "seek"]
+TICKS_PER_SECOND = 10_000_000  # Windows cuenta el tiempo en intervalos de 100 ns
 PLAYING = 4  # GlobalSystemMediaTransportControlsSessionPlaybackStatus.PLAYING
 PAUSED = 5
 ART_SIZE = 320
@@ -180,8 +181,8 @@ class MediaWatcher:
     def art(self, art_id: str) -> bytes | None:
         return self._art.get(art_id)
 
-    async def control(self, command: Command) -> bool:
-        """Pausa/continúa, siguiente o anterior en la app que está sonando."""
+    async def control(self, command: Command, position: float | None = None) -> bool:
+        """Pausa/continúa, siguiente, anterior o salta a `position` (segundos) en la app que está sonando."""
         try:
             sessions, current = await self._sessions()
             session = pick_session(sessions, current)
@@ -191,6 +192,14 @@ class MediaWatcher:
                 return bool(await session.try_toggle_play_pause_async())
             if command == "next":
                 return bool(await session.try_skip_next_async())
+            if command == "seek":
+                if position is None:
+                    return False
+                return bool(
+                    await session.try_change_playback_position_async(
+                        round(max(0.0, position) * TICKS_PER_SECOND)
+                    )
+                )
             return bool(await session.try_skip_previous_async())
         except Exception as exc:
             log.debug("No pude controlar la reproducción: %s", exc)

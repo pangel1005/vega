@@ -118,8 +118,12 @@ data class ScreenModel(
     val orb: Boolean = false,
     /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
     val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
+    /** Cómo se dibuja la onda de la música de Spotify. */
+    val waveStyle: WaveStyle = WaveStyle.BARS,
     /** Volumen real de lo que suena en el PC (0 a 1): con él, la cara se hace onda mientras suena música. */
     val musicLevel: () -> Float = { 0f },
+    /** ¿Llega el volumen del PC? Si no, no hay onda que dibujar y se queda la cara. */
+    val musicSignal: () -> Boolean = { true },
     /** El próximo aviso del propio teléfono (alarma o recordatorio), para cuando el PC no lo cuenta. */
     val localNext: NextAlert? = null,
     /** Modo de lejos: tras 10 minutos sin nadie, solo la hora enorme y la última respuesta. */
@@ -156,6 +160,7 @@ class ScreenActions(
     /** Quita una notificación del PC (null = todas). */
     val dismissNote: (Long?) -> Unit = {},
     val nextTouchFeel: () -> Unit = {},
+    val nextWaveStyle: () -> Unit = {},
     val toggleGlass: () -> Unit = {},
     val nextStyle: () -> Unit = {},
     /** Vuelve a cargar la IA del teléfono si falló. */
@@ -480,6 +485,8 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         onToggleBrain = a.toggleBrain,
                         touchLabel = m.touchFeel.label,
                         onNextTouch = a.nextTouchFeel,
+                        waveLabel = m.waveStyle.label,
+                        onNextWave = a.nextWaveStyle,
                         styleName = styleName(styleIndex(m.glass, m.terminal, m.orb)),
                         onNextStyle = a.nextStyle,
                         onOpenAndroid = a.openAndroid,
@@ -587,11 +594,18 @@ private fun FaceCard(
                 faceHeld = true
             }
         }
-        val waveOn = musicPlaying && resting && !faceHeld
+        // Sin señal real del PC (Spotify no suena aquí) no se pinta una línea plana: se queda la cara.
+        val signal by androidx.compose.runtime.produceState(m.musicSignal(), m.musicSignal, musicPlaying) {
+            while (true) {
+                value = m.musicSignal()
+                delay(400)
+            }
+        }
+        val waveOn = musicPlaying && resting && !faceHeld && signal
         Box(Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp)) {
             androidx.compose.animation.Crossfade(targetState = waveOn, animationSpec = tween(350), label = "cara u onda") { wave ->
                 if (wave) {
-                    MusicWave(m.musicLevel, m.mediaAccent, Modifier.fillMaxSize())
+                    MusicWave(m.musicLevel, m.mediaAccent, m.waveStyle, Modifier.fillMaxSize())
                 } else {
                     LedFaceView(
                         mood = mood,

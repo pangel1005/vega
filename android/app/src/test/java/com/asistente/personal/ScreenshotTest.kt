@@ -478,9 +478,35 @@ class ScreenshotTest {
     @Test fun noche_onda_con_musica() = shot(
         "51_noche_onda_musica",
         model(base.copy(media = song, mediaAt = 1_000)).copy(
-            musicLevel = fakeMusic(), mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D), clockMs = { 1_000 },
+            musicLevel = fakeMusic(40), mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D), clockMs = { 1_000 },
         ),
-        afterMs = 3000,
+        afterMs = 5600,
+    )
+
+    @Test fun noche_onda_neon() = shot(
+        "54_noche_onda_neon",
+        model(base.copy(media = song, mediaAt = 1_000)).copy(
+            musicLevel = fakeMusic(40), mediaAccent = androidx.compose.ui.graphics.Color(0xFF29D3FF), clockMs = { 1_000 },
+            waveStyle = com.asistente.personal.ui.WaveStyle.NEON,
+        ),
+        afterMs = 5600,
+    )
+
+    @Test fun noche_onda_barras_cian() = shot(
+        "55_noche_onda_barras_cian",
+        model(base.copy(media = song, mediaAt = 1_000)).copy(
+            musicLevel = fakeMusic(40), mediaAccent = androidx.compose.ui.graphics.Color(0xFF29D3FF), clockMs = { 1_000 },
+        ),
+        afterMs = 5600,
+    )
+
+    @Test fun noche_onda_silueta() = shot(
+        "56_noche_onda_silueta",
+        model(base.copy(media = song, mediaAt = 1_000)).copy(
+            musicLevel = fakeMusic(40), mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D), clockMs = { 1_000 },
+            waveStyle = com.asistente.personal.ui.WaveStyle.SILHOUETTE,
+        ),
+        afterMs = 5600,
     )
 
     @Test fun noche_cara_al_hablarle_con_musica() = shot(

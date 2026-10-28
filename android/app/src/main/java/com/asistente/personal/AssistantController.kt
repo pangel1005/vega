@@ -30,6 +30,10 @@ private const val KEY_LISTEN = "escucha_continua"
 private const val KEY_FACE_COLOR = "color_cara"
 private const val KEY_BRAIN = "cerebro_telefono"
 private const val KEY_TOUCH = "vibracion_toque"
+private const val KEY_WAVE = "estilo_onda"
+
+/** Cuánto tiempo sin recibir volumen antes de dar la señal por perdida (el servidor manda ~20 por segundo). */
+const val MUSIC_SIGNAL_MS = 1_500L
 private const val KEY_GLASS = "estilo_cristal"
 private const val KEY_TERMINAL = "estilo_terminal"
 private const val KEY_ORB = "estilo_orbe"
@@ -113,6 +117,15 @@ class AssistantController(context: Context) {
             orb = false
         }
         prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).putBoolean(KEY_ORB, orb).apply()
+    }
+
+    /** Cómo se dibuja la onda de la música de Spotify (se recuerda entre reinicios). */
+    var waveStyle by mutableStateOf(com.asistente.personal.ui.WaveStyle.from(prefs.getString(KEY_WAVE, null)))
+        private set
+
+    fun nextWaveStyle() {
+        waveStyle = waveStyle.next()
+        prefs.edit().putString(KEY_WAVE, waveStyle.name).apply()
     }
 
     fun nextTouchFeel() {
@@ -291,6 +304,9 @@ class AssistantController(context: Context) {
     /** Volumen real de lo que suena en el PC (0 a 1); 0 si hace más de medio segundo que no llega nada. Se lee sin recomponer. */
     fun musicLevel(): Float = if (android.os.SystemClock.elapsedRealtime() - musicLevelAt > 600) 0f else musicLevelRaw
 
+    /** ¿Está llegando el volumen del PC? Sin señal (Spotify no suena en el PC o se desconectó) no hay onda que dibujar. */
+    fun musicSignal(): Boolean = android.os.SystemClock.elapsedRealtime() - musicLevelAt <= MUSIC_SIGNAL_MS
+
     /** Próxima alarma o recordatorio del teléfono (hora real), para las pantallas de lejos y de dormida. */
     var localNext by mutableStateOf<com.asistente.personal.ui.NextAlert?>(null)
         private set
@@ -415,6 +431,7 @@ class AssistantController(context: Context) {
             "terminal_off" -> if (terminal) setStyle(0)
             "orb_on" -> setStyle(3)
             "orb_off" -> if (orb) setStyle(0)
+            "wave_next" -> nextWaveStyle()
             "glass_off" -> if (glass) toggleGlass()
             "mic_on" -> if (!listenEnabled) toggleListening()
             "mic_off" -> if (listenEnabled) toggleListening()

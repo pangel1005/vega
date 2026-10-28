@@ -28,7 +28,7 @@ Cliente → servidor:
      "charging": true, "glass": false, "touch": "soft", "face": "WARM", "version": 428883}
                                          (teléfono) su estado, para que lo vea la app del PC
     {"type": "phone_control", "command": "sleep|wake|brain_pc|brain_phone|glass_on|glass_off|
-                                          terminal_on|terminal_off|orb_on|orb_off|mic_on|mic_off"}
+                                          terminal_on|terminal_off|orb_on|orb_off|wave_next|mic_on|mic_off"}
                                          (app del PC) manda una orden al teléfono
     {"type": "reload_actions"}           vuelve a leer config/actions.toml y reparte los botones
     {"type": "reload_car"}               (app del PC) vuelve a leer config/car.toml y la reparte
@@ -78,7 +78,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 
 class State(StrEnum):
@@ -144,10 +144,17 @@ class Attention(_Msg):
 
 
 class MediaControl(_Msg):
-    """Pausa/continúa, siguiente o anterior en lo que suena en el PC."""
+    """Pausa/continúa, siguiente o anterior en lo que suena en el PC; «seek» salta a `position` (segundos)."""
 
     type: Literal["media_control"] = "media_control"
-    command: Literal["play_pause", "next", "previous"]
+    command: Literal["play_pause", "next", "previous", "seek"]
+    position: float | None = Field(default=None, ge=0, le=86_400)
+
+    @model_validator(mode="after")
+    def _seek_needs_a_position(self) -> MediaControl:
+        if self.command == "seek" and self.position is None:
+            raise ValueError("«seek» necesita `position`")
+        return self
 
 
 class PlaybackDone(_Msg):
@@ -211,6 +218,7 @@ PhoneCommandName = Literal[
     "terminal_off",
     "orb_on",
     "orb_off",
+    "wave_next",
     "mic_on",
     "mic_off",
 ]

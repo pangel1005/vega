@@ -1,9 +1,12 @@
 package com.asistente.personal
 
+import com.asistente.personal.MUSIC_SIGNAL_MS
 import com.asistente.personal.net.Protocol
 import com.asistente.personal.net.ServerEvent
 import com.asistente.personal.ui.WAVE_COLS
 import com.asistente.personal.ui.WaveState
+import com.asistente.personal.ui.WaveStyle
+import com.asistente.personal.ui.envAt
 import com.asistente.personal.ui.isSpotify
 import com.asistente.personal.ui.waveTaper
 import org.junit.Assert.assertEquals
@@ -96,6 +99,31 @@ class WaveTest {
         assertTrue(!isSpotify("Opera"))
         assertTrue(!isSpotify("chrome.exe"))
         assertTrue(!isSpotify(""))
+    }
+
+    @Test fun `el estilo de onda pasa por barras, neon y silueta y se recuerda por nombre`() {
+        assertEquals(listOf("Barras", "Neón", "Silueta"), WaveStyle.entries.map { it.label })
+        assertEquals(WaveStyle.NEON, WaveStyle.BARS.next())
+        assertEquals(WaveStyle.SILHOUETTE, WaveStyle.NEON.next())
+        assertEquals(WaveStyle.BARS, WaveStyle.SILHOUETTE.next()) // da la vuelta
+        assertEquals(WaveStyle.NEON, WaveStyle.from("NEON"))
+        assertEquals(WaveStyle.BARS, WaveStyle.from(null)) // sin ajuste guardado: barras
+        assertEquals(WaveStyle.BARS, WaveStyle.from("algo raro"))
+    }
+
+    @Test fun `la envolvente se interpola entre columnas y no se sale del rango`() {
+        val env = floatArrayOf(0f, 1f, 0.5f)
+        assertEquals(0.5f, envAt(env, 0.5f), 1e-6f)
+        assertEquals(1f, envAt(env, 1f), 1e-6f)
+        assertEquals(0.75f, envAt(env, 1.5f), 1e-6f)
+        assertEquals(0f, envAt(env, -5f), 1e-6f) // antes del principio: el primer valor
+        assertEquals(0.5f, envAt(env, 99f), 1e-6f) // pasado el final: el último
+        assertEquals(0f, envAt(FloatArray(0), 3f), 0f)
+    }
+
+    @Test fun `la señal se da por perdida tras un rato sin lecturas, mas que el hueco normal entre dos`() {
+        assertTrue(MUSIC_SIGNAL_MS >= 1_000) // el servidor manda ~20 por segundo: un segundo sin nada es de verdad un corte
+        assertTrue(MUSIC_SIGNAL_MS <= 3_000) // y no se tarda una eternidad en volver la cara
     }
 }
 

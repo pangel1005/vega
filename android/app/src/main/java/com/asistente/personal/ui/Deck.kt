@@ -42,6 +42,8 @@ fun Deck(
     onNextTouch: () -> Unit = {},
     styleName: String = "Noche",
     onNextStyle: () -> Unit = {},
+    waveLabel: String = WaveStyle.BARS.label,
+    onNextWave: () -> Unit = {},
     onOpenAndroid: () -> Unit = {},
 ) {
     Column(modifier.card(fill = Vega.Card.copy(alpha = 0.98f), overlay = true).padding(12.dp)) {
@@ -53,6 +55,9 @@ fun Deck(
             Spacer(Modifier.width(8.dp))
             // Estilo: «Noche» (tarjetas lisas), «Cristal» (aurora y cristal) o «Nostromo» (terminal ámbar).
             Pill("Estilo: $styleName", when (styleName) { "Cristal" -> Vega.Sky; "Nostromo" -> Vega.Amber; "Orbe" -> Vega.Mint; else -> Vega.Ink2 }, onNextStyle)
+            Spacer(Modifier.width(8.dp))
+            // Cómo se dibuja la onda cuando suena Spotify: barras, neón o silueta.
+            Pill("Onda: $waveLabel", Vega.Sky, onNextWave)
             Spacer(Modifier.width(8.dp))
             // Vibración al tocar: fuerte, suave o sin vibrar.
             Pill("Toque: $touchLabel", Vega.Ink2, onNextTouch)

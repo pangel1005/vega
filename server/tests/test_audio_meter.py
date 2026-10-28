@@ -1,5 +1,7 @@
 import time
 
+import pytest
+
 from server.device.audio_meter import SESSIONS_REFRESH_S, AudioMeter, ProcessMeter, _Meter
 
 
@@ -67,13 +69,15 @@ def test_process_meter_reads_only_the_sessions_of_the_asked_program() -> None:
     assert m.GetPeakValue() == 0.35
 
 
-def test_process_meter_is_silent_without_a_session_and_finds_it_when_it_appears() -> None:
+def test_process_meter_says_nothing_to_measure_without_a_session_and_finds_it_when_it_appears() -> None:
     now = [0.0]
     sessions: list[tuple[str, _Meter]] = []
     m = ProcessMeter(("spotify.exe",), sessions=lambda: list(sessions), clock=lambda: now[0])
-    assert m.GetPeakValue() == 0.0  # Spotify no suena: silencio, no el audio de otro programa
+    with pytest.raises(LookupError):  # no suena en este PC: «sin audio», no «silencio»
+        m.GetPeakValue()
     sessions.append(("spotify.exe", FakeMeter([0.6])))
-    assert m.GetPeakValue() == 0.0  # aún no ha vuelto a buscar
+    with pytest.raises(LookupError):  # aún no ha vuelto a buscar
+        m.GetPeakValue()
     now[0] += SESSIONS_REFRESH_S
     assert m.GetPeakValue() == 0.6
 
@@ -86,5 +90,17 @@ def test_process_meter_recovers_when_a_session_dies() -> None:
     now = [0.0]
     lists: list[list[tuple[str, _Meter]]] = [[("spotify.exe", Dying())], [("spotify.exe", FakeMeter([0.4]))]]
     m = ProcessMeter(("spotify.exe",), sessions=lambda: lists.pop(0), clock=lambda: now[0])
-    assert m.GetPeakValue() == 0.0  # la sesión murió: no se cae
+    with pytest.raises(LookupError):  # la sesión murió: no se cae
+        m.GetPeakValue()
     assert m.GetPeakValue() == 0.4  # y la siguiente lectura busca de nuevo
+
+
+def test_audio_meter_reports_none_when_the_app_has_no_audio_and_recovers() -> None:
+    sessions: list[tuple[str, _Meter]] = []
+    m = AudioMeter(open_meter=lambda: ProcessMeter(("spotify.exe",), sessions=lambda: list(sessions)))
+    m.poll()
+    time.sleep(0.4)
+    assert m.poll() is None  # Spotify no suena aquí: sin número, no un cero engañoso
+    sessions.append(("spotify.exe", FakeMeter([0.7])))
+    assert _wait(lambda: m.poll() == 0.7, 6.0)  # aparece la sesión (hasta 2 s para buscarla) y ya hay lectura
+    m.stop()

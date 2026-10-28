@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 SAMPLE_S = 0.04  # ~25 lecturas por segundo
 IDLE_S = 0.5  # cuando nadie lo pide
 ACTIVE_FOR_S = 1.5  # sigue leyendo este rato después de cada `poll`
+LOOKUP_S = 0.25  # cada cuánto se mira si la app ya tiene audio
 RETRY_S = 3.0  # si falla (cambió el dispositivo de salida), espera antes de volver a abrir
 
 
@@ -32,23 +33,48 @@ SESSIONS_REFRESH_S = 2.0  # cada cuánto se vuelve a buscar la sesión de la app
 
 
 def windows_sessions() -> list[tuple[str, _Meter]]:
-    """Las sesiones de audio abiertas ahora en Windows: (nombre del programa en minúsculas, su medidor)."""
-    from pycaw.pycaw import AudioUtilities, IAudioMeterInformation  # type: ignore[import-untyped]
+    """Las sesiones de audio abiertas ahora en Windows, en TODAS las salidas activas (altavoces, auriculares,
+    monitores…): una app puede sonar por una que no sea la predeterminada.
+    Devuelve (nombre del programa en minúsculas, su medidor)."""
+    from comtypes import CLSCTX_ALL  # type: ignore[import-untyped]
+    from pycaw.pycaw import (  # type: ignore[import-untyped]
+        AudioUtilities,
+        IAudioMeterInformation,
+        IAudioSessionControl2,
+        IAudioSessionManager2,
+    )
+    from pycaw.utils import AudioSession  # type: ignore[import-untyped]
 
     found: list[tuple[str, _Meter]] = []
-    for session in AudioUtilities.GetAllSessions():
+    devices = AudioUtilities.GetDeviceEnumerator().EnumAudioEndpoints(0, 1)  # salidas (0) activas (1)
+    for d in range(devices.GetCount()):
         try:
-            process = session.Process
-            if process is None:
-                continue
-            found.append((process.name().lower(), session._ctl.QueryInterface(IAudioMeterInformation)))
-        except Exception:  # un proceso que acaba de cerrarse
+            manager = devices.Item(d).Activate(IAudioSessionManager2._iid_, CLSCTX_ALL, None)
+            sessions = manager.QueryInterface(IAudioSessionManager2).GetSessionEnumerator()
+        except Exception:  # una salida que se acaba de desconectar
             continue
+        for i in range(sessions.GetCount()):
+            try:
+                control = sessions.GetSession(i)
+                if control is None:
+                    continue
+                session = AudioSession(control.QueryInterface(IAudioSessionControl2))
+                if session.Process is None:
+                    continue
+                found.append(
+                    (session.Process.name().lower(), session._ctl.QueryInterface(IAudioMeterInformation))
+                )
+            except Exception:  # un proceso que acaba de cerrarse
+                continue
     return found
 
 
 class ProcessMeter:
-    """Pico de las sesiones de audio de unos programas (p. ej. `spotify.exe`); 0 si ahora no tienen sesión."""
+    """Pico de las sesiones de audio de unos programas (p. ej. `spotify.exe`).
+
+    Si ahora no tienen ninguna sesión (no suenan en este PC: pausados, o por otro dispositivo como Spotify
+    Connect) lanza `LookupError`: no hay nada que medir, y es distinto de «suena en silencio» (0).
+    """
 
     def __init__(
         self,
@@ -67,11 +93,13 @@ class ProcessMeter:
         if now - self._refreshed >= SESSIONS_REFRESH_S:
             self._meters = [m for name, m in self._sessions() if name in self._names]
             self._refreshed = now
+        if not self._meters:
+            raise LookupError("sin sesión de audio")
         try:
-            return max((m.GetPeakValue() for m in self._meters), default=0.0)
-        except Exception:  # una sesión que ya no existe: se vuelve a buscar en la próxima lectura
+            return max(m.GetPeakValue() for m in self._meters)
+        except Exception as exc:  # una sesión que ya no existe: se vuelve a buscar en la próxima lectura
             self._meters, self._refreshed = [], float("-inf")
-            return 0.0
+            raise LookupError("la sesión de audio se cerró") from exc
 
 
 def open_spotify_meter() -> _Meter:
@@ -106,7 +134,7 @@ class AudioMeter:
         meter: _Meter | None = None
         com: Any = None
         try:
-            import comtypes  # type: ignore[import-untyped]
+            import comtypes
 
             com = comtypes
             com.CoInitialize()  # cada hilo que usa COM lo inicia
@@ -123,6 +151,12 @@ class AudioMeter:
                     if meter is None:
                         meter = self._open()
                     self._level = max(0.0, min(1.0, float(meter.GetPeakValue())))
+                except (
+                    LookupError
+                ):  # la app no tiene audio en este PC: sin lectura, y se vuelve a mirar enseguida
+                    self._level = None
+                    self._stop.wait(LOOKUP_S)
+                    continue
                 except Exception as exc:
                     log.debug("No pude leer el volumen de la salida: %s", type(exc).__name__)
                     meter, self._level = None, None

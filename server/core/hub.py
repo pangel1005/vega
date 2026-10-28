@@ -249,8 +249,8 @@ class Hub:
     def notification_icon(self, icon_id: str) -> bytes | None:
         return self._notifications.icon(icon_id) if self._notifications else None
 
-    async def media_control(self, command: Command) -> None:
-        if self._media is not None and await self._media.control(command):
+    async def media_control(self, command: Command, position: float | None = None) -> None:
+        if self._media is not None and await self._media.control(command, position):
             self._media_known = False  # que el teléfono vea el cambio enseguida
             await asyncio.sleep(0.3)  # la app tarda un instante en reflejarlo
             await self.send_media()

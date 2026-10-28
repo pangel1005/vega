@@ -414,3 +414,26 @@ disponible en «Más → Estilo» y se rediseña a fondo.
   fallaban pasaron a español y con el dato correcto. Se probaron también unos ejemplos de respuesta en las
   instrucciones y otras instrucciones: empeoraban al modelo (respuestas sueltas, un JSON), así que se descartaron.
   El modelo sigue siendo pequeño: a veces se equivoca en datos.
+
+## Etapa 29 — La onda, a partir de referencias: Barras, Neón y Silueta
+
+A partir de dos imágenes de referencia, la onda de Spotify tiene tres estilos que se eligen en «Más → Onda»
+(también `phone_control wave_next`):
+
+- **Barras:** cientos de barras finas en forma de lente, simétricas, con el contorno afinándose hasta una línea en los
+  extremos y brillo difuso; la mitad de abajo más clara, como un reflejo.
+- **Neón:** tres curvas brillantes que se cruzan (alisadas con curvas, no quebradas), línea central con destello que
+  respira con la música y detrás columnas de puntos LED a la altura de la envolvente.
+- **Silueta:** la forma continua rellena de antes.
+
+La **altura** de todo es el volumen real de Spotify. Lo único decorativo es la ondulación de las curvas del Neón: el
+medidor de Windows solo da el volumen (~20 lecturas por segundo), no la forma de la onda.
+
+**Solo audio real:** el servidor busca la sesión de audio de Spotify en **todas** las salidas de Windows (no solo la
+predeterminada). Si Spotify suena pero no tiene audio en el PC (pausado, o por otro dispositivo como Spotify
+Connect), no manda nada y el teléfono se queda con la cara en vez de pintar una línea plana. Se corrigió además un NaN
+en el borde derecho de la onda que habrían roto el dibujo.
+
+Nuevo en el servidor (para el vinilo): `media_control` con `command: "seek"` y `position` (segundos). Comprobado que
+Spotify acepta el salto (`is_playback_position_enabled`).
+

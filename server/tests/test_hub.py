@@ -122,14 +122,19 @@ class FakeMedia:
     def __init__(self) -> None:
         self.now: NowPlaying | None = _song()
         self.commands: list[str] = []
+        self.seeks: list[float | None] = []
 
     async def snapshot(self) -> NowPlaying | None:
         return self.now
 
-    async def control(self, command: str) -> bool:
+    async def control(self, command: str, position: float | None = None) -> bool:
         self.commands.append(command)
         if command == "play_pause" and self.now:
             self.now = _song(self.now.position, playing=not self.now.playing)
+        if command == "seek":
+            self.seeks.append(position)
+            if self.now and position is not None:
+                self.now = _song(position, playing=self.now.playing)
         return True
 
     def art(self, art_id: str) -> bytes | None:
@@ -315,3 +320,13 @@ def test_music_level_ignores_other_apps_than_spotify() -> None:
     media.now = NowPlaying("spotify.exe", "Human Nature", "Madonna", "", True, 0.0, 293.9, "", True, True)
     asyncio.run(hub.send_media())
     assert asyncio.run(hub.send_level()) is True  # el nombre real de la app lleva «.exe»
+
+
+def test_seek_moves_the_song_and_the_phone_sees_it_at_once() -> None:
+    media, phone = FakeMedia(), Client()
+    hub = Hub(PersonalMemory(ConversationStore(":memory:")), now=Clock(), media=media)  # type: ignore[arg-type]
+    hub.add(phone)
+    asyncio.run(hub.send_media())
+    asyncio.run(hub.media_control("seek", 120.5))
+    assert media.seeks == [120.5]
+    assert phone.media[-1].position == 120.5  # el salto llega sin esperar a la vuelta siguiente

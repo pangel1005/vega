@@ -333,3 +333,22 @@ def test_el_servidor_arranca_con_la_copia_buena_si_actions_toml_esta_roto(tmp_pa
     assert [a.id for a in load_actions(good)] == ["a"]
     assert load_actions(tmp_path / "no-existe.toml") == []  # y sin copia, sin botones (pero arranca)
     assert timedelta(0) == timedelta(0)
+
+
+def test_media_control_seek_needs_a_valid_position() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    from server.ws.protocol import MediaControl, client_message
+
+    ok = client_message.validate_python({"type": "media_control", "command": "seek", "position": 93.5})
+    assert isinstance(ok, MediaControl) and ok.position == 93.5
+    assert client_message.validate_python({"type": "media_control", "command": "next"})  # sin posición: vale
+    for bad in (
+        {"type": "media_control", "command": "seek"},  # saltar sin decir adónde
+        {"type": "media_control", "command": "seek", "position": -1},
+        {"type": "media_control", "command": "seek", "position": 1e9},
+        {"type": "media_control", "command": "seek", "position": "mañana"},
+    ):
+        with pytest.raises(ValidationError):
+            client_message.validate_python(bad)

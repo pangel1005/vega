@@ -256,7 +256,7 @@ def register_ws(
                     elif isinstance(msg, NotificationDismiss) and hub is not None:
                         await hub.dismiss_notification(msg.id)
                     elif isinstance(msg, MediaControl) and hub is not None:
-                        await hub.media_control(msg.command)
+                        await hub.media_control(msg.command, msg.position)
                 except WebSocketDisconnect:
                     raise
                 except Exception:  # un mensaje que falla no debe cerrar la conexión del teléfono
