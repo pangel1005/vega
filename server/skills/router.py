@@ -25,6 +25,7 @@ from server.memory.personal import PersonalMemory, to_you
 from server.skills.status import pc_status
 from server.skills.weather import Forecast
 from server.skills.weather import answer as weather_answer
+from server.skills.weather import brief as weather_brief
 from server.skills.when import parse_duration, parse_when, spoken_time
 
 
@@ -92,6 +93,16 @@ def _is_question(text: str, said: str) -> bool:
     return "?" in text or bool(_QUESTION.match(said))
 
 
+_BRIEFING = re.compile(
+    r"\b(el )?(resumen|repaso|parte) (del dia|de hoy)\b|\bque (tengo|hay) (hoy|para hoy)\b"
+    r"|\bcomo va (el|mi) dia\b"
+    r"|\bbuenos dias\b"
+)
+_DAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_MONTHS = (
+    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+    "noviembre", "diciembre",
+)  # fmt: skip
 _WEATHER = re.compile(
     r"\b(que|como) tiempo (hace|hara|va a hacer|tendremos)\b"
     r"|\bel tiempo (de |para )?(hoy|manana|ahora|fuera)\b"
@@ -122,7 +133,8 @@ class SkillRouter:
     def handle(self, text: str) -> SkillReply | None:
         said = normalize(text)
         for skill in (self._forget, self._what_you_know, self._remember, self._timer, self._reminders,
-                      self._notes, self._pc_notifications, self._status, self._weather_skill, self._sleep,
+                      self._notes, self._pc_notifications, self._status, self._weather_skill,
+                      self._briefing, self._sleep,
                       self._about_me):  # fmt: skip
             reply = skill(text, said)
             if reply is not None:
@@ -188,6 +200,14 @@ class SkillRouter:
             n = self._mem.cancel("timer")
             return SkillReply("Temporizador cancelado." if n else "No había ningún temporizador en marcha.")
         found = parse_duration(text)
+        if found is None and "alarma" in said:
+            # «Pon una alarma a las 7»: es un aviso a una hora, no una cuenta atrás.
+            now = self._now()
+            when = parse_when(text, now)
+            if when is None:
+                return SkillReply("¿A qué hora? Dime, por ejemplo, «pon una alarma a las 7».")
+            self._mem.add_reminder("reminder", "es la hora de la alarma", when.at)
+            return SkillReply(f"Hecho, {spoken_time(when.at, now)} suena la alarma.")
         if found is None:
             return SkillReply("¿De cuánto tiempo? Dime, por ejemplo, «temporizador de 5 minutos».")
         seconds, span = found
@@ -283,6 +303,34 @@ class SkillRouter:
         return SkillReply(
             f"Tienes {len(notes)} notificaci{'ón' if len(notes) == 1 else 'ones'}: {_list(parts)}{more}."
         )
+
+    # --- Resumen del día ---
+
+    def _briefing(self, text: str, said: str) -> SkillReply | None:
+        if not _BRIEFING.search(said):
+            return None
+        now = self._now()
+        greet = "Buenos días. " if "buenos dias" in said else ""
+        parts = [f"Hoy es {_DAYS[now.weekday()]} {now.day} de {_MONTHS[now.month - 1]}."]
+        today = sorted(
+            (r for r in self._mem.pending() if r.kind == "reminder" and r.due_at.date() == now.date()),
+            key=lambda r: r.due_at,
+        )
+        if today:
+            parts.append(
+                "Hoy tienes: " + _list([f"{r.text} {spoken_time(r.due_at, now)}" for r in today]) + "."
+            )
+        else:
+            parts.append("No tienes recordatorios para hoy.")
+        if self._weather_ready and self._weather is not None and (forecast := self._weather()) is not None:
+            parts.append(weather_brief(forecast, now.timestamp()))
+        notes = self._mem.notes()
+        if notes:
+            parts.append(f"Tienes {len(notes)} nota{_s(len(notes))} apuntada{_s(len(notes))}.")
+        alerts = len(self._notifications())
+        if alerts:
+            parts.append(f"Y {alerts} aviso{_s(alerts)} sin leer en el PC.")
+        return SkillReply(greet + " ".join(parts))
 
     # --- El tiempo ---
 

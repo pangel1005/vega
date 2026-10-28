@@ -258,5 +258,16 @@ def answer(said: str, forecast: Forecast, now: float | None = None) -> str:
     return lead + rest + stale
 
 
+def brief(forecast: Forecast, now: float) -> str:
+    """Una frase para el resumen del día: cómo va a ser hoy."""
+    day = forecast.days[0]
+    desc = WMO.get(day.code, "tiempo variable")
+    text = f"El tiempo de hoy: {desc}, máxima de {_deg(day.tmax)} y mínima de {_deg(day.tmin)}"
+    text += f", con un {day.rain} % de probabilidad de lluvia." if day.rain >= 30 else "."
+    if now - forecast.fetched_at > STALE_S:
+        text += f" (Dato {_age(now - forecast.fetched_at)}.)"
+    return text
+
+
 def _when(offset: int) -> str:
     return {0: "hoy", 1: "mañana", 2: "pasado mañana"}[offset]
