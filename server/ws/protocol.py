@@ -69,6 +69,8 @@ Servidor → cliente:
     {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
                                          (lo dice el teléfono con su voz)
     {"type": "notifications", "items": [{"id", "app", "title", "body", "at", "icon"}]}
+    {"type": "music_level", "level": 0.42}  (teléfono) cuánto suena el PC ahora (0 a 1), unas 20 veces por
+                                         segundo y solo mientras suena algo: la cara se mueve con la música
 """
 
 from __future__ import annotations
@@ -393,6 +395,13 @@ class Upcoming(BaseModel):
     due_in: int  # segundos que faltan (el teléfono hace la cuenta atrás entre lecturas)
 
 
+class MusicLevelEvent(_Msg):
+    """Volumen real de lo que suena por los altavoces del PC (pico de 0 a 1), solo mientras suena algo."""
+
+    type: Literal["music_level"] = "music_level"
+    level: float
+
+
 class MediaEvent(_Msg):
     """Lo que suena en el PC (o `active = false` si nada). La carátula está en
     /app/media/art/<art>.jpg; la posición la avanza el teléfono mientras suena."""
@@ -508,6 +517,7 @@ ServerEvent = (
     | ReminderEvent
     | TelemetryEvent
     | MediaEvent
+    | MusicLevelEvent
     | NotificationsEvent
     | PhoneReplyEvent
     | SleepEvent

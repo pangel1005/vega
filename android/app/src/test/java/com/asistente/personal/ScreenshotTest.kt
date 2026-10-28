@@ -462,4 +462,34 @@ class ScreenshotTest {
         model(base).copy(sleeping = true, wallMs = 1_761_300_000_000, localNext = com.asistente.personal.ui.NextAlert("es la hora de la alarma", 1_761_300_000_000 + 4 * 3_600_000)),
         afterMs = 2500,
     )
+
+    // --- La cara se hace onda con la música ---
+
+    /** Un volumen que sube y baja como una canción (siempre el mismo, para que la captura no cambie). */
+    private fun fakeMusic(): () -> Float {
+        var n = 0
+        return { (0.15f + 0.8f * kotlin.math.abs(kotlin.math.sin(n++ * 0.45f) * kotlin.math.cos(n * 0.13f))).coerceIn(0f, 1f) }
+    }
+
+    @Test fun noche_onda_con_musica() = shot(
+        "51_noche_onda_musica",
+        model(base.copy(media = song, mediaAt = 1_000)).copy(
+            musicLevel = fakeMusic(), mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D), clockMs = { 1_000 },
+        ),
+        afterMs = 3000,
+    )
+
+    @Test fun noche_cara_al_hablarle_con_musica() = shot(
+        "52_noche_cara_hablando_musica",
+        model(base.copy(media = song, mediaAt = 1_000), AssistantState.SPEAKING, pulse = 3).copy(
+            musicLevel = fakeMusic(), mediaAccent = androidx.compose.ui.graphics.Color(0xFFFF6B9D), clockMs = { 1_000 },
+        ),
+        afterMs = 400,
+    )
+
+    @Test fun noche_avisos_sin_borde_naranja() = shot(
+        "53_noche_avisos_sin_borde",
+        model(base.copy(pcNotes = notes, freshNotes = setOf(3L), notesKnown = true)).copy(wallMs = 1_761_300_000_000),
+        afterMs = 1500,
+    )
 }

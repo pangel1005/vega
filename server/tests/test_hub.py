@@ -261,3 +261,40 @@ def test_desktop_is_told_when_the_phone_leaves() -> None:
         assert hub.remove(desktop) is None  # irse el escritorio no avisa a nadie
 
     asyncio.run(run())
+
+
+def test_music_level_goes_to_the_phone_only_while_something_plays() -> None:
+    from server.ws.protocol import MusicLevelEvent
+
+    media, phone, desktop = FakeMedia(), Client(), Client()
+    level: list[float | None] = [0.5]
+    hub = Hub(
+        PersonalMemory(ConversationStore(":memory:")),
+        now=Clock(),
+        media=media,  # type: ignore[arg-type]
+        level=lambda: level[0],
+    )
+    hub.add(phone)
+    hub.add(desktop, role="desktop")
+    assert asyncio.run(hub.send_level()) is False  # aún no se sabe qué suena
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_level()) is True
+    assert [e for e in phone.events if isinstance(e, MusicLevelEvent)] == [MusicLevelEvent(level=0.5)]
+    assert not [e for e in desktop.events if isinstance(e, MusicLevelEvent)]  # la app del PC no lo necesita
+    level[0] = None  # no se puede medir: no se manda nada inventado
+    assert asyncio.run(hub.send_level()) is False
+    level[0] = 0.25
+    media.now = _song(playing=False)  # en pausa: sin volumen
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_level()) is False
+    media.now = None  # nada suena
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_level()) is False
+
+
+def test_without_a_meter_no_level_is_sent() -> None:
+    media, phone = FakeMedia(), Client()
+    hub = Hub(PersonalMemory(ConversationStore(":memory:")), now=Clock(), media=media)  # type: ignore[arg-type]
+    hub.add(phone)
+    asyncio.run(hub.send_media())
+    assert asyncio.run(hub.send_level()) is False

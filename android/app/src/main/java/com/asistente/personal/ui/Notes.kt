@@ -83,7 +83,7 @@ private fun AppBadge(note: PcNote, icon: ImageBitmap?, size: Dp, fresh: Boolean 
             }
         }
         // Punto de «nueva» (llegó mientras mirabas).
-        if (fresh) Box(Modifier.size(10.dp).align(Alignment.TopEnd).offset(3.dp, (-3).dp).background(Vega.Bg, CircleShape).padding(2.dp).background(Vega.Coral, CircleShape))
+        if (fresh) Box(Modifier.size(10.dp).align(Alignment.TopEnd).offset(3.dp, (-3).dp).background(Vega.Bg, CircleShape).padding(2.dp).background(Vega.Ink, CircleShape))
     }
 }
 
@@ -106,8 +106,8 @@ fun NotesRail(
     modifier: Modifier = Modifier,
 ) {
     val width by animateDpAsState(if (open) NOTES_OPEN else NOTES_FOLDED, spring(dampingRatio = 0.86f, stiffness = 520f), label = "ancho avisos")
-    val border by animateColorAsState(if (fresh.isNotEmpty()) Vega.Coral.copy(alpha = 0.55f) else Vega.Line, tween(400), label = "borde avisos")
-    Box(modifier.width(width).fillMaxHeight().card(border).clip(CardShape)) {
+    // Borde discreto como el de las demás tarjetas: antes se ponía naranja con un aviso nuevo y rompía la estética.
+    Box(modifier.width(width).fillMaxHeight().card(Vega.Line).clip(CardShape)) {
         AnimatedContent(
             targetState = open,
             transitionSpec = { fadeIn(tween(180, delayMillis = 90)) togetherWith fadeOut(tween(90)) },
@@ -129,7 +129,7 @@ private fun Folded(notes: List<PcNote>, fresh: Set<Long>, icons: Map<String, Ima
     ) {
         Text(
             "${notes.size}",
-            style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 18.sp, color = if (fresh.isEmpty()) Vega.Ink2 else Vega.Coral),
+            style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 18.sp, color = Vega.Ink),
         )
         notes.take(5).forEach { AppBadge(it, icons[it.icon], 32.dp, fresh = it.id in fresh) }
         if (notes.size > 5) Text("+${notes.size - 5}", style = Vega.label)
@@ -175,7 +175,7 @@ private fun NoteItem(note: PcNote, fresh: Boolean, icon: ImageBitmap?, nowMs: Lo
     Row(
         Modifier.fillMaxWidth()
             .background(if (fresh) Vega.CardHi else Color(0xFF121214), shape)
-            .border(1.dp, if (fresh) Vega.Coral.copy(alpha = 0.4f) else Vega.Line, shape)
+            .border(1.dp, Vega.Line, shape)
             .padding(start = 10.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
     ) {
         AppBadge(note, icon, 26.dp)

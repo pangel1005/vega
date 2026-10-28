@@ -293,6 +293,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             orb = c.orb,
             far = far,
             localNext = c.localNext,
+            musicLevel = c::musicLevel,
             ears = c::earsStats,
             phoneRam = { com.asistente.personal.ui.phoneMemoryUsed(appContext) },
             phoneTemp = { com.asistente.personal.ui.phoneTemperature(appContext) },

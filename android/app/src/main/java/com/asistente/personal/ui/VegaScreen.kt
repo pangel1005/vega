@@ -118,6 +118,8 @@ data class ScreenModel(
     val orb: Boolean = false,
     /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
     val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
+    /** Volumen real de lo que suena en el PC (0 a 1): con él, la cara se hace onda mientras suena música. */
+    val musicLevel: () -> Float = { 0f },
     /** El próximo aviso del propio teléfono (alarma o recordatorio), para cuando el PC no lo cuenta. */
     val localNext: NextAlert? = null,
     /** Modo de lejos: tras 10 minutos sin nadie, solo la hora enorme y la última respuesta. */
@@ -572,19 +574,39 @@ private fun FaceCard(
                 style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp, color = Vega.Ink3),
             )
         }
+        // Con música sonando y Vega en reposo, la cara se hace onda (el volumen real del PC); en cuanto pasa algo
+        // (le hablas, piensa, contesta, avisa…) vuelve la cara, y la onda regresa a los segundos de quedarse quieta.
+        val musicPlaying = m.ui.media?.playing == true && m.ui.link == LinkStatus.OPEN
+        val resting = mood == Mood.IDLE && notice == null
+        var faceHeld by remember { mutableStateOf(false) }
+        LaunchedEffect(resting) {
+            if (resting) {
+                delay(WAVE_RETURN_MS)
+                faceHeld = false
+            } else {
+                faceHeld = true
+            }
+        }
+        val waveOn = musicPlaying && resting && !faceHeld
         Box(Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp)) {
-            LedFaceView(
-                mood = mood,
-                pulse = m.pulse,
-                pulseAmount = m.pulseAmount,
-                color = if (notice != null) Vega.Amber else color, // un recordatorio pasa en ámbar
-                notice = notice?.text,
-                noticeKey = notice?.seq ?: 0,
-                rainbow = notice == null && showsRainbow(mood, m.faceColor),
-                countdown = timerLeft(m)?.let(::countdownText),
-                glance = glance,
-                modifier = Modifier.fillMaxSize(),
-            )
+            androidx.compose.animation.Crossfade(targetState = waveOn, animationSpec = tween(350), label = "cara u onda") { wave ->
+                if (wave) {
+                    MusicWave(m.musicLevel, m.mediaAccent, Modifier.fillMaxSize())
+                } else {
+                    LedFaceView(
+                        mood = mood,
+                        pulse = m.pulse,
+                        pulseAmount = m.pulseAmount,
+                        color = if (notice != null) Vega.Amber else color, // un recordatorio pasa en ámbar
+                        notice = notice?.text,
+                        noticeKey = notice?.seq ?: 0,
+                        rainbow = notice == null && showsRainbow(mood, m.faceColor),
+                        countdown = timerLeft(m)?.let(::countdownText),
+                        glance = glance,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
             // Bajo la cara, según lo que pase: la cuenta atrás de una confirmación (roja), la carga de la IA
             // (verde, o un botón para reintentar si falló) o, mientras te escucha, la onda de tu voz.
             val load = if (m.brainOnPhone) brainLoad(m.brainLabel) else BrainLoad.None
@@ -703,7 +725,14 @@ private fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Mod
     val ui = m.ui
     Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(m.clock, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 36.sp, lineHeight = 36.sp, color = Vega.Ink))
+            // La hora cambia con un deslizamiento corto: el minuto nuevo entra desde abajo.
+            AnimatedContent(
+                targetState = m.clock,
+                transitionSpec = { (slideInVertically(tween(260)) { it / 3 } + fadeIn(tween(220))) togetherWith (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(140))) },
+                label = "hora",
+            ) { time ->
+                Text(time, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 36.sp, lineHeight = 36.sp, color = Vega.Ink))
+            }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.padding(bottom = 4.dp)) {
                 Text(m.date, maxLines = 1, style = Vega.label)
@@ -840,11 +869,13 @@ private fun StatRow(name: String, value: String?, fraction: Float?, invert: Bool
 @Composable
 private fun DotBar(fraction: Float?, invert: Boolean, charging: Boolean, modifier: Modifier = Modifier) {
     val off = com.asistente.personal.ui.led.ledOff
+    // Los puntos se encienden (o apagan) de uno en uno hasta el valor nuevo, en vez de saltar.
+    val target = if (fraction == null) 0 else (fraction.coerceIn(0f, 1f) * 10 + 0.5f).toInt()
+    val lit by androidx.compose.animation.core.animateIntAsState(target, tween(380), label = "puntos")
     Canvas(modifier) {
         val n = 10
         val step = size.width / n
         val r = minOf(step, size.height) * 0.42f
-        val lit = if (fraction == null) 0 else (fraction.coerceIn(0f, 1f) * n + 0.5f).toInt()
         val f = fraction ?: 0f
         val color = when {
             fraction == null -> off

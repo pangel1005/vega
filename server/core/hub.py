@@ -20,6 +20,7 @@ from server.memory.personal import PersonalMemory, Reminder
 from server.skills.status import PcSample, sample_pc
 from server.ws.protocol import (
     MediaEvent,
+    MusicLevelEvent,
     NotificationItem,
     NotificationsEvent,
     PhoneControlEvent,
@@ -35,6 +36,7 @@ log = logging.getLogger(__name__)
 CHECK_SECONDS = 1.0
 TELEMETRY_EVERY = 2  # vueltas de CHECK_SECONDS entre lecturas del PC
 UPCOMING_MAX = 3
+LEVEL_SECONDS = 0.05  # el volumen de la música llega ~20 veces por segundo
 
 
 class Listener(Protocol):
@@ -59,8 +61,10 @@ class Hub:
         sample: Callable[[], PcSample] = sample_pc,
         media: MediaWatcher | None = None,
         notifications: NotificationReader | None = None,
+        level: Callable[[], float | None] | None = None,
     ) -> None:
         self._memory = memory
+        self._level = level  # volumen real de la salida de audio (0 a 1), o None si no se puede medir
         self._now = now
         self._sample = sample
         self._media = media
@@ -72,6 +76,7 @@ class Hub:
         self._roles: dict[Listener, str] = {}
         self._phone_state: PhoneState | None = None
         self._task: asyncio.Task[None] | None = None
+        self._level_task: asyncio.Task[None] | None = None
 
     def add(self, client: Listener, role: str = "phone") -> None:
         self._clients.add(client)
@@ -252,10 +257,34 @@ class Hub:
     def start(self) -> None:
         if self._task is None:
             self._task = asyncio.create_task(self._loop())
+        if self._level_task is None and self._level is not None:
+            self._level_task = asyncio.create_task(self._level_loop())
 
     async def stop(self) -> None:
         if self._task is not None:
             self._task.cancel()
+        if self._level_task is not None:
+            self._level_task.cancel()
+
+    async def send_level(self) -> bool:
+        """Manda el volumen de la música al teléfono, si suena algo; devuelve si mandó algo."""
+        playing = self._media_sent is not None and self._media_sent.playing
+        if self._level is None or not playing or not self._with_role("phone"):
+            return False
+        level = self._level()
+        if level is None:
+            return False
+        await self.broadcast("phone", MusicLevelEvent(level=round(level, 3)))
+        return True
+
+    async def _level_loop(self) -> None:
+        while True:
+            try:
+                sent = await self.send_level()
+            except Exception:
+                log.exception("Fallo al medir el volumen de la música")
+                sent = False
+            await asyncio.sleep(LEVEL_SECONDS if sent else 0.5)
 
     async def _loop(self) -> None:
         tick = 0

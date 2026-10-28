@@ -285,6 +285,12 @@ class AssistantController(context: Context) {
     var localTimerEndsAt by mutableStateOf<Long?>(null)
         private set
 
+    @Volatile private var musicLevelRaw = 0f
+    @Volatile private var musicLevelAt = 0L
+
+    /** Volumen real de lo que suena en el PC (0 a 1); 0 si hace más de medio segundo que no llega nada. Se lee sin recomponer. */
+    fun musicLevel(): Float = if (android.os.SystemClock.elapsedRealtime() - musicLevelAt > 600) 0f else musicLevelRaw
+
     /** Próxima alarma o recordatorio del teléfono (hora real), para las pantallas de lejos y de dormida. */
     var localNext by mutableStateOf<com.asistente.personal.ui.NextAlert?>(null)
         private set
@@ -498,6 +504,10 @@ class AssistantController(context: Context) {
                 dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
             } else if (event is ServerEvent.Media) {
                 dispatch(Action.Media(event.media, android.os.SystemClock.elapsedRealtime()))
+            } else if (event is ServerEvent.MusicLevel) {
+                // 20 lecturas por segundo: no pasan por el estado de la pantalla (recompondría sin parar).
+                musicLevelRaw = event.level
+                musicLevelAt = android.os.SystemClock.elapsedRealtime()
             } else if (event is ServerEvent.Notifications) {
                 val before = ui.freshNotes
                 dispatch(Action.Server(event))

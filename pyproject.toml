@@ -26,6 +26,7 @@ dependencies = [
     "winrt-windows-ui-notifications-management>=3.2.1",
     "winrt-windows-ui-notifications>=3.2.1",
     "winrt-windows-applicationmodel>=3.2.1",
+    "pycaw>=20260927",
 ]
 
 [dependency-groups]

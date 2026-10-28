@@ -392,3 +392,22 @@ disponible en «Más → Estilo» y se rediseña a fondo.
   también con el PC apagado), y gana el más cercano.
 - La pantalla de lejos avisa en rojo si la batería está baja y sin cargador.
 - 4 pruebas nuevas y capturas `49` y `50`.
+
+## Etapa 28 — La cara se hace onda con la música, avisos sin borde y una IA que recuerda
+
+- **Onda de música:** mientras suena algo en el PC y Vega está en reposo, la cara de LED se convierte en una onda de
+  barras simétricas (como una onda de audio) del color de la carátula. Es el **volumen real**: el servidor lee el pico
+  de la salida de audio de Windows (`server/device/audio_meter.py`, con `pycaw`; no oye ni guarda audio, solo un número)
+  y lo manda al teléfono unas 20 veces por segundo, solo mientras suena algo. En cuanto le hablas, piensa, contesta o
+  avisa vuelve la cara, y a los 4 s en reposo regresa la onda. La onda se normaliza con el pico reciente para verse
+  igual de viva con el volumen alto o bajo.
+- **Barra de avisos:** sin el borde naranja (ahora como el resto de tarjetas), el número en blanco y el punto de
+  «nuevo» también.
+- **Animaciones:** los puntos de las barras de estado se encienden de uno en uno al cambiar el valor y la hora cambia
+  con un deslizamiento corto.
+- **IA del teléfono con memoria:** antes cada pregunta se contestaba sola y las de seguimiento («¿y cuándo nació?»,
+  «¿y la de Italia?») salían en inglés o sin sentido. Ahora recuerda los dos últimos intercambios y lleva una pista
+  («responde solo en español») pegada a la pregunta. Medido en el Redmi con 12 casos y el modelo LFM2.5 1.2B: los 5 que
+  fallaban pasaron a español y con el dato correcto. Se probaron también unos ejemplos de respuesta en las
+  instrucciones y otras instrucciones: empeoraban al modelo (respuestas sueltas, un JSON), así que se descartaron.
+  El modelo sigue siendo pequeño: a veces se equivoca en datos.

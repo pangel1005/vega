@@ -22,6 +22,7 @@ from server.core.config import ROOT, Settings
 from server.core.hub import Hub
 from server.core.maintenance import Maintenance
 from server.core.stallwatch import StallWatch
+from server.device.audio_meter import AudioMeter
 from server.device.lyrics import LyricsFinder
 from server.device.media import MediaWatcher
 from server.device.notifications import NotificationReader
@@ -128,7 +129,12 @@ def create_app(
         weather=weather.snapshot if weather else None,
         weather_ready=weather is not None,
     )
-    hub = Hub(memory, media=media, notifications=notifications if settings.notifications.enabled else None)
+    hub = Hub(
+        memory,
+        media=media,
+        notifications=notifications if settings.notifications.enabled else None,
+        level=AudioMeter().poll if media is not None else None,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:

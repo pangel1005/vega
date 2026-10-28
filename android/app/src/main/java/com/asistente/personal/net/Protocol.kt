@@ -104,6 +104,9 @@ sealed interface ServerEvent {
     data class Stats(val telemetry: Telemetry) : ServerEvent
     /** Lo que suena en el PC; null = nada. */
     data class Media(val media: MediaInfo?) : ServerEvent
+
+    /** Cuánto suena el PC ahora (0 a 1), unas 20 veces por segundo mientras suena algo. */
+    data class MusicLevel(val level: Float) : ServerEvent
     /** Las notificaciones del PC, de la más nueva a la más vieja. */
     data class Notifications(val items: List<PcNote>) : ServerEvent
     /** Una orden de la app del PC: sleep, wake, brain_pc, brain_phone, glass_on, glass_off, terminal_on, terminal_off, orb_on, orb_off, mic_on, mic_off. */
@@ -161,6 +164,7 @@ object Protocol {
             "audio" -> ServerEvent.Audio(o.getInt("seq"), o.getInt("rate"), o.getString("text"))
             "audio_end" -> ServerEvent.AudioEnd
             "reminder" -> ServerEvent.Reminder(o.getString("kind"), o.getString("text"))
+            "music_level" -> ServerEvent.MusicLevel(o.optDouble("level", 0.0).toFloat().coerceIn(0f, 1f))
             "media" -> ServerEvent.Media(
                 if (!o.optBoolean("active")) null else MediaInfo(
                     app = o.optString("app"), title = o.optString("title"), artist = o.optString("artist"),

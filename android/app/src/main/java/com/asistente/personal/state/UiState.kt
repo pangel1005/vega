@@ -154,6 +154,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         // Llega sin hora local; AssistantController la reenvía como Action.Telemetry con la hora.
         is ServerEvent.Stats -> s.copy(telemetry = e.telemetry)
         is ServerEvent.Media -> s.copy(media = e.media)
+        is ServerEvent.MusicLevel -> s // el volumen no toca el estado (llega 20 veces por segundo): lo lee la onda del controlador
         is ServerEvent.Notifications -> {
             val old = s.pcNotes.map { it.id }.toSet()
             val arrived = if (s.notesKnown) e.items.map { it.id }.filter { it !in old } else emptyList()
