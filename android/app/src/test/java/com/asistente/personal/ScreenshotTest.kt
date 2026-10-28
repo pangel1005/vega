@@ -235,35 +235,39 @@ class ScreenshotTest {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             VegaScreen(
-                model(base.copy(media = song, mediaAt = 1_000)).copy(mediaArt = art, mediaAccent = com.asistente.personal.ui.accentOf(art), clockMs = { 1_000 }),
-                ScreenActions(),
-            )
-        }
-        compose.mainClock.advanceTimeBy(100)
-        compose.onNodeWithText("Human Nature").performTouchInput { down(center); up() }
-        compose.mainClock.advanceTimeBy(500)
-        compose.onRoot().captureRoboImage("build/capturas/17_sonando.png")
-    }
-
-    // Doble toque: el vinilo entero, con el brazo.
-    @Test fun pantalla_sonando_vinilo_entero() {
-        val art = fakeArt()
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            VegaScreen(
                 model(base.copy(media = song, mediaAt = 1_000)).copy(
-                    mediaArt = art, mediaAccent = com.asistente.personal.ui.accentOf(art), clockMs = { 1_000 }, musicDisc = true,
+                    mediaArt = art, mediaAccent = com.asistente.personal.ui.accentOf(art), clockMs = { 1_000 },
+                    musicSpectrum = demoSpectrum(60, "spectrum_real.txt"), musicLevel = { 0.6f },
                 ),
                 ScreenActions(),
             )
         }
         compose.mainClock.advanceTimeBy(100)
         compose.onNodeWithText("Human Nature").performTouchInput { down(center); up() }
-        compose.mainClock.advanceTimeBy(1500)
-        compose.onRoot().captureRoboImage("build/capturas/61_sonando_vinilo_entero.png")
+        compose.mainClock.advanceTimeBy(2500)
+        compose.onRoot().captureRoboImage("build/capturas/17_sonando.png")
     }
 
-    // En pausa: el disco se para y el brazo se aparta.
+    // Doble toque: la portada plana, cuadrada y quieta, con barras de espectro debajo.
+    @Test fun pantalla_sonando_portada_plana() {
+        val art = fakeArt()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            VegaScreen(
+                model(base.copy(media = song, mediaAt = 1_000)).copy(
+                    mediaArt = art, mediaAccent = com.asistente.personal.ui.accentOf(art), clockMs = { 1_000 }, musicFlat = true,
+                    musicSpectrum = demoSpectrum(60, "spectrum_real.txt"), musicLevel = { 0.6f },
+                ),
+                ScreenActions(),
+            )
+        }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Human Nature").performTouchInput { down(center); up() }
+        compose.mainClock.advanceTimeBy(2500)
+        compose.onRoot().captureRoboImage("build/capturas/61_sonando_portada_plana.png")
+    }
+
+    // En pausa: el disco se para y no late.
     @Test fun pantalla_sonando_en_pausa() {
         val art = fakeArt()
         compose.mainClock.autoAdvance = false

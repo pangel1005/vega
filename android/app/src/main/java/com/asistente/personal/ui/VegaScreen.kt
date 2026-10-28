@@ -118,8 +118,8 @@ data class ScreenModel(
     val orb: Boolean = false,
     /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
     val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
-    /** La pantalla de música enseña el vinilo entero (true) o la portada con el vinilo asomando (false). */
-    val musicDisc: Boolean = false,
+    /** La pantalla de música enseña la portada plana y cuadrada (true) o la portada hecha disco giratorio (false). */
+    val musicFlat: Boolean = false,
     /** Cómo se dibuja la onda de la música de Spotify. */
     val waveStyle: WaveStyle = WaveStyle.SPECTRUM,
     /** Volumen real de lo que suena en el PC (0 a 1): con él, la cara se hace onda mientras suena música. */
@@ -167,8 +167,8 @@ class ScreenActions(
     val dismissNote: (Long?) -> Unit = {},
     val nextTouchFeel: () -> Unit = {},
     val nextWaveStyle: () -> Unit = {},
-    /** Doble toque en la pantalla de música: cambia entre la portada y el vinilo entero. */
-    val toggleMusicDisc: () -> Unit = {},
+    /** Doble toque en la pantalla de música: cambia entre el disco y la portada plana. */
+    val toggleMusicFlat: () -> Unit = {},
     val toggleGlass: () -> Unit = {},
     val nextStyle: () -> Unit = {},
     /** Vuelve a cargar la IA del teléfono si falló. */
@@ -538,7 +538,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 MusicScreen(
                     playing, ui.mediaAt, m.clockMs, m.mediaArt, m.mediaAccent, m.clock, m.lyrics,
                     onControl = a.mediaControl, onClose = { showMusic = false }, onSeek = a.mediaSeek,
-                    disc = m.musicDisc, onToggleDisc = a.toggleMusicDisc,
+                    flat = m.musicFlat, onToggleFlat = a.toggleMusicFlat, level = m.musicLevel, spectrum = m.musicSpectrum,
                 )
             }
         }

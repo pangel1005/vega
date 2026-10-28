@@ -31,7 +31,7 @@ private const val KEY_FACE_COLOR = "color_cara"
 private const val KEY_BRAIN = "cerebro_telefono"
 private const val KEY_TOUCH = "vibracion_toque"
 private const val KEY_WAVE = "estilo_onda"
-private const val KEY_DISC = "musica_vinilo"
+private const val KEY_FLAT = "musica_portada_plana"
 
 /** Cuánto tiempo sin recibir volumen antes de dar la señal por perdida (el servidor manda ~20 por segundo). */
 const val MUSIC_SIGNAL_MS = 1_500L
@@ -120,13 +120,13 @@ class AssistantController(context: Context) {
         prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).putBoolean(KEY_ORB, orb).apply()
     }
 
-    /** La pantalla de música enseña el vinilo entero (true) o la portada con el vinilo asomando (false, de serie). */
-    var musicDisc by mutableStateOf(prefs.getBoolean(KEY_DISC, false))
+    /** La pantalla de música enseña la portada plana (true) o la portada hecha disco giratorio (false, de serie). */
+    var musicFlat by mutableStateOf(prefs.getBoolean(KEY_FLAT, false))
         private set
 
-    fun toggleMusicDisc() {
-        musicDisc = !musicDisc
-        prefs.edit().putBoolean(KEY_DISC, musicDisc).apply()
+    fun toggleMusicFlat() {
+        musicFlat = !musicFlat
+        prefs.edit().putBoolean(KEY_FLAT, musicFlat).apply()
     }
 
     /** Cómo se dibuja la onda de la música de Spotify (se recuerda entre reinicios). */

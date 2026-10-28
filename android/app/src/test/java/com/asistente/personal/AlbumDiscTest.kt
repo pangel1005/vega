@@ -10,8 +10,8 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
-import com.asistente.personal.ui.VINYL_SECONDS_PER_TURN
-import com.asistente.personal.ui.Vinyl
+import com.asistente.personal.ui.DISC_SECONDS_PER_TURN
+import com.asistente.personal.ui.AlbumDisc
 import com.asistente.personal.ui.angleDelta
 import com.asistente.personal.ui.scrubLabel
 import com.asistente.personal.ui.scrubTarget
@@ -34,7 +34,7 @@ import kotlin.math.sin
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "w800dp-h360dp-land-xhdpi")
-class VinylTest {
+class AlbumDiscTest {
     @get:Rule val compose = createComposeRule()
 
     // --- La parte pura ---
@@ -51,7 +51,7 @@ class VinylTest {
     @Test fun `una vuelta entera del disco son 30 segundos hacia delante o atras`() {
         assertEquals(130.0, scrubTarget(100.0, 360f, 300.0), 1e-6)
         assertEquals(85.0, scrubTarget(100.0, -180f, 300.0), 1e-6)
-        assertEquals(100.0 + VINYL_SECONDS_PER_TURN / 4, scrubTarget(100.0, 90f, 300.0), 1e-6)
+        assertEquals(100.0 + DISC_SECONDS_PER_TURN / 4, scrubTarget(100.0, 90f, 300.0), 1e-6)
         assertEquals(100.0, scrubTarget(100.0, 0f, 300.0), 0.0)
     }
 
@@ -90,13 +90,13 @@ class VinylTest {
         val scrubs = mutableListOf<Double?>()
     }
 
-    private fun show(c: Captured, position: Double = 100.0, duration: Double = 300.0, cover: Boolean = false) {
+    private fun show(c: Captured, position: Double = 100.0, duration: Double = 300.0, flat: Boolean = false) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            Vinyl(
+            AlbumDisc(
                 art = null, accent = Color(0xFFFF6B9D), playing = true, position = position, duration = duration,
                 onScrub = { c.scrubs += it }, onSeek = { c.seek = it }, onToggle = { c.toggles++ },
-                modifier = Modifier.size(300.dp), cover = cover, onDoubleTap = { c.doubles++ },
+                modifier = Modifier.size(300.dp), flat = flat, onDoubleTap = { c.doubles++ },
             )
         }
         compose.mainClock.advanceTimeBy(100)
@@ -105,8 +105,8 @@ class VinylTest {
     /** Mueve el dedo en círculo alrededor del centro del disco: `degrees` hacia la derecha (positivo) o la izquierda. */
     private fun turn(degrees: Float, steps: Int = 12) = compose.onRoot().performTouchInput {
         val s = min(width, height).toFloat()
-        val center = Offset(s * 0.46f, s * 0.545f)
-        val r = s * 0.30f
+        val center = Offset(s * 0.5f, s * 0.5f)
+        val r = s * 0.22f
         fun at(deg: Float) = Offset(center.x + r * cos(deg * PI.toFloat() / 180f), center.y + r * sin(deg * PI.toFloat() / 180f))
         down(at(0f))
         for (i in 1..steps) moveTo(at(degrees * i / steps))
@@ -119,7 +119,7 @@ class VinylTest {
         turn(120f)
         val target = c.seek
         assertNotNull(target)
-        assertEquals(100.0 + 120.0 / 360.0 * VINYL_SECONDS_PER_TURN, target!!, 0.5) // 110 s
+        assertEquals(100.0 + 120.0 / 360.0 * DISC_SECONDS_PER_TURN, target!!, 0.5) // 110 s
         assertEquals(0, c.toggles) // girar no es un toque
         assertNull(c.scrubs.last()) // y al soltar se acaba el «a dónde iría»
         assertTrue(c.scrubs.filterNotNull().isNotEmpty()) // mientras giraba se iba viendo
@@ -137,7 +137,7 @@ class VinylTest {
         show(c)
         compose.onRoot().performTouchInput {
             val s = min(width, height).toFloat()
-            click(Offset(s * 0.46f + s * 0.2f, s * 0.545f))
+            click(Offset(s * 0.5f + s * 0.2f, s * 0.5f))
         }
         compose.mainClock.advanceTimeBy(400) // un toque suelto espera por si llega un segundo
         assertEquals(1, c.toggles)
@@ -145,12 +145,12 @@ class VinylTest {
         assertNull(c.seek)
     }
 
-    @Test fun `dos toques seguidos cambian entre portada y vinilo y no pausan`() {
+    @Test fun `dos toques seguidos cambian entre disco y portada plana y no pausan`() {
         val c = Captured()
         show(c)
         compose.onRoot().performTouchInput {
             val s = min(width, height).toFloat()
-            doubleClick(Offset(s * 0.46f + s * 0.2f, s * 0.545f))
+            doubleClick(Offset(s * 0.5f + s * 0.2f, s * 0.5f))
         }
         compose.mainClock.advanceTimeBy(600)
         assertEquals(1, c.doubles)
@@ -160,7 +160,7 @@ class VinylTest {
 
     @Test fun `en la portada se toca en cualquier parte, y el doble toque tambien cambia`() {
         val c = Captured()
-        show(c, cover = true)
+        show(c, flat = true)
         compose.onRoot().performTouchInput { click(Offset(40f, 40f)) } // la esquina de la funda
         compose.mainClock.advanceTimeBy(400)
         assertEquals(1, c.toggles)
@@ -172,9 +172,9 @@ class VinylTest {
 
     @Test fun `en la portada girar no salta la cancion`() {
         val c = Captured()
-        show(c, cover = true)
+        show(c, flat = true)
         turn(120f)
-        assertNull(c.seek) // solo el vinilo entero se gira para adelantar o retroceder
+        assertNull(c.seek) // solo el disco se gira para adelantar o retroceder
     }
 
     @Test fun `tocar fuera del disco no hace nada`() {

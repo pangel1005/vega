@@ -255,8 +255,10 @@ fun MusicScreen(
     modifier: Modifier = Modifier,
     startWithLyrics: Boolean = false,
     onSeek: (Double) -> Unit = {},
-    disc: Boolean = false,
-    onToggleDisc: () -> Unit = {},
+    flat: Boolean = false,
+    onToggleFlat: () -> Unit = {},
+    level: () -> Float = { 0f },
+    spectrum: () -> FloatArray = { FloatArray(0) },
 ) {
     val artImage = art
     val tint by animateColorAsState(accent, tween(600), label = "color de la carátula")
@@ -355,8 +357,8 @@ fun MusicScreen(
                         }
                     } else {
                         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                            // El vinilo gira con la música; se toca para pausar y se gira para adelantar o retroceder.
-                            Vinyl(
+                            // La portada hecha disco: gira, late con la música y se gira con el dedo para adelantar o retroceder.
+                            AlbumDisc(
                                 artImage, tint, media.playing, position, media.duration,
                                 onScrub = { scrub = it },
                                 onSeek = { target ->
@@ -365,8 +367,10 @@ fun MusicScreen(
                                 },
                                 onToggle = { onControl("play_pause") },
                                 modifier = art.fillMaxHeight().aspectRatio(1f),
-                                cover = !disc,
-                                onDoubleTap = onToggleDisc,
+                                flat = flat,
+                                onDoubleTap = onToggleFlat,
+                                level = level,
+                                spectrum = spectrum,
                             )
                             Spacer(Modifier.width(28.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
