@@ -527,3 +527,17 @@ compu» ni los datos («despiértame a las seis y media»), y la regla antigua �
 Siguiente: que el modelo **sepa las palabras de tus botones** (más `say` o ejemplos tuyos), mejor oído con el PC
 conectado (Whisper más grande) y entender las órdenes con datos (llamada a herramientas con el modelo del PC).
 
+## Etapa 33 — El oído rápido: el PC transcribe cuando está conectado
+
+«Vega oye lento y responde lento». Medido en el registro del teléfono (solo cifras): Whisper base tarda **1,0–2,7 s**
+por frase en el Redmi 15C (0,7–1× el tiempo real) y es lo más lento de la cadena; encima, cada frase incluye 0,5 s de
+silencio de cierre y ~0,3 s de audio previo. El mismo modelo en el PC (faster-whisper, CPU int8, 8 hilos) tarda
+**~0,55 s** para 3 s de audio, y `small` en la gráfica (fp16) **~0,2 s** (en CPU `small` son 1,7 s: no sirve).
+
+**Qué se hizo:** el teléfono sigue cortando las frases y pasándolas por el filtro de «Vega» (barato), pero si hay
+enlace con el PC le manda la frase (`hear`: PCM16 en base64) y el PC contesta con el texto (`heard`). Si no hay PC, el PC
+no puede o tarda más de 2,5 s, oye el teléfono como siempre (`HybridEars`). El PC ya tenía el modelo cargado al arrancar.
+El audio no se guarda en ningún sitio ni el texto va a los registros; solo viajan por 127.0.0.1 con el token.
+
+Cambiar a un modelo mejor es una línea en `config/assistant.toml` (`stt_model = "small"`, `stt_device = "cuda"`,
+`stt_compute = "int8_float16"`: ~0,2 s y mejor español, a cambio de ~1 GB de vídeo mientras el PC está encendido).

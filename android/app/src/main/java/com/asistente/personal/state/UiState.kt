@@ -164,6 +164,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         }
         // La contesta el puente con el PC de la IA del teléfono; la pantalla no cambia.
         is ServerEvent.PhoneReply -> s
+        is ServerEvent.Heard -> s
         // La atiende AssistantController (pasa a dormir); la pantalla no cambia por sí sola.
         is ServerEvent.Sleep -> s
         // La pantalla del coche la guarda AssistantController (la usa el servicio de Android Auto).

@@ -120,6 +120,8 @@ sealed interface ServerEvent {
     data object Sleep : ServerEvent
     /** Respuesta del PC a una orden que entendió el teléfono (IA en el teléfono). */
     data class PhoneReply(val handled: Boolean, val text: String) : ServerEvent
+    /** Lo que el PC entendió de una frase que le mandó el teléfono (`ok` falso: que lo intente el teléfono). */
+    data class Heard(val id: Int, val ok: Boolean, val text: String) : ServerEvent
 }
 
 /** Como mucho cuántas bandas de frecuencia se aceptan del servidor (manda 24). */
@@ -201,6 +203,7 @@ object Protocol {
             "sleep" -> ServerEvent.Sleep
             "phone_control" -> ServerEvent.PhoneControl(o.getString("command"))
             "phone_reply" -> ServerEvent.PhoneReply(o.getBoolean("handled"), o.optString("text"))
+            "heard" -> ServerEvent.Heard(o.getInt("id"), o.optBoolean("ok", true), o.optString("text"))
             "telemetry" -> {
                 val arr = o.optJSONArray("upcoming")
                 fun optInt(k: String) = if (o.isNull(k)) null else o.getInt(k)
@@ -239,6 +242,9 @@ object Protocol {
         .put("sleeping", sleeping).put("mic", mic).put("battery", battery).put("charging", charging)
         .put("glass", glass).put("touch", touch.lowercase()).put("face", face).put("version", version).toString()
     fun sleepMode(on: Boolean): String = JSONObject().put("type", "sleep").put("on", on).toString()
+    /** Una frase de voz (PCM16 a 16 kHz, en base64) para que el PC la transcriba. */
+    fun hear(id: Int, pcm: ByteArray): String = JSONObject().put("type", "hear").put("id", id)
+        .put("audio", android.util.Base64.encodeToString(pcm, android.util.Base64.NO_WRAP)).toString()
     fun phoneCommand(text: String): String = JSONObject().put("type", "phone_command").put("text", text).toString()
     /** Quita una notificación del PC; con null, todas. */
     fun dismissNotification(id: Long?): String =

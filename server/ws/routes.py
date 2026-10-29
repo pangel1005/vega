@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import contextlib
 import logging
 import secrets
@@ -22,7 +24,7 @@ from server.memory.personal import PersonalMemory
 from server.memory.store import ConversationStore
 from server.skills.router import SkillRouter
 from server.skills.semantic import SemanticIntents
-from server.speech.base import SpeechToText
+from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
 from server.speech.tts import TextToSpeech
 from server.tools.actions import ActionRunner, load_actions
 from server.ws.protocol import (
@@ -35,6 +37,8 @@ from server.ws.protocol import (
     ConfirmEvent,
     DoneEvent,
     ErrorEvent,
+    Hear,
+    HeardEvent,
     Hello,
     ListenCancel,
     ListenStart,
@@ -178,6 +182,23 @@ def register_ws(
                     with contextlib.suppress(Exception):
                         await emit(ErrorEvent(message="No pude hacer eso; mira los registros."))
 
+        async def hear(msg: Hear) -> None:
+            """Transcribe una frase que cortó el teléfono. Nunca se guarda ni se escribe en los registros."""
+            if stt is None:
+                await emit(HeardEvent(id=msg.id, ok=False))
+                return
+            try:
+                pcm = base64.b64decode(msg.audio, validate=True)
+                pcm = pcm[: len(pcm) - len(pcm) % BYTES_PER_SAMPLE]
+                if not pcm or len(pcm) > settings.speech.max_seconds * SAMPLE_RATE * BYTES_PER_SAMPLE:
+                    raise ValueError("audio vacío o demasiado largo")
+                result = await asyncio.to_thread(stt.transcribe, pcm)
+            except (binascii.Error, ValueError, SttUnavailable) as exc:
+                log.warning("No pude transcribir la frase del teléfono (%s)", type(exc).__name__)
+                await emit(HeardEvent(id=msg.id, ok=False))
+                return
+            await emit(HeardEvent(id=msg.id, text=result.text))
+
         worker = asyncio.create_task(slow_worker())
         try:
             if desktop and hub is not None:
@@ -226,6 +247,10 @@ def register_ws(
                         await orchestrator.playback_done()
                     elif isinstance(msg, PhoneCommand):
                         slow.put_nowait(partial(orchestrator.phone_command, msg.text))
+                    elif isinstance(msg, Hear) and role == "phone":
+                        # Sin pasar por la cola lenta: el teléfono espera la transcripción y la voz que
+                        # esté diciendo el PC no debe retrasarla.
+                        orchestrator.spawn(hear(msg))
                     elif isinstance(msg, MemoryImport):
                         await orchestrator.import_memory(msg)
                     elif isinstance(msg, PhoneState) and hub is not None and role == "phone":

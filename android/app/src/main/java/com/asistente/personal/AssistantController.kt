@@ -35,6 +35,9 @@ private const val KEY_FLAT = "musica_portada_plana"
 
 /** Cuánto tiempo sin recibir volumen antes de dar la señal por perdida (el servidor manda ~20 por segundo). */
 const val MUSIC_SIGNAL_MS = 1_500L
+
+/** Cuánto espera el teléfono a que el PC transcriba una frase antes de oírla él mismo (el PC tarda ~0,5 s). */
+const val HEAR_PC_MS = 2_500L
 private const val KEY_GLASS = "estilo_cristal"
 private const val KEY_TERMINAL = "estilo_terminal"
 private const val KEY_ORB = "estilo_orbe"
@@ -239,7 +242,12 @@ class AssistantController(context: Context) {
                         name = ui.assistant.ifEmpty { "Vega" },
                         skills = com.asistente.personal.local.Skills(phoneMemory, battery = { battery.takeIf { it >= 0 } }),
                         memory = phoneMemory,
-                        ears = com.asistente.personal.local.WhisperEars(models.whisper),
+                        ears = com.asistente.personal.local.HybridEars(
+                            local = com.asistente.personal.local.WhisperEars(models.whisper),
+                            remote = ::hearWithPc,
+                            clock = { android.os.SystemClock.elapsedRealtime() },
+                            log = { android.util.Log.i("Vega", it) },
+                        ),
                         mouth = com.asistente.personal.local.PiperMouth(models.piper),
                         events = { event ->
                             mainThread.post {
@@ -328,6 +336,31 @@ class AssistantController(context: Context) {
         private set
 
     @Volatile private var pcAnswer: java.util.concurrent.CompletableFuture<ServerEvent.PhoneReply>? = null
+    @Volatile private var pcHeard: java.util.concurrent.CompletableFuture<ServerEvent.Heard>? = null
+    @Volatile private var pcHeardId = 0
+    private val hearIds = java.util.concurrent.atomic.AtomicInteger()
+
+    /**
+     * Le manda la frase al PC para que la transcriba (más rápido que el teléfono). Espera como mucho
+     * [HEAR_PC_MS]; si no hay enlace, el PC no puede o tarda más que el teléfono, devuelve null y oye el teléfono.
+     * Solo se atiende la respuesta con el mismo número: una tardía de la frase anterior no sirve para esta.
+     */
+    private fun hearWithPc(samples: FloatArray): String? {
+        if (ui.link != LinkStatus.OPEN) return null
+        val id = hearIds.incrementAndGet()
+        val answer = java.util.concurrent.CompletableFuture<ServerEvent.Heard>()
+        pcHeardId = id
+        pcHeard = answer
+        try {
+            if (!socket.send(Protocol.hear(id, com.asistente.personal.local.floatToPcm16(samples)))) return null
+            val heard = answer.get(HEAR_PC_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            return if (heard.ok) heard.text.trim() else null
+        } catch (_: Exception) {
+            return null
+        } finally {
+            pcHeard = null
+        }
+    }
 
     /**
      * Pasa al PC una orden que ya entendió el teléfono (sus habilidades y botones, sin modelo).
@@ -517,6 +550,7 @@ class AssistantController(context: Context) {
             }
             if (event is ServerEvent.PhoneControl) mainThread.post { obey(event.command) }
             if (event is ServerEvent.PhoneReply) pcAnswer?.complete(event)
+            if (event is ServerEvent.Heard && event.id == pcHeardId) pcHeard?.complete(event)
             if (event is ServerEvent.Audio) pcVoiceStarted?.complete(true)
             if (event is ServerEvent.AudioEnd) {
                 pcVoiceStarted?.complete(false) // el PC no tiene voz

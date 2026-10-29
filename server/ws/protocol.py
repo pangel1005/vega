@@ -22,6 +22,9 @@ Cliente → servidor:
                                          modelo; contesta con «phone_reply»
     {"type": "memory_import", "facts": [...], "notes": [...], "reminders": [{"kind",
      "text", "due_at"}]}                 lo que el teléfono guardó sin PC
+    {"type": "hear", "id": 7, "audio": "<PCM16 mono 16 kHz en base64>"}  (IA en el teléfono) una frase
+                                         que el teléfono ya cortó: el PC la transcribe (más rápido que
+                                         el teléfono) y contesta con «heard». No se guarda nada
     {"type": "say", "text": "..."}       (IA en el teléfono) el PC lo dice con su voz (Kokoro en
                                          el procesador): suena más natural que la del teléfono
     {"type": "phone_state", "brain": "pc|phone", "sleeping": false, "mic": true, "battery": 91,
@@ -67,6 +70,8 @@ Servidor → cliente:
      "message": "...", "data": {...}}   (app del PC) respuesta a «maintenance»
     {"type": "sleep"}                    «Vega, duérmete»: el teléfono pasa a dormir
     {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
+    {"type": "heard", "id": 7, "ok": true, "text": "..."}  respuesta a «hear» (ok false: no se pudo
+                                         transcribir y el teléfono usa su propio oído)
                                          (lo dice el teléfono con su voz)
     {"type": "notifications", "items": [{"id", "app", "title", "body", "at", "icon"}]}
     {"type": "music_spectrum", "bands": [0.1, 0.8, ...]}  (teléfono) cuánto suena cada banda de frecuencias
@@ -170,6 +175,19 @@ class PhoneCommand(_Msg):
 
     type: Literal["phone_command"] = "phone_command"
     text: str = Field(min_length=1, max_length=1000)
+
+
+# Una frase de voz dura como mucho 12 s en el teléfono (Segmenter): 12 s · 32 000 B/s en base64 son ~512 000
+# caracteres. Se deja holgura y el límite real en segundos lo pone `speech.max_seconds`.
+MAX_HEAR_CHARS = 2_000_000
+
+
+class Hear(_Msg):
+    """IA en el teléfono: una frase de voz (PCM16 mono 16 kHz, base64) que el PC debe transcribir."""
+
+    type: Literal["hear"] = "hear"
+    id: int
+    audio: str = Field(min_length=1, max_length=MAX_HEAR_CHARS)
 
 
 class ImportedReminder(_Msg):
@@ -297,6 +315,7 @@ AnyClientMessage = (
     | Brain
     | NotificationDismiss
     | PhoneCommand
+    | Hear
     | MemoryImport
     | Say
     | SleepMode
@@ -487,6 +506,15 @@ class PhoneReplyEvent(_Msg):
     text: str = ""
 
 
+class HeardEvent(_Msg):
+    """Lo que el PC entendió de una frase del teléfono. Sin texto y `ok` falso: que lo intente el teléfono."""
+
+    type: Literal["heard"] = "heard"
+    id: int
+    ok: bool = True
+    text: str = ""
+
+
 class NotificationItem(_Msg):
     id: int
     app: str
@@ -538,6 +566,7 @@ ServerEvent = (
     | MusicSpectrumEvent
     | NotificationsEvent
     | PhoneReplyEvent
+    | HeardEvent
     | SleepEvent
     | PhoneStateEvent
     | PhoneControlEvent
