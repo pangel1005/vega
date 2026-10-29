@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Protocol
 
 from server.device.games import Game, GameWatcher
+from server.device.match import Match
 from server.device.media import Command, MediaWatcher, NowPlaying
 from server.device.notifications import NotificationReader, PcNotification
 from server.memory.personal import PersonalMemory, Reminder
@@ -23,6 +24,8 @@ from server.skills.status import PcSample, sample_pc
 from server.ws.protocol import (
     GameEvent,
     GameNews,
+    GameStat,
+    MatchEvent,
     MediaEvent,
     MusicLevelEvent,
     MusicSpectrumEvent,
@@ -57,6 +60,12 @@ class Listener(Protocol):
     async def send_event(self, event: ServerEvent) -> None: ...
 
     async def send_actions(self) -> None: ...
+
+
+def _steady(event: GameEvent) -> GameEvent:
+    """El evento sin lo que avanza solo (sesión y reloj de la partida), para ver si cambió algo de verdad."""
+    match = None if event.match is None else event.match.model_copy(update={"clock": None})
+    return event.model_copy(update={"played": 0, "match": match})
 
 
 class Hub:
@@ -231,7 +240,13 @@ class Hub:
             except Exception:
                 log.debug("No pude mandar lo que suena a un cliente", exc_info=True)
 
-    def _game_event(self, game: Game | None) -> GameEvent:
+    def _read_game(self) -> tuple[Game | None, Match | None]:
+        """El juego abierto y su partida en curso. Puede esperar a una API local: va en un hilo aparte."""
+        assert self._games is not None
+        game = self._games.current()
+        return game, self._games.match(game)
+
+    def _game_event(self, game: Game | None, found: Match | None = None) -> GameEvent:
         if self._games is None:
             return GameEvent(active=False)
         if game is None:
@@ -271,20 +286,28 @@ class Hub:
             ach_recent=list(ach.recent) if ach else [],
             friends=list(live.friends),
             account=self._games.account,
+            match=None
+            if found is None
+            else MatchEvent(
+                title=found.title,
+                score=found.score,
+                clock=found.clock,
+                clock_step=found.clock_step,
+                stats=[GameStat(label=k, value=v) for k, v in found.stats],
+                feed=list(found.feed),
+                hint=found.hint,
+            ),
         )
 
     async def send_game(self) -> None:
         """Manda al teléfono el juego que se está jugando, cuando empieza, termina o llega su información."""
         if self._games is None or not self._with_role("phone"):
             return
-        event = self._game_event(await asyncio.to_thread(self._games.current))
+        game, found = await asyncio.to_thread(self._read_game)
+        event = self._game_event(game, found)
         previous = self._game_sent
-        # `played` crece solo: el teléfono lo sigue contando, así que no cuenta como cambio.
-        if (
-            self._game_known
-            and previous is not None
-            and event.model_copy(update={"played": 0}) == previous.model_copy(update={"played": 0})
-        ):
+        # La sesión y el reloj de la partida avanzan solos (el teléfono los cuenta): no son un cambio.
+        if self._game_known and previous is not None and _steady(event) == _steady(previous):
             return
         self._game_sent, self._game_known = event, True
         await self.broadcast("phone", event)

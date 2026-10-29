@@ -125,6 +125,10 @@ class GameSettings(_Section):
     ignore: list[int] = []
     # Con tu cuenta conectada (config/steam_key.txt): enseñar qué amigos de Steam juegan a lo mismo ahora.
     friends: bool = True
+    # La partida en curso desde las APIs locales oficiales de League of Legends y Rocket League (solo
+    # lectura, sin salir del PC). false = sin sección «Partida».
+    match: bool = True
+    rocket_port: int = Field(default=49123, ge=1, le=65535)
 
 
 class IntentSettings(_Section):

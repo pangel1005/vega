@@ -27,6 +27,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from server.device.match import Match, MatchSource
 from server.device.steam_web import Live, SteamWeb
 
 log = logging.getLogger(__name__)
@@ -225,8 +226,10 @@ class GameWatcher:
         now: Callable[[], float] = time.time,
         background: bool = True,
         web: SteamWeb | None = None,
+        matches: MatchSource | None = None,
     ) -> None:
         self._web = web
+        self._matches = matches
         self._last_played: dict[int, float] = {}
         self._playtime_2w: dict[int, float] = {}
         self._steam = steam
@@ -355,11 +358,29 @@ class GameWatcher:
 
     # --- el juego de ahora ---
 
+    def _riot_game(self) -> Game | None:
+        """League of Legends: solo cuenta mientras hay partida (el cliente abierto no es una partida)."""
+        starts = [t for exe, t in self._scan() if exe.lower().endswith("\\league of legends.exe")]
+        if not starts:
+            return None
+        real = [t for t in starts if t > 0]
+        key = "riot:lol"
+        return Game(
+            key=key,
+            name="League of Legends",
+            source="Riot",
+            appid=None,
+            started=min(real) if real else self._seen.setdefault(key, self._now()),
+            art_id="",
+            hours=None,
+            size_gb=None,
+        )
+
     def current(self) -> Game | None:
         """El juego en marcha, o None. Barato: se puede llamar cada segundo."""
         with self._lock:
             self._refresh()
-            game = self._steam_game() or self._epic_game()
+            game = self._steam_game() or self._epic_game() or self._riot_game()
             keys = {game.key} if game else set()
             for gone in set(self._seen) - keys:
                 del self._seen[gone]  # al cerrarlo, la próxima vez cuenta desde cero
@@ -431,6 +452,33 @@ class GameWatcher:
                 )
                 for when, appid in found[:count]
             ]
+
+    def match(self, game: Game | None) -> Match | None:
+        """La partida en curso si el juego tiene API local (LoL, Rocket League); sin juego, deja de mirar."""
+        if self._matches is None:
+            return None
+        if game is None:
+            self._matches.idle()
+            return None
+        return self._matches.match(game.name, game.key)
+
+    def rocket_ini(self) -> Path | None:
+        """El archivo de configuración de la Stats API de Rocket League, si está instalado (Epic o Steam)."""
+        with self._lock:
+            self._refresh()
+            folders = [
+                Path(where) for _app, name, where in self._epic_apps if "rocket league" in name.lower()
+            ]
+            folders += [
+                lib / "common" / folder
+                for name, folder, _size, lib in self._steam_apps.values()
+                if "rocket league" in name.lower() and folder
+            ]
+        for folder in folders:
+            ini = folder / "TAGame" / "Config" / "DefaultStatsAPI.ini"
+            if ini.is_file():
+                return ini
+        return None
 
     def live(self, game: Game) -> Live:
         """Jugadores, noticias y (con cuenta) logros y amigos del juego abierto; vacío si no es de Steam."""

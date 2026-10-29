@@ -70,6 +70,21 @@ data class GameInfo(
     val players: Int? = null,
     val news: List<GameNews> = emptyList(),
     val friends: List<String> = emptyList(),
+    val match: MatchInfo? = null,
+)
+
+/**
+ * La partida en curso (League of Legends, Rocket League…). `clock` son los segundos de partida al llegar y `clockStep`
+ * hacia dónde va (+1 sube, −1 baja, 0 parado); con solo `hint`, lo que falta para poder verla.
+ */
+data class MatchInfo(
+    val title: String,
+    val score: String,
+    val clock: Double?,
+    val clockStep: Int,
+    val stats: List<Pair<String, String>>,
+    val feed: List<String>,
+    val hint: String,
 )
 
 /** Una novedad del juego (parche, anuncio); `at` en segundos desde 1970. */
@@ -238,6 +253,18 @@ object Protocol {
                         List(a.length()) { i -> a.getJSONObject(i).let { GameNews(it.optString("title"), it.optDouble("at", 0.0)) } }
                     }.orEmpty(),
                     friends = o.optJSONArray("friends")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
+                    match = o.optJSONObject("match")?.let { m ->
+                        MatchInfo(
+                            title = m.optString("title"), score = m.optString("score"),
+                            clock = if (m.isNull("clock")) null else m.optDouble("clock"),
+                            clockStep = m.optInt("clock_step"),
+                            stats = m.optJSONArray("stats")?.let { a ->
+                                List(a.length()) { i -> a.getJSONObject(i).let { it.optString("label") to it.optString("value") } }
+                            }.orEmpty(),
+                            feed = m.optJSONArray("feed")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
+                            hint = m.optString("hint"),
+                        )
+                    },
                 ),
                 recent = o.optJSONArray("recent")?.let { a ->
                     List(a.length()) { i ->

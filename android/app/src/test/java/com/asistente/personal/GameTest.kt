@@ -15,6 +15,7 @@ import com.asistente.personal.net.DeckAction
 import com.asistente.personal.net.GameInfo
 import com.asistente.personal.net.GameNews
 import com.asistente.personal.net.LinkStatus
+import com.asistente.personal.net.MatchInfo
 import com.asistente.personal.net.Protocol
 import com.asistente.personal.net.RecentGame
 import com.asistente.personal.net.ServerEvent
@@ -38,6 +39,7 @@ import com.asistente.personal.ui.firstSidePage
 import com.asistente.personal.ui.friendsLabel
 import com.asistente.personal.ui.gameSections
 import com.asistente.personal.ui.hoursLabel
+import com.asistente.personal.ui.matchSeconds
 import com.asistente.personal.ui.nextSidePage
 import com.asistente.personal.ui.playedLabel
 import com.asistente.personal.ui.playersLabel
@@ -193,6 +195,90 @@ class GameTest {
         assertEquals(SidePage.BODY, nextSidePage(all, SidePage.MUSIC, forward = false))
         assertEquals("Cuerpo", SidePage.BODY.label(brainOnPhone = true))
         assertEquals("Juego", SidePage.GAME.label(brainOnPhone = false))
+    }
+
+    // --- La partida en curso ---
+
+    private val lol = MatchInfo(
+        title = "Clásica · Grieta del Invocador", score = "9 – 9", clock = 1_472.0, clockStep = 1,
+        stats = listOf("Campeón" to "Ahri", "Nivel" to "11", "K / D / A" to "5 / 2 / 7", "Súbditos" to "144 · 5,9/min", "Oro" to "8 540"),
+        feed = listOf("Torre destruida", "Dragón", "Yo#EUW eliminó a Rival1"), hint = "",
+    )
+    private val rocket = MatchInfo(
+        title = "Partida en curso", score = "2 – 1", clock = 134.0, clockStep = -1,
+        stats = listOf("Puntos" to "410", "Goles" to "2", "Asistencias" to "1", "Paradas" to "3", "Tiros" to "5", "Demoliciones" to "1"),
+        feed = listOf("Yo: Save", "¡Gol de Yo!"), hint = "",
+    )
+
+    @Test fun theMatchClockKeepsRunningOnThePhoneInTheRightDirection() {
+        assertEquals(1_502L, matchSeconds(lol, receivedAt = 0, now = 30_000)) // League sube
+        assertEquals(104L, matchSeconds(rocket, receivedAt = 0, now = 30_000)) // Rocket League baja
+        assertEquals(0L, matchSeconds(rocket, receivedAt = 0, now = 500_000)) // sin pasarse de cero
+        assertEquals(134L, matchSeconds(rocket.copy(clockStep = 0), receivedAt = 0, now = 30_000)) // repetición: parado
+        assertNull(matchSeconds(lol.copy(clock = null), 0, 1_000))
+    }
+
+    @Test fun theMatchComesFirstWhenThereIsOne() {
+        assertEquals(GameSection.MATCH, gameSections(game.copy(match = lol)).first())
+        assertEquals(GameSection.SESSION, gameSections(game).first())
+    }
+
+    @Test fun theMatchIsReadFromTheEvent() {
+        val e = Protocol.parse(
+            """{"type":"game","active":true,"key":"riot:lol","name":"League of Legends","source":"Riot","played":5.0,""" +
+                """"match":{"title":"Clásica","score":"9 – 9","clock":1472.5,"clock_step":1,""" +
+                """"stats":[{"label":"Oro","value":"8 540"}],"feed":["Dragón"],"hint":""}}""",
+        ) as ServerEvent.Game
+        val m = e.game!!.match!!
+        assertEquals("9 – 9", m.score)
+        assertEquals(1, m.clockStep)
+        assertEquals("Oro" to "8 540", m.stats.single())
+        assertEquals(listOf("Dragón"), m.feed)
+        // Sin API de partida (o sin partida): el campo no está y nada se rompe.
+        assertNull((Protocol.parse("""{"type":"game","active":true,"key":"k","name":"X","source":"Steam","played":1}""") as ServerEvent.Game).game!!.match)
+    }
+
+    private fun matchScreen(match: MatchInfo, name: String, title: String) {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            GameScreen(
+                game.copy(name = title, source = "Riot", match = match, achievements = null, players = null),
+                receivedAt = 0, now = { 0 }, art = null, accent = Color(0xFF3DA9FF), clock = "21:48", telemetry = telemetry, onClose = {},
+                actions = handy,
+            )
+        }
+        compose.mainClock.advanceTimeBy(400)
+        compose.onRoot().captureRoboImage("build/capturas/$name.png")
+    }
+
+    @Test fun matchScreenLeague() {
+        matchScreen(lol, "72_partida_lol", "League of Legends")
+        compose.onNodeWithText("9 – 9").assertExists()
+        compose.onNodeWithText("· Dragón").assertExists()
+    }
+
+    @Test fun matchScreenRocketLeague() {
+        matchScreen(rocket, "73_partida_rocket", "Rocket League")
+        compose.onNodeWithText("2 – 1").assertExists()
+    }
+
+    @Test fun matchScreenTellsHowToEnableTheApi() {
+        matchScreen(MatchInfo("", "", null, 0, emptyList(), emptyList(), "Para ver la partida de Rocket League, activa su API: pon PacketSendRate=10."), "74_partida_sin_api", "Rocket League")
+        compose.onNodeWithText("PacketSendRate", substring = true).assertExists()
+    }
+
+    @Test fun theCardShowsTheLiveScore() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            GameCard(
+                game.copy(name = "League of Legends", source = "Riot", match = lol), 600, null, Color(0xFF3DA9FF), telemetry, onOpen = {},
+                modifier = androidx.compose.ui.Modifier.width(250.dp).height(200.dp),
+            )
+        }
+        compose.mainClock.advanceTimeBy(300)
+        compose.onNodeWithText("9 – 9").assertExists()
+        compose.onNodeWithText("5 / 2 / 7").assertExists()
+        compose.onRoot().captureRoboImage("build/capturas/75_tarjeta_partida.png")
     }
 
     // --- Cómo se ve ---

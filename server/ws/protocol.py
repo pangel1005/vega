@@ -468,6 +468,23 @@ class RecentGameItem(_Msg):
     last_played: float = 0.0  # segundos desde 1970 (UTC)
 
 
+class GameStat(_Msg):
+    label: str
+    value: str
+
+
+class MatchEvent(_Msg):
+    """La partida en curso (League of Legends, Rocket League…). Con solo `hint`: qué falta para verla."""
+
+    title: str = ""
+    score: str = ""
+    clock: float | None = None  # segundos de partida al mandarlo
+    clock_step: int = 0  # +1 sube, −1 baja, 0 parado: el teléfono lo sigue contando
+    stats: list[GameStat] = []
+    feed: list[str] = []
+    hint: str = ""
+
+
 class GameEvent(_Msg):
     """El juego al que se juega en el PC (o `active = false`). La carátula está en /app/games/art/<art>.jpg;
     los segundos de la sesión los sigue contando el teléfono desde `played`."""
@@ -496,6 +513,7 @@ class GameEvent(_Msg):
     friends: list[str] = []  # amigos que juegan a esto ahora (solo con cuenta)
     account: bool = False  # ¿hay una cuenta de Steam conectada?
     recent: list[RecentGameItem] = []  # los últimos juegos, para cuando no hay ninguno abierto
+    match: MatchEvent | None = None  # la partida en curso, si el juego tiene una API local
 
 
 class PhoneStateEvent(PhoneState):

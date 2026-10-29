@@ -26,6 +26,7 @@ from server.device.audio_capture import SpotifyTap
 from server.device.audio_meter import AudioMeter
 from server.device.games import GameWatcher, epic_manifests, steam_id64, steam_root
 from server.device.lyrics import LyricsFinder
+from server.device.match import MatchSource, RocketLeagueStats
 from server.device.media import MediaWatcher
 from server.device.notifications import NotificationReader
 from server.device.steam_web import SteamWeb, read_key
@@ -153,6 +154,11 @@ def create_app(
             log.warning(
                 "config/steam_key.txt no tiene una clave de Steam válida (32 caracteres hexadecimales)"
             )
+        # Las APIs locales de las partidas (League of Legends, Rocket League) solo se leen si se permite.
+        holder: list[GameWatcher] = []
+        rocket = RocketLeagueStats(
+            lambda: holder[0].rocket_ini() if holder else None, port=settings.games.rocket_port
+        )
         games = GameWatcher(
             steam,
             epic_manifests(),
@@ -162,7 +168,9 @@ def create_app(
             web=SteamWeb(key, steam_id64(steam), friends=settings.games.friends)
             if settings.games.store_info
             else None,
+            matches=MatchSource(rocket) if settings.games.match else None,
         )
+        holder.append(games)
     hub = Hub(
         memory,
         games=games,

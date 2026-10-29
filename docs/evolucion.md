@@ -580,3 +580,20 @@ una clave real**: las pruebas usan un Steam simulado. Datos de la *partida* en c
 da ningún juego de forma general: solo algunos tienen una API local oficial (CS2, Dota 2, League of Legends, Rocket
 League) y cada uno necesitaría su propia integración.
 
+### Etapa 34c — La partida en curso (League of Legends y Rocket League)
+
+Sección **Partida** (la primera de la pantalla grande cuando hay datos) y marcador en vivo en la tarjeta. Solo lectura y
+solo en el PC (`[games] match`), con las APIs locales oficiales (`server/device/match.py`):
+- **League of Legends** — «Live Client Data API» de Riot (`https://127.0.0.1:2999/liveclientdata/allgamedata`, sin clave;
+  solo existe durante una partida). Se enseñan *tus* datos (campeón, nivel, K/D/A, súbditos por minuto, oro), el marcador de
+  bajas y los objetivos (dragón, barón, torres). Nada que el juego oculte: ni objetos ni hechizos del equipo rival. El
+  campo de la política de Riot sobre «información que el jugador no conocía» se respeta por eso.
+- **Rocket League** — «Stats API» de Psyonix: socket TCP en `127.0.0.1:49123`. Viene **desactivada**
+  (`PacketSendRate=0` en `TAGame/Config/DefaultStatsAPI.ini`); `tools/rocket_league_stats.py --apply` pone 10 (hay que
+  reiniciar el juego; `--undo` la deja como estaba). Marcador, tiempo restante, tus puntos, goles, asistencias, paradas,
+  tiros y demoliciones, y los últimos sucesos (goles, paradas).
+
+**Estado de la verificación:** League se probó con datos del formato oficial de Riot (documentación y JSON de ejemplo) y
+Rocket League con un socket real simulado y los nombres de campo de su documentación, que no pude leer entera (403): se
+prueba con una partida de verdad. El detalle de la cuenta de Steam (etapa 34b) sigue igual de sin probar en vivo.
+

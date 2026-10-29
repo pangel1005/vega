@@ -91,6 +91,11 @@ ignore = []
 # api.steampowered.com. Con ella salen tus logros del juego y qué amigos juegan a lo mismo. Tu perfil de Steam debe
 # tener «Detalles del juego» en público. Sin ella, la sección funciona igual pero sin logros ni amigos.
 friends = true
+# La partida en curso (League of Legends y Rocket League) desde sus APIs locales oficiales, solo lectura: marcador,
+# tiempo y tus estadísticas. Rocket League trae su API desactivada: pon PacketSendRate=10 en
+# <instalación>/TAGame/Config/DefaultStatsAPI.ini y reinicia el juego (tools/rocket_league_stats.py lo hace).
+match = true
+rocket_port = 49123
 
 [intents]
 # Entender por significado: además de las frases exactas, Vega entiende «apágame la compu» o «súbele a la

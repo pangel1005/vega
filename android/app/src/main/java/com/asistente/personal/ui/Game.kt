@@ -240,7 +240,17 @@ fun GameCard(
             Text("${game.source} · ${playedLabel(seconds)}", maxLines = 1, style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink3))
         }
         Text(game.name, maxLines = 1, style = Vega.body.copy(fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold))
-        PcStats(telemetry, accent, Modifier.fillMaxWidth().padding(top = 2.dp))
+        // Con partida en curso, su marcador en vivo sustituye a las cifras del PC (que están en la pantalla grande).
+        val live = game.match?.takeIf { it.score.isNotEmpty() }
+        if (live != null) {
+            Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(live.score, maxLines = 1, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 20.sp, color = accent))
+                Spacer(Modifier.weight(1f))
+                Text(live.stats.firstOrNull { it.first.startsWith("K") }?.second ?: live.title, maxLines = 1, style = Vega.label.copy(fontSize = 11.sp, color = Vega.Ink2))
+            }
+        } else {
+            PcStats(telemetry, accent, Modifier.fillMaxWidth().padding(top = 2.dp))
+        }
     }
 }
 
@@ -286,14 +296,24 @@ private fun Chip(text: String, color: Color) {
 }
 
 /** Las secciones de la pantalla grande. */
-enum class GameSection(val label: String) { SESSION("Sesión"), GAME("Juego"), COMMUNITY("Comunidad"), ACHIEVEMENTS("Logros") }
+enum class GameSection(val label: String) {
+    MATCH("Partida"), SESSION("Sesión"), GAME("Juego"), COMMUNITY("Comunidad"), ACHIEVEMENTS("Logros")
+}
 
 /** Las secciones que tienen algo que enseñar: sesión y juego siempre; comunidad y logros solo si hay datos. */
 fun gameSections(game: GameInfo): List<GameSection> = buildList {
+    if (game.match != null) add(GameSection.MATCH) // la partida en curso va primera: es lo que importa ahora
     add(GameSection.SESSION)
     add(GameSection.GAME)
     if (game.players != null || game.news.isNotEmpty() || game.friends.isNotEmpty()) add(GameSection.COMMUNITY)
     if (game.achievements != null || game.achUnlocked != null) add(GameSection.ACHIEVEMENTS)
+}
+
+/** Segundos de partida ahora: lo que dijo el juego al mandarlo más lo que pasó desde entonces (sube o baja según el juego). */
+fun matchSeconds(match: com.asistente.personal.net.MatchInfo, receivedAt: Long, now: Long): Long? {
+    val base = match.clock ?: return null
+    val moved = match.clockStep * (now - receivedAt).coerceAtLeast(0) / 1000.0
+    return (base + moved).coerceAtLeast(0.0).toLong()
 }
 
 /** Los botones de la hoja «Más» que sirven jugando, en este orden (solo los que existan). */
@@ -325,6 +345,47 @@ private fun SessionGraph(samples: List<GameSample>, accent: Color, modifier: Mod
             started = true
         }
         drawPath(temp, Vega.Amber, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun MatchSection(match: com.asistente.personal.net.MatchInfo, receivedAt: Long, now: () -> Long, accent: Color) {
+    // El reloj de la partida lo sigue contando el teléfono entre aviso y aviso.
+    var seconds by remember(match, receivedAt) { mutableStateOf(matchSeconds(match, receivedAt, now())) }
+    LaunchedEffect(match, receivedAt) {
+        while (match.clockStep != 0) {
+            seconds = matchSeconds(match, receivedAt, now())
+            delay(1000)
+        }
+    }
+    Column(Modifier.fillMaxWidth()) {
+        if (match.score.isEmpty() && match.stats.isEmpty()) {
+            Text(match.hint.ifEmpty { "Sin datos de la partida todavía." }, style = Vega.body.copy(fontSize = 14.sp, lineHeight = 19.sp, color = Vega.Ink2))
+            return@Column
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(match.score, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 34.sp, color = accent))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.padding(bottom = 5.dp)) {
+                Text(match.title, maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Ink2))
+                seconds?.let { Text(sessionClock(it), style = Vega.label.copy(fontSize = 12.sp, color = Vega.Ink3)) }
+            }
+        }
+        if (match.stats.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth().card().padding(vertical = 8.dp, horizontal = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                match.stats.take(6).forEach { (label, value) ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(value, maxLines = 1, style = Vega.body.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Vega.Ink))
+                        Text(label.uppercase(), maxLines = 1, style = Vega.label.copy(fontSize = 8.sp, letterSpacing = 0.8.sp, color = Vega.Ink3))
+                    }
+                }
+            }
+        }
+        if (match.feed.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            match.feed.take(3).forEach { Text("· $it", maxLines = 1, modifier = Modifier.padding(top = 2.dp), style = Vega.body.copy(fontSize = 13.sp, color = Vega.Ink2)) }
+        }
     }
 }
 
@@ -463,12 +524,13 @@ fun GameScreen(
     onPress: (String) -> Unit = {},
     account: Boolean = false,
     wallSeconds: Long = System.currentTimeMillis() / 1000,
-    startSection: GameSection = GameSection.SESSION,
+    startSection: GameSection? = null,
 ) {
     val seconds = liveSession(game, receivedAt, now)
     val sections = gameSections(game)
     var section by remember { mutableStateOf(startSection) }
-    val shown = if (section in sections) section else GameSection.SESSION
+    // Sin elegir otra, se ve la partida si la hay (aparece cuando empieza) y si no la sesión.
+    val shown = section?.takeIf { it in sections } ?: sections.first()
     Box(
         modifier.fillMaxSize().background(Vega.Bg)
             .background(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.28f), Color.Transparent))),
@@ -509,6 +571,7 @@ fun GameScreen(
                     Spacer(Modifier.height(10.dp))
                     Box(Modifier.fillMaxWidth().weight(1f)) {
                         when (shown) {
+                            GameSection.MATCH -> game.match?.let { MatchSection(it, receivedAt, now, accent) }
                             GameSection.SESSION -> SessionSection(game, samples, telemetry, accent)
                             GameSection.GAME -> InfoSection(game, accent)
                             GameSection.COMMUNITY -> CommunitySection(game, account, wallSeconds, accent)
