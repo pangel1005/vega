@@ -44,10 +44,14 @@ fun FarScreen(m: ScreenModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.width(28.dp))
         Column {
             Text(m.date, TextStyle(fontFamily = Vega.Sans, fontSize = 16.sp, color = Color(0xFF7A766F)), maxLines = 1)
-            Text(
-                word + if (ui.link != LinkStatus.OPEN && !m.brainOnPhone) " · sin PC" else "",
-                TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 28.sp, color = Color(0xFFB9B2A6)), maxLines = 1,
-            )
+            val state = listOfNotNull(word.ifEmpty { null }, if (ui.link != LinkStatus.OPEN && !m.brainOnPhone) "sin PC" else null)
+                .joinToString(" · ")
+            if (state.isNotEmpty()) {
+                Text(
+                    state,
+                    TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 28.sp, color = Color(0xFFB9B2A6)), maxLines = 1,
+                )
+            }
             nextAlert(ui.telemetry?.upcoming.orEmpty(), ui.telemetryAt, m.nowMs, m.wallMs, m.localNext)?.let {
                 Text(nextAlertLabel(it, m.wallMs), TextStyle(fontFamily = Vega.Sans, fontSize = 18.sp, color = Color(0xFFB98A2E)), maxLines = 1)
             }

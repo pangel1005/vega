@@ -58,7 +58,7 @@ object Phosphor {
 /** El texto de una línea de estado: «> OÍDO ........ ACTIVO», con puntos de relleno hasta la columna. */
 fun statusLine(label: String, value: String): String = "> " + (label + " ").padEnd(11, '.') + " " + value
 
-/** Cómo se llama lo que hace Vega ahora, en el idioma de la terminal. */
+/** Cómo se llama lo que hace Vega ahora, en el idioma de la terminal. En reposo con el micrófono abierto no se dice nada. */
 fun terminalStatus(state: AssistantState, sleeping: Boolean, micOn: Boolean): String = when {
     sleeping -> "REPOSO"
     state == AssistantState.LISTENING -> "ESCUCHANDO"
@@ -66,7 +66,7 @@ fun terminalStatus(state: AssistantState, sleeping: Boolean, micOn: Boolean): St
     state == AssistantState.SPEAKING -> "HABLANDO"
     state == AssistantState.ACTING -> "ACTUANDO"
     state == AssistantState.ERROR -> "ERROR"
-    micOn -> "A LA ESCUCHA"
+    micOn -> ""
     else -> "SILENCIO"
 }
 
@@ -164,7 +164,7 @@ fun NostromoScreen(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("VEGA//OS 4.2 · TERMINAL 01 · ${m.date.uppercase()}", glow(18, Phosphor.Dim), Modifier.weight(1f))
                 Text(
-                    "● $status", glow(19, if (m.state == AssistantState.ERROR) Phosphor.Alert else Phosphor.Amber),
+                    if (status.isEmpty()) "●" else "● $status", glow(19, if (m.state == AssistantState.ERROR) Phosphor.Alert else Phosphor.Amber),
                     Modifier.semantics { contentDescription = "Estado: $status" },
                 )
                 Spacer(Modifier.width(18.dp))

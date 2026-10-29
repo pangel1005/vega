@@ -27,7 +27,7 @@ class NostromoTest {
         assertEquals("ESCUCHANDO", terminalStatus(AssistantState.LISTENING, sleeping = false, micOn = true))
         assertEquals("PENSANDO", terminalStatus(AssistantState.THINKING, false, true))
         assertEquals("HABLANDO", terminalStatus(AssistantState.SPEAKING, false, true))
-        assertEquals("A LA ESCUCHA", terminalStatus(AssistantState.IDLE, false, true))
+        assertEquals("", terminalStatus(AssistantState.IDLE, false, true)) // en reposo con el micro abierto no dice nada
         assertEquals("SILENCIO", terminalStatus(AssistantState.IDLE, false, false))
         assertEquals("REPOSO", terminalStatus(AssistantState.SPEAKING, sleeping = true, micOn = true)) // dormida manda
         assertEquals("ERROR", terminalStatus(AssistantState.ERROR, false, true))

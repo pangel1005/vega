@@ -235,7 +235,7 @@ fun OrbScreen(
     Box(modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF07080C), Color(0xFF020203))))) {
         Canvas(
             Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onAttention() } }
-                .semantics { contentDescription = "Vega: $status" },
+                .semantics { contentDescription = "Vega: ${status.ifEmpty { "lista" }}" },
         ) {
             val t = phase
             val dim = if (m.sleeping) 0.45f else 1f
@@ -383,7 +383,8 @@ fun OrbScreen(
                 Box(Modifier.size(7.dp).background(color, CircleShape))
                 Spacer(Modifier.width(7.dp))
                 Text(
-                    status + if (ui.pcNotes.isNotEmpty()) "  ·  ${ui.pcNotes.size} avisos" else "",
+                    listOfNotNull(status.ifEmpty { null }, if (ui.pcNotes.isNotEmpty()) "${ui.pcNotes.size} avisos" else null)
+                        .joinToString("  ·  "),
                     TextStyle(fontFamily = Vega.Sans, fontSize = 14.sp, color = Color(0xFFA29D93)),
                     maxLines = 1,
                 )
