@@ -378,6 +378,13 @@ class MatchSource:
         low = name.lower()
         if key == "riot:lol" or "league of legends" in low:
             return self._league()
+        if key == "riot:valorant":
+            # Riot no da ninguna API de la partida en vivo de VALORANT (su anti-trampas, Vanguard, lo impide):
+            # solo hay sesión y cifras del PC. Se dice una vez, en vez de dejar la sección sin explicar.
+            return Match(
+                hint="VALORANT no ofrece ninguna API oficial de la partida en vivo (Riot no la permite, y su "
+                "anti-trampas Vanguard bloquea leer el juego), así que aquí solo salen la sesión y el PC."
+            )
         if "rocket league" in low and self._rocket is not None:
             return self._rocket.read()
         self._close_rocket()

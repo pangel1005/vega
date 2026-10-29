@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from server.core.hub import Hub
 from server.device.games import GameWatcher
 from server.device.match import (
@@ -276,3 +278,38 @@ def test_hub_sends_the_match_but_not_every_tick_of_its_clock(tmp_path: Path) -> 
     match = events[0].match
     assert match is not None and match.score == "9 – 9" and match.clock_step == 1
     assert {s.label for s in match.stats} >= {"K / D / A", "Oro"}
+
+
+def test_valorant_is_a_game_without_a_live_match_and_says_why(tmp_path: Path) -> None:
+    exe = r"C:\Riot Games\VALORANT\live\ShooterGame\Binaries\Win64\VALORANT-Win64-Shipping.exe"
+    w = watcher(tmp_path, [(exe, 800.0)])
+    game = w.current()
+    assert game is not None and (game.key, game.name, game.source, game.started) == (
+        "riot:valorant", "VALORANT", "Riot", 800.0,
+    )  # fmt: skip
+    m = MatchSource().match(game.name, game.key)
+    assert m is not None and m.score == "" and "Vanguard" in m.hint  # no se inventa nada: se explica
+    launcher = [(r"C:\Riot Games\VALORANT\live\VALORANT.exe", 1.0)]
+    assert watcher(tmp_path, launcher).current() is None  # el lanzador no cuenta
+
+
+def test_games_without_cover_get_their_icon_on_a_colored_background(
+    tmp_path: Path, monkeypatch: "pytest.MonkeyPatch"
+) -> None:
+    from io import BytesIO
+
+    from PIL import Image
+
+    import server.tools.app_icons as app_icons
+
+    icon = Image.new("RGBA", (256, 256), (230, 60, 60, 255))
+    buffer = BytesIO()
+    icon.save(buffer, "PNG")
+    monkeypatch.setattr(app_icons, "extract_png", lambda _exe, _size=96: buffer.getvalue())
+    w = watcher(tmp_path, [(r"C:\Riot Games\League of Legends\Game\League of Legends.exe", 700.0)])
+    game = w.current()
+    assert game is not None and game.art_id == "exe-lol"
+    data = w.art("exe-lol")
+    assert data is not None and data[:2] == bytes([0xFF, 0xD8])
+    assert Image.open(BytesIO(data)).size == (640, 300)
+    assert w.art("exe-desconocido") is None  # un id que nadie registró no abre ningún archivo

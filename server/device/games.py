@@ -40,6 +40,11 @@ STORE_URL = "https://store.steampowered.com/api/appdetails"
 RETRY_SECONDS = 600  # tras fallar la tienda, no se vuelve a probar hasta pasado este tiempo
 REFRESH_SECONDS = 60  # cada cuánto se vuelven a leer los manifiestos y las horas jugadas
 SCAN_SECONDS = 5  # cada cuánto se miran los procesos (Epic y hora de inicio)
+# Los juegos de Riot, por el nombre de su programa de partida (no el cliente): clave, nombre.
+RIOT_GAMES = {
+    "league of legends.exe": ("riot:lol", "League of Legends"),
+    "valorant-win64-shipping.exe": ("riot:valorant", "VALORANT"),
+}
 STORE_KEYS = (
     "short_description",
     "developers",
@@ -255,6 +260,7 @@ class GameWatcher:
         self._info: dict[int, GameInfo] = {}
         self._asked: dict[int, float] = {}
         self._art: dict[str, bytes | None] = {}
+        self._exe_art: dict[str, Path] = {}  # id de carátula → programa del que sacar el icono
 
     # --- lectura de Steam y Epic ---
 
@@ -359,22 +365,24 @@ class GameWatcher:
     # --- el juego de ahora ---
 
     def _riot_game(self) -> Game | None:
-        """League of Legends: solo cuenta mientras hay partida (el cliente abierto no es una partida)."""
-        starts = [t for exe, t in self._scan() if exe.lower().endswith("\\league of legends.exe")]
-        if not starts:
-            return None
-        real = [t for t in starts if t > 0]
-        key = "riot:lol"
-        return Game(
-            key=key,
-            name="League of Legends",
-            source="Riot",
-            appid=None,
-            started=min(real) if real else self._seen.setdefault(key, self._now()),
-            art_id="",
-            hours=None,
-            size_gb=None,
-        )
+        """Los juegos de Riot: solo cuentan mientras hay partida (el cliente abierto no es una partida)."""
+        for exe, when in self._scan():
+            found = RIOT_GAMES.get(exe.lower().rsplit("\\", 1)[-1])
+            if found is None:
+                continue
+            key, name = found
+            self._exe_art[f"exe-{key.split(':')[1]}"] = Path(exe)
+            return Game(
+                key=key,
+                name=name,
+                source="Riot",
+                appid=None,
+                started=when if when > 0 else self._seen.setdefault(key, self._now()),
+                art_id=f"exe-{key.split(':')[1]}",
+                hours=None,
+                size_gb=None,
+            )
+        return None
 
     def current(self) -> Game | None:
         """El juego en marcha, o None. Barato: se puede llamar cada segundo."""
@@ -415,17 +423,20 @@ class GameWatcher:
         procs = self._scan()
         for app, name, where in self._epic_apps:
             inside = where.rstrip("\\/").lower() + "\\"
-            starts = [t for exe, t in procs if exe.lower().startswith(inside)]
+            running = [(exe, t) for exe, t in procs if exe.lower().startswith(inside)]
+            starts = [t for _exe, t in running]
             if starts:
                 key = f"epic:{app}"
                 real = [t for t in starts if t > 0]
+                art = "exe-" + re.sub(r"[^a-z0-9]+", "-", app.lower()).strip("-")
+                self._exe_art[art] = Path(running[0][0])
                 return Game(
                     key=key,
-                    name=name or app,
+                    name=re.sub(r"[®™]", "", name or app).strip(),
                     source="Epic",
                     appid=None,
                     started=min(real) if real else self._seen.setdefault(key, self._now()),
-                    art_id="",
+                    art_id=art,
                     hours=None,
                     size_gb=None,
                 )
@@ -510,12 +521,45 @@ class GameWatcher:
 
     def art(self, art_id: str) -> bytes | None:
         """La carátula en JPEG (de la caché de Steam, sin internet), o None."""
+        if art_id.startswith("exe-"):  # juegos sin carátula (Epic, Riot): su icono sobre un fondo de su color
+            if art_id not in self._art:
+                exe = self._exe_art.get(art_id)
+                self._art[art_id] = self._render_icon_art(exe) if exe else None
+            return self._art[art_id]
         m = re.fullmatch(r"steam-(\d+)", art_id)
         if m is None:
             return None
         if art_id not in self._art:
             self._art[art_id] = self._render_art(self._steam_art(int(m.group(1))))
         return self._art[art_id]
+
+    @staticmethod
+    def _render_icon_art(exe: Path) -> bytes | None:
+        """El icono del juego en grande sobre un degradado de su color (como una carátula)."""
+        from server.tools.app_icons import extract_png
+
+        png = extract_png(exe, 256)
+        if png is None:
+            return None
+        try:
+            from PIL import Image
+
+            with Image.open(io.BytesIO(png)) as source:
+                icon = source.convert("RGBA")
+            tiny = icon.resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))
+            red, green, blue = (int(c) for c in tiny[:3]) if isinstance(tiny, tuple) else (60, 60, 80)
+            canvas = Image.new("RGB", (ART_WIDTH, 300))
+            for y in range(300):  # de su color, oscurecido, hacia casi negro
+                shade = 0.55 - 0.45 * y / 300
+                canvas.paste(
+                    (int(red * shade), int(green * shade), int(blue * shade)), (0, y, ART_WIDTH, y + 1)
+                )
+            canvas.paste(icon, ((ART_WIDTH - 256) // 2, 22), icon)
+            out = io.BytesIO()
+            canvas.save(out, "JPEG", quality=88)
+            return out.getvalue()
+        except (OSError, ValueError):
+            return None
 
     @staticmethod
     def _render_art(path: Path | None) -> bytes | None:
