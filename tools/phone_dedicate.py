@@ -34,44 +34,19 @@ STATE = ROOT / "data" / "telefono_antes.json"
 VEGA = "com.asistente.personal"
 
 # Se apagan (pm disable-user). Los que no estén o no se dejen, se saltan.
-DISABLE = """
-cn.wps.moffice_eng cn.wps.xiaomi.abroad.lite com.block.juggle com.einnovation.temu com.facebook.katana
-com.linkedin.android com.mi.global.bbs com.microsoft.skydrive com.miui.huanji com.netease.newspike
-com.netflix.mediaclient com.nf.snake com.oakever.arrows com.oakever.tiletrip com.ordinaryjoy.woodblast
-com.soulcompany.bubbleshooter.relaxing com.spotify.music com.sukhavati.gotoplaying.bubble.BubbleShooter.mint
-com.vitastudio.mahjong com.zhiliaoapp.musically com.xiaomi.midrop com.xiaomi.smarthome com.xiaomi.calendar
-com.xiaomi.scanner com.miui.weather2 com.miui.mediaeditor
-com.google.android.apps.chromecast.app com.google.android.apps.walletnfcrel com.google.android.apps.bard
-com.google.android.apps.docs com.google.android.apps.maps com.google.android.apps.photos
-com.google.android.apps.messaging com.google.android.apps.tachyon com.google.android.apps.wellbeing
-com.google.android.apps.safetyhub com.google.android.apps.subscriptions.red com.google.android.apps.youtube.music
-com.google.android.gm com.google.android.youtube com.google.android.videos com.google.android.projection.gearhead
-com.google.android.apps.restore com.google.android.ondevicepersonalization.services
-com.google.android.federatedcompute com.google.android.feedback com.google.android.partnersetup
-com.google.android.googlequicksearchbox com.google.android.healthconnect.controller
-com.google.android.health.connect.backuprestore com.google.ambient.streaming com.google.android.adservices.api
-com.google.mainline.adservices com.google.mainline.telemetry com.google.android.printservice.recommendation
-com.android.chrome com.android.bips
-com.miui.bugreport com.miui.cloudbackup com.miui.cloudservice com.miui.micloudsync com.xiaomi.micloud.sdk
-com.miui.backup com.miui.gallery com.miui.player com.miui.videoplayer com.mi.globalbrowser com.mi.appfinder
-com.mi.android.globalFileexplorer com.miui.fm com.miui.fmservice com.miui.extraphoto com.miui.miservice
-com.miui.mishare.connectivity com.xiaomi.mi_connect_service com.xiaomi.aiasst.vision com.xiaomi.aicr
-com.xiaomi.discover com.xiaomi.barrage com.xiaomi.cameramind com.xiaomi.finddevice com.xiaomi.simactivate.service
-com.xiaomi.ugd com.miui.thirdappassistant com.miui.phrase com.miui.cleaner com.miui.mediaviewer
-com.miui.analytics com.xiaomi.joyose com.miui.msa.global com.xiaomi.mipicks com.miui.hybrid
-com.miui.systemAdSolution com.mi.globalminusscreen
-com.mediatek.callrecorder com.mediatek.magtapp com.mediatek.mdmlsample com.mediatek.engineermode
-com.android.vending com.google.android.gms.location.history com.google.android.syncadapters.calendar
-com.google.android.gms com.google.android.gsf
-""".split()
+DISABLE = ["cn.wps.moffice_eng", "cn.wps.xiaomi.abroad.lite", "com.block.juggle", "com.einnovation.temu", "com.facebook.katana", "com.linkedin.android", "com.mi.global.bbs", "com.microsoft.skydrive", "com.miui.huanji", "com.netease.newspike", "com.netflix.mediaclient", "com.nf.snake", "com.oakever.arrows", "com.oakever.tiletrip", "com.ordinaryjoy.woodblast", "com.soulcompany.bubbleshooter.relaxing", "com.spotify.music", "com.sukhavati.gotoplaying.bubble.BubbleShooter.mint", "com.vitastudio.mahjong", "com.zhiliaoapp.musically", "com.xiaomi.midrop", "com.xiaomi.smarthome", "com.xiaomi.calendar", "com.xiaomi.scanner", "com.miui.weather2", "com.miui.mediaeditor", "com.google.android.apps.chromecast.app", "com.google.android.apps.walletnfcrel", "com.google.android.apps.bard", "com.google.android.apps.docs", "com.google.android.apps.maps", "com.google.android.apps.photos", "com.google.android.apps.messaging", "com.google.android.apps.tachyon", "com.google.android.apps.wellbeing", "com.google.android.apps.safetyhub", "com.google.android.apps.subscriptions.red", "com.google.android.apps.youtube.music", "com.google.android.gm", "com.google.android.youtube", "com.google.android.videos", "com.google.android.projection.gearhead", "com.google.android.apps.restore", "com.google.android.ondevicepersonalization.services", "com.google.android.federatedcompute", "com.google.android.feedback", "com.google.android.partnersetup", "com.google.android.googlequicksearchbox", "com.google.android.healthconnect.controller", "com.google.android.health.connect.backuprestore", "com.google.ambient.streaming", "com.google.android.adservices.api", "com.google.mainline.adservices", "com.google.mainline.telemetry", "com.google.android.printservice.recommendation", "com.android.chrome", "com.android.bips", "com.miui.bugreport", "com.miui.cloudbackup", "com.miui.cloudservice", "com.miui.micloudsync", "com.xiaomi.micloud.sdk", "com.miui.backup", "com.miui.gallery", "com.miui.player", "com.miui.videoplayer", "com.mi.globalbrowser", "com.mi.appfinder", "com.mi.android.globalFileexplorer", "com.miui.fm", "com.miui.fmservice", "com.miui.extraphoto", "com.miui.miservice", "com.miui.mishare.connectivity", "com.xiaomi.mi_connect_service", "com.xiaomi.aiasst.vision", "com.xiaomi.aicr", "com.xiaomi.discover", "com.xiaomi.barrage", "com.xiaomi.cameramind", "com.xiaomi.finddevice", "com.xiaomi.simactivate.service", "com.xiaomi.ugd", "com.miui.thirdappassistant", "com.miui.phrase", "com.miui.cleaner", "com.miui.mediaviewer", "com.miui.analytics", "com.xiaomi.joyose", "com.miui.msa.global", "com.xiaomi.mipicks", "com.miui.hybrid", "com.miui.systemAdSolution", "com.mi.globalminusscreen", "com.mediatek.callrecorder", "com.mediatek.magtapp", "com.mediatek.mdmlsample", "com.mediatek.engineermode", "com.android.vending", "com.google.android.gms.location.history", "com.google.android.syncadapters.calendar", "com.google.android.gms", "com.google.android.gsf"]
 
 # Android Auto necesita Google Play Services y la tienda (el Android Auto del teléfono es solo un
 # marcador de sistema: la app de verdad se instala desde Google Play, con tu cuenta).
 CAR_PACKAGES = [
-    "com.google.android.gms", "com.google.android.gsf", "com.android.vending",
-    "com.google.android.projection.gearhead", "com.google.android.gms.location.history",
+    "com.google.android.gms",
+    "com.google.android.gsf",
+    "com.android.vending",
+    "com.google.android.projection.gearhead",
+    "com.google.android.gms.location.history",
     # Lo que se usa EN el coche: Google Maps, la app de Google («Hey Google» en Android Auto) y YouTube Music.
-    "com.google.android.apps.maps", "com.google.android.googlequicksearchbox",
+    "com.google.android.apps.maps",
+    "com.google.android.googlequicksearchbox",
     "com.google.android.apps.youtube.music",
 ]
 # Estas se apagaron (no se quitaron): basta con encenderlas. Waze no viene en el teléfono: se instala desde Play.
@@ -81,7 +56,9 @@ CAR_ENABLE = ["com.spotify.music"]
 # aunque estuvieran restringidos y se llevaban ~480 MB: se quitan; ver DISABLE.)
 RESTRICT = [
     "com.xiaomi.xmsf",
-    "com.google.android.apps.nbu.files", "com.google.android.contacts", "com.google.android.dialer",
+    "com.google.android.apps.nbu.files",
+    "com.google.android.contacts",
+    "com.google.android.dialer",
 ]
 
 # Ajustes del sistema: (espacio, clave, valor nuevo).
@@ -95,7 +72,9 @@ SETTINGS = [
 
 
 def adb(*args: str, check: bool = False) -> str:
-    out = subprocess.run(["adb", "shell", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    out = subprocess.run(
+        ["adb", "shell", *args], capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
     text = (out.stdout + out.stderr).strip()
     if check and out.returncode:
         raise SystemExit(f"adb {' '.join(args)}: {text}")
@@ -103,11 +82,18 @@ def adb(*args: str, check: bool = False) -> str:
 
 
 def packages(flags: str) -> set[str]:
-    return {line.removeprefix("package:") for line in adb("pm", "list", "packages", *flags.split()).splitlines() if line}
+    return {
+        line.removeprefix("package:")
+        for line in adb("pm", "list", "packages", *flags.split()).splitlines()
+        if line
+    }
 
 
 def status() -> None:
-    mem = {k: int(v.split()[0]) for k, v in (line.split(":") for line in adb("cat", "/proc/meminfo").splitlines() if ":" in line)}
+    mem = {
+        k: int(v.split()[0])
+        for k, v in (line.split(":") for line in adb("cat", "/proc/meminfo").splitlines() if ":" in line)
+    }
     print(f"RAM libre: {mem['MemAvailable'] / 1024:.0f} MB de {mem['MemTotal'] / 1024:.0f} MB")
     swap_used = (mem["SwapTotal"] - mem["SwapFree"]) / 1024
     print(f"Swap en uso: {swap_used:.0f} MB")
@@ -118,7 +104,11 @@ def status() -> None:
 
 def apply() -> None:
     STATE.parent.mkdir(parents=True, exist_ok=True)
-    saved = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"disabled": [], "settings": {}, "buckets": {}}
+    saved = (
+        json.loads(STATE.read_text(encoding="utf-8"))
+        if STATE.exists()
+        else {"disabled": [], "settings": {}, "buckets": {}}
+    )
     enabled = packages("-e")
 
     print("— Apagando apps —")
@@ -157,7 +147,16 @@ def apply() -> None:
         adb("cmd", "appops", "set", VEGA, op, "allow")
 
     print("— Pantalla de inicio —")
-    current = adb("cmd", "package", "resolve-activity", "--brief", "-c", "android.intent.category.HOME", "-a", "android.intent.action.MAIN").splitlines()
+    current = adb(
+        "cmd",
+        "package",
+        "resolve-activity",
+        "--brief",
+        "-c",
+        "android.intent.category.HOME",
+        "-a",
+        "android.intent.action.MAIN",
+    ).splitlines()
     before = current[-1].strip() if current else ""
     if before and before != f"{VEGA}/.MainActivity":
         saved.setdefault("home", before)
@@ -177,18 +176,28 @@ def car_on() -> None:
     """Repone lo que Android Auto necesita. Después: abre Google Play en el teléfono, instala «Android Auto»
     con tu cuenta y sigue docs/coche.md."""
     STATE.parent.mkdir(parents=True, exist_ok=True)
-    saved = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"disabled": [], "settings": {}, "buckets": {}}
+    saved = (
+        json.loads(STATE.read_text(encoding="utf-8"))
+        if STATE.exists()
+        else {"disabled": [], "settings": {}, "buckets": {}}
+    )
     for pkg in CAR_PACKAGES:
         print(f"   {pkg}: {adb('cmd', 'package', 'install-existing', '--user', '0', pkg)}")
     for pkg in CAR_ENABLE:
         print(f"   {pkg}: {adb('pm', 'enable', '--user', '0', pkg)}")
     saved["car"] = True
     STATE.write_text(json.dumps(saved, indent=2), encoding="utf-8")
-    print("\nListo. Abre Google Play en el teléfono, inicia sesión e instala «Android Auto» (y Waze, si lo quieres).")
+    print(
+        "\nListo. Abre Google Play en el teléfono, inicia sesión e instala «Android Auto» (y Waze, si lo quieres)."
+    )
 
 
 def car_off() -> None:
-    saved = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"disabled": [], "settings": {}, "buckets": {}}
+    saved = (
+        json.loads(STATE.read_text(encoding="utf-8"))
+        if STATE.exists()
+        else {"disabled": [], "settings": {}, "buckets": {}}
+    )
     removed = set(saved.get("removed", []))
     for pkg in CAR_PACKAGES:
         if "Success" in adb("pm", "uninstall", "-k", "--user", "0", pkg):
@@ -222,8 +231,12 @@ def undo() -> None:
         else:
             adb("settings", "put", space, name, value)
     STATE.unlink()
-    print(f"Vuelto a como estaba: {len(saved['disabled']) + len(saved.get('removed', []))} apps repuestas y los ajustes restaurados.")
+    print(
+        f"Vuelto a como estaba: {len(saved['disabled']) + len(saved.get('removed', []))} apps repuestas y los ajustes restaurados."
+    )
 
 
 if __name__ == "__main__":
-    {"--undo": undo, "--status": status, "--car": car_on, "--no-car": car_off}.get(sys.argv[1] if len(sys.argv) > 1 else "", apply)()
+    {"--undo": undo, "--status": status, "--car": car_on, "--no-car": car_off}.get(
+        sys.argv[1] if len(sys.argv) > 1 else "", apply
+    )()

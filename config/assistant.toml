@@ -96,6 +96,9 @@ friends = true
 # <instalación>/TAGame/Config/DefaultStatsAPI.ini y reinicia el juego (tools/rocket_league_stats.py lo hace).
 match = true
 rocket_port = 49123
+# Forza Horizon: activa «Data Out» en los ajustes del juego con IP 127.0.0.1 y este puerto UDP.
+forza_port = 5300
+# Counter-Strike 2: la integración oficial («Game State Integration») la crea tools/cs2_gsi.py con tu permiso.
 
 [intents]
 # Entender por significado: además de las frases exactas, Vega entiende «apágame la compu» o «súbele a la

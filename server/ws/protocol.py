@@ -483,6 +483,7 @@ class MatchEvent(_Msg):
     stats: list[GameStat] = []
     feed: list[str] = []
     hint: str = ""
+    colors: list[str] = []  # un color (#RRGGBB) por cada lado del marcador
 
 
 class GameEvent(_Msg):

@@ -54,6 +54,7 @@ def test_league_match_shows_my_data_and_the_team_score() -> None:
     assert stats["Campeón"] == "Ahri" and stats["Nivel"] == "11" and stats["K / D / A"] == "5 / 2 / 7"
     assert stats["Súbditos"] == "144 · 5,9/min" and stats["Oro"] == "8 540"
     assert m.feed == ("Torre destruida", "Dragón", "Yo#EUW eliminó a Rival1")  # lo más nuevo primero
+    assert m.colors == ("#3DA9FF", "#FF4D5E")  # mi equipo (ORDER) azul, el rival rojo
     # Nada del equipo rival que el juego oculte: ni objetos ni hechizos.
     assert "secreto" not in json.dumps(m, default=str, ensure_ascii=False)
 
@@ -110,6 +111,7 @@ def test_rocket_league_state_becomes_a_match() -> None:
     m = state.match()
     assert m is not None
     assert m.score == "2 – 1"  # azul (0) primero, aunque llegara después
+    assert m.colors == ("#3D8BFF", "#FF8A3D")  # azul y naranja, en el orden del marcador
     assert (m.title, m.clock, m.clock_step) == ("Partida en curso", 134.0, -1)  # la cuenta atrás baja
     assert (
         dict(m.stats)["Goles"] == "2" and dict(m.stats)["Paradas"] == "3" and dict(m.stats)["Puntos"] == "410"

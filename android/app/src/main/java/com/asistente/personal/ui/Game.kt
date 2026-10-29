@@ -1,6 +1,26 @@
 package com.asistente.personal.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -150,12 +170,112 @@ private fun GameArt(art: ImageBitmap?, name: String, accent: Color, modifier: Mo
     if (art != null) {
         Image(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = modifier.clip(shape))
     } else {
-        Box(modifier.clip(shape).background(accent.copy(alpha = 0.22f)), contentAlignment = Alignment.Center) {
+        val fill = Brush.linearGradient(listOf(accent.copy(alpha = 0.42f), accent.copy(alpha = 0.06f)))
+        Box(modifier.clip(shape).background(fill), contentAlignment = Alignment.Center) {
             Text(
                 name.firstOrNull { it.isLetterOrDigit() }?.uppercase().orEmpty(),
                 style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = initialSize, color = accent),
             )
         }
+    }
+}
+
+/** Un punto que late: «en vivo». */
+@Composable
+private fun LiveDot(color: Color, size: Dp = 7.dp) {
+    val transition = rememberInfiniteTransition(label = "latido")
+    val alpha by transition.animateFloat(0.3f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "alfa")
+    Box(Modifier.size(size).graphicsLayer { this.alpha = alpha }.background(color, CircleShape))
+}
+
+private fun parseHex(hex: String?): Color? =
+    try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { null }
+
+/** El marcador con el color de cada equipo; al cambiar, los números dan un salto (gol, baja). */
+@Composable
+private fun ScoreBoard(score: String, colors: List<String>, accent: Color, size: TextUnit) {
+    val parts = score.split(" – ")
+    val pulse = remember { Animatable(1f) }
+    var last by remember { mutableStateOf(score) }
+    LaunchedEffect(score) {
+        if (score != last) {
+            last = score
+            pulse.snapTo(1.3f)
+            pulse.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 300f))
+        }
+    }
+    Row(
+        Modifier.semantics(mergeDescendants = true) { contentDescription = "marcador $score" }.graphicsLayer {
+            scaleX = pulse.value
+            scaleY = pulse.value
+            transformOrigin = TransformOrigin(0f, 1f)
+        },
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        parts.forEachIndexed { i, part ->
+            if (i > 0) Text(" – ", style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = size, color = Vega.Ink3))
+            Text(part, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = size, color = parseHex(colors.getOrNull(i)) ?: accent))
+        }
+    }
+}
+
+/** «5 / 2 / 7» con las bajas en verde, las muertes en rojo y las asistencias en azul. */
+@Composable
+private fun Kda(value: String) {
+    val parts = value.split(" / ")
+    if (parts.size != 3) {
+        Text(value, maxLines = 1, style = Vega.body.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold))
+        return
+    }
+    val bold = Vega.body.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold)
+    Row {
+        Text(parts[0], style = bold.copy(color = Vega.Mint))
+        Text(" / ", style = bold.copy(color = Vega.Ink3))
+        Text(parts[1], style = bold.copy(color = Vega.Red))
+        Text(" / ", style = bold.copy(color = Vega.Ink3))
+        Text(parts[2], style = bold.copy(color = Vega.Sky))
+    }
+}
+
+/** El color de un suceso de la partida: bajas en rojo, objetivos en ámbar, goles y paradas en verde. */
+fun feedColor(text: String): Color = when {
+    "eliminó" in text -> Vega.Red
+    listOf("Dragón", "Barón", "Heraldo", "Torre", "Inhibidor", "Ace").any { it in text } -> Vega.Amber
+    "Gol" in text || "Save" in text || "Fin de" in text -> Vega.Mint
+    else -> Vega.Ink3
+}
+
+/** Un medidor de arco (como un cuentarrevoluciones) con su cifra dentro; la aguja se mueve suave. */
+@Composable
+private fun ArcGauge(fraction: Float, value: String, label: String, color: Color, modifier: Modifier = Modifier) {
+    val sweep by animateFloatAsState(fraction.coerceIn(0f, 1f), tween(700), label = "aguja")
+    Box(modifier.aspectRatio(1f), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize().padding(3.dp)) {
+            val stroke = 5.dp.toPx()
+            val arc = Size(size.width - stroke, size.height - stroke)
+            val at = Offset(stroke / 2, stroke / 2)
+            drawArc(Vega.Line, 135f, 270f, false, at, arc, style = Stroke(stroke, cap = StrokeCap.Round))
+            if (sweep > 0.01f) drawArc(color, 135f, 270f * sweep, false, at, arc, style = Stroke(stroke, cap = StrokeCap.Round))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value, maxLines = 1, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 15.sp, color = color))
+            Text(label, maxLines = 1, style = Vega.label.copy(fontSize = 7.sp, letterSpacing = 0.6.sp, color = Vega.Ink3))
+        }
+    }
+}
+
+/** GPU, temperatura, vídeo y procesador como cuatro medidores de arco. */
+@Composable
+private fun PcGauges(t: Telemetry?, accent: Color, modifier: Modifier = Modifier) {
+    if (t == null) return
+    Row(modifier, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        val size = Modifier.height(60.dp)
+        t.gpuUtil?.let { ArcGauge(it / 100f, "$it", "GPU %", accent, size) }
+        t.gpuTemp?.let { ArcGauge((it - 30) / 60f, "$it°", "TEMP", if (it >= 80) Vega.Red else if (it >= 70) Vega.Amber else accent, size) }
+        if (t.vramUsed != null && t.vramTotal != null && t.vramTotal > 0) {
+            ArcGauge((t.vramUsed / t.vramTotal).toFloat(), String.format(ES, "%.1f", t.vramUsed), "VÍDEO GB", accent, size)
+        }
+        ArcGauge(t.cpu / 100f, "${t.cpu}", "CPU %", accent, size)
     }
 }
 
@@ -235,6 +355,8 @@ fun GameCard(
         GameArt(art, game.name, accent, Modifier.fillMaxWidth().weight(1f), 12.dp)
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
+            LiveDot(accent, 6.dp)
+            Spacer(Modifier.width(5.dp))
             Text("JUGANDO", maxLines = 1, style = Vega.label.copy(fontSize = 9.sp, letterSpacing = 1.sp, color = accent))
             Spacer(Modifier.weight(1f))
             Text("${game.source} · ${playedLabel(seconds)}", maxLines = 1, style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink3))
@@ -244,7 +366,7 @@ fun GameCard(
         val live = game.match?.takeIf { it.score.isNotEmpty() }
         if (live != null) {
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(live.score, maxLines = 1, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 20.sp, color = accent))
+                ScoreBoard(live.score, live.colors, accent, 20.sp)
                 Spacer(Modifier.weight(1f))
                 Text(live.stats.firstOrNull { it.first.startsWith("K") }?.second ?: live.title, maxLines = 1, style = Vega.label.copy(fontSize = 11.sp, color = Vega.Ink2))
             }
@@ -364,7 +486,7 @@ private fun MatchSection(match: com.asistente.personal.net.MatchInfo, receivedAt
             return@Column
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(match.score, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 34.sp, color = accent))
+            ScoreBoard(match.score, match.colors, accent, 34.sp)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.padding(bottom = 5.dp)) {
                 Text(match.title, maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Ink2))
@@ -376,7 +498,8 @@ private fun MatchSection(match: com.asistente.personal.net.MatchInfo, receivedAt
             Row(Modifier.fillMaxWidth().card().padding(vertical = 8.dp, horizontal = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 match.stats.take(6).forEach { (label, value) ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(value, maxLines = 1, style = Vega.body.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Vega.Ink))
+                        if (label.startsWith("K")) Kda(value)
+                        else Text(value, maxLines = 1, style = Vega.body.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Vega.Ink))
                         Text(label.uppercase(), maxLines = 1, style = Vega.label.copy(fontSize = 8.sp, letterSpacing = 0.8.sp, color = Vega.Ink3))
                     }
                 }
@@ -384,7 +507,13 @@ private fun MatchSection(match: com.asistente.personal.net.MatchInfo, receivedAt
         }
         if (match.feed.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
-            match.feed.take(3).forEach { Text("· $it", maxLines = 1, modifier = Modifier.padding(top = 2.dp), style = Vega.body.copy(fontSize = 13.sp, color = Vega.Ink2)) }
+            match.feed.take(3).forEach {
+                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(6.dp).background(feedColor(it), CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                    Text(it, maxLines = 1, style = Vega.body.copy(fontSize = 13.sp, color = Vega.Ink2))
+                }
+            }
         }
     }
 }
@@ -401,9 +530,9 @@ private fun SessionSection(game: GameInfo, samples: List<GameSample>, telemetry:
             Text("esta sesión", style = Vega.label.copy(fontSize = 10.sp, color = Vega.Ink3))
         }
         Spacer(Modifier.height(4.dp))
-        SessionGraph(samples, accent, Modifier.fillMaxWidth().height(70.dp).background(Vega.Card, RoundedCornerShape(10.dp)))
-        Spacer(Modifier.height(8.dp))
-        PcStats(telemetry, accent, Modifier.fillMaxWidth().card().padding(vertical = 6.dp))
+        SessionGraph(samples, accent, Modifier.fillMaxWidth().height(52.dp).background(Vega.Card, RoundedCornerShape(10.dp)))
+        Spacer(Modifier.height(6.dp))
+        PcGauges(telemetry, accent, Modifier.fillMaxWidth())
         val notes = listOfNotNull(
             stats.gpuAvg?.let { "GPU media $it %" },
             stats.tempMax?.let { "máx. $it°" },
@@ -531,12 +660,18 @@ fun GameScreen(
     var section by remember { mutableStateOf(startSection) }
     // Sin elegir otra, se ve la partida si la hay (aparece cuando empieza) y si no la sesión.
     val shown = section?.takeIf { it in sections } ?: sections.first()
-    Box(
-        modifier.fillMaxSize().background(Vega.Bg)
-            .background(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.28f), Color.Transparent))),
-    ) {
+    Box(modifier.fillMaxSize().background(Vega.Bg)) {
+        // De fondo, la carátula grande, desenfocada y oscurecida; encima, un velo del color del juego.
+        if (art != null) Image(art, null, contentScale = ContentScale.Crop, alpha = 0.34f, modifier = Modifier.fillMaxSize().blur(26.dp))
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.horizontalGradient(listOf(accent.copy(alpha = 0.20f), Vega.Bg.copy(alpha = 0.55f), Vega.Bg.copy(alpha = 0.92f))),
+            ),
+        )
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 24.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                LiveDot(accent)
+                Spacer(Modifier.width(7.dp))
                 Text("Jugando en ${game.source}", maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = accent))
                 Spacer(Modifier.weight(1f))
                 Text(clock, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 18.sp, color = Vega.Ink3))
@@ -570,12 +705,18 @@ fun GameScreen(
                     }
                     Spacer(Modifier.height(10.dp))
                     Box(Modifier.fillMaxWidth().weight(1f)) {
-                        when (shown) {
-                            GameSection.MATCH -> game.match?.let { MatchSection(it, receivedAt, now, accent) }
-                            GameSection.SESSION -> SessionSection(game, samples, telemetry, accent)
-                            GameSection.GAME -> InfoSection(game, accent)
-                            GameSection.COMMUNITY -> CommunitySection(game, account, wallSeconds, accent)
-                            GameSection.ACHIEVEMENTS -> AchievementsSection(game, account, accent)
+                        AnimatedContent(
+                            targetState = shown,
+                            transitionSpec = { (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 12 }) togetherWith fadeOut(tween(120)) },
+                            label = "sección",
+                        ) { current ->
+                            when (current) {
+                                GameSection.MATCH -> game.match?.let { MatchSection(it, receivedAt, now, accent) }
+                                GameSection.SESSION -> SessionSection(game, samples, telemetry, accent)
+                                GameSection.GAME -> InfoSection(game, accent)
+                                GameSection.COMMUNITY -> CommunitySection(game, account, wallSeconds, accent)
+                                GameSection.ACHIEVEMENTS -> AchievementsSection(game, account, accent)
+                            }
                         }
                     }
                 }

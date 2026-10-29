@@ -24,6 +24,8 @@ from server.core.maintenance import Maintenance
 from server.core.stallwatch import StallWatch
 from server.device.audio_capture import SpotifyTap
 from server.device.audio_meter import AudioMeter
+from server.device.cs2 import Cs2State, cfg_installed, load_token
+from server.device.forza import ForzaTelemetry
 from server.device.games import GameWatcher, epic_manifests, steam_id64, steam_root
 from server.device.lyrics import LyricsFinder
 from server.device.match import MatchSource, RocketLeagueStats
@@ -46,6 +48,7 @@ from server.web import (
     UI_DIST,
     register_app_icons,
     register_game_art,
+    register_gsi,
     register_lyrics,
     register_media_art,
     register_notification_icons,
@@ -146,6 +149,7 @@ def create_app(
             margin=settings.intents.margin,
         )
     games = None
+    cs2_state: list[Cs2State] = []
     if settings.games.enabled and media is not None:  # sin «media» (pruebas) no hay nada del PC que mirar
         steam = steam_root()
         key_file = ROOT / "config" / "steam_key.txt"
@@ -155,6 +159,8 @@ def create_app(
                 "config/steam_key.txt no tiene una clave de Steam válida (32 caracteres hexadecimales)"
             )
         # Las APIs locales de las partidas (League of Legends, Rocket League) solo se leen si se permite.
+        cs2 = Cs2State(load_token(ROOT / "data" / "gsi_token.txt"))
+        cs2_state.append(cs2)
         holder: list[GameWatcher] = []
         rocket = RocketLeagueStats(
             lambda: holder[0].rocket_ini() if holder else None, port=settings.games.rocket_port
@@ -168,7 +174,14 @@ def create_app(
             web=SteamWeb(key, steam_id64(steam), friends=settings.games.friends)
             if settings.games.store_info
             else None,
-            matches=MatchSource(rocket) if settings.games.match else None,
+            matches=MatchSource(
+                rocket,
+                cs2=cs2,
+                cs2_installed=lambda: cfg_installed(holder[0].steam_install(730)),
+                forza=ForzaTelemetry(settings.games.forza_port),
+            )
+            if settings.games.match
+            else None,
         )
         holder.append(games)
     hub = Hub(
@@ -224,6 +237,8 @@ def create_app(
         register_app_icons(app, app_icons)
     register_media_art(app, hub.media_art)
     register_game_art(app, hub.game_art)
+    if cs2_state:
+        register_gsi(app, cs2_state[0].feed)
     register_phone_models(app)
     register_notification_icons(app, hub.notification_icon)
     register_lyrics(app, LyricsFinder(ROOT / "data" / "lyrics", enabled=settings.media.lyrics))

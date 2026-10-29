@@ -597,3 +597,21 @@ solo en el PC (`[games] match`), con las APIs locales oficiales (`server/device/
 Rocket League con un socket real simulado y los nombres de campo de su documentación, que no pude leer entera (403): se
 prueba con una partida de verdad. El detalle de la cuenta de Steam (etapa 34b) sigue igual de sin probar en vivo.
 
+### Etapa 34d — Rediseño y más juegos (CS2, Forza Horizon, Rainbow Six, Valorant)
+
+**Diseño:** la pantalla grande usa la carátula como fondo (desenfocada), un punto «en vivo» que late, medidores de
+arco para GPU, temperatura, vídeo y procesador, marcador con el color de cada equipo que salta al cambiar, K/D/A en
+colores, sucesos con punto de color por tipo, transición entre secciones y, para juegos sin carátula (Epic, Riot,
+Ubisoft), el icono real del juego sobre un degradado de su color.
+
+**Juegos:**
+- *Counter-Strike 2* (`server/device/cs2.py`): «Game State Integration» de Valve. El juego manda JSON a
+  `http://127.0.0.1:8000/app/gsi/cs2` con una clave propia (`data/gsi_token.txt`); sin la clave se rechaza (403). Solo
+  se enseñan tus datos si el aviso es de tu jugador. `tools/cs2_gsi.py --apply` crea el archivo `.cfg` en la carpeta del
+  juego (solo lectura sin opciones; `--undo` lo borra). **CS2 no está instalado en este PC**, así que solo se probó con
+  avisos simulados.
+- *Forza Horizon* (`server/device/forza.py`): «Data Out» por UDP en `127.0.0.1:5300` (se activa en el juego). Formato de
+  Horizon 4/5 (324 bytes); si Horizon 6 manda otro tamaño la pantalla dice cuál llega. Sin probar con el juego.
+- *Rainbow Six Siege*: detectado por su programa (Ubisoft). *VALORANT*: sesión y PC (Riot no da API de partida).
+- *Brawlhalla, Marvel Rivals, Fortnite*: sin API de partida; salen sesión, PC, comunidad y logros.
+

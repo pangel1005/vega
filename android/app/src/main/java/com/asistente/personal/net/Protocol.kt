@@ -85,6 +85,8 @@ data class MatchInfo(
     val stats: List<Pair<String, String>>,
     val feed: List<String>,
     val hint: String,
+    /** Un color (#RRGGBB) por cada lado del marcador. */
+    val colors: List<String> = emptyList(),
 )
 
 /** Una novedad del juego (parche, anuncio); `at` en segundos desde 1970. */
@@ -263,6 +265,7 @@ object Protocol {
                             }.orEmpty(),
                             feed = m.optJSONArray("feed")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
                             hint = m.optString("hint"),
+                            colors = m.optJSONArray("colors")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
                         )
                     },
                 ),

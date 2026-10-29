@@ -77,7 +77,10 @@ def main() -> int:
                 rate = event["rate"]
                 if first_audio is None:
                     first_audio = time.perf_counter() - start
-                print(f"\n[voz {event['seq']} a los {time.perf_counter() - start:.2f} s: «{event['text']}»]", flush=True)
+                print(
+                    f"\n[voz {event['seq']} a los {time.perf_counter() - start:.2f} s: «{event['text']}»]",
+                    flush=True,
+                )
             elif kind == "audio_end":
                 print("\n[fin de la voz]", flush=True)
             elif kind == "history":

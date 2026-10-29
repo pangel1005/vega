@@ -51,7 +51,19 @@ NEGATIVE = [
     "Ella navega todos los veranos.", "Mi abuela riega las plantas.", "Juega con nosotros.",
     "Nos vemos mañana.", "Bueno, pues ya está.", "Eso es todo por hoy.", "Pásame el mando.",
 ]  # fmt: skip
-NEG_STARTS = ["llega", "pega", "venga", "vela", "juega", "riega", "entrega", "bodega", "pelea", "navega", "mega"]
+NEG_STARTS = [
+    "llega",
+    "pega",
+    "venga",
+    "vela",
+    "juega",
+    "riega",
+    "entrega",
+    "bodega",
+    "pelea",
+    "navega",
+    "mega",
+]
 
 KOKORO_TRAIN = ["ef_dora", "em_alex", "af_heart", "af_bella", "af_nicole", "am_adam", "am_michael", "bf_emma",
                 "bm_george", "if_sara", "im_nicola", "pf_dora", "ff_siwis"]  # fmt: skip
@@ -97,12 +109,16 @@ def kokoro_job(voice: str) -> list[tuple[np.ndarray, int, str]]:
 
     options = ort.SessionOptions()
     options.intra_op_num_threads = 4
-    session = ort.InferenceSession(str(ROOT / "models/kokoro/kokoro-v1.0.onnx"), options, providers=["CPUExecutionProvider"])
+    session = ort.InferenceSession(
+        str(ROOT / "models/kokoro/kokoro-v1.0.onnx"), options, providers=["CPUExecutionProvider"]
+    )
     engine = Kokoro.from_session(session, str(ROOT / "models/kokoro/voices-v1.0.bin"))
     r = random.Random(voice)
     out = []
     for text, label in texts(hash(voice) % 10_000, 70, 80):
-        samples, rate = engine.create(text, voice=voice, speed=r.uniform(0.85, 1.25), lang=r.choice(["es", "es-419"]))
+        samples, rate = engine.create(
+            text, voice=voice, speed=r.uniform(0.85, 1.25), lang=r.choice(["es", "es-419"])
+        )
         out.append((resample(np.asarray(samples, dtype=np.float32), rate), label, f"kokoro:{voice}"))
     return out
 
@@ -117,7 +133,10 @@ def piper_job(spec: tuple[str, int | None]) -> list[tuple[np.ndarray, int, str]]
     out = []
     for text, label in texts(hash((name, speaker)) % 10_000, 110, 130):
         config = SynthesisConfig(
-            speaker_id=speaker, length_scale=r.uniform(0.8, 1.25), noise_scale=r.uniform(0.5, 0.9), noise_w_scale=r.uniform(0.6, 1.0)
+            speaker_id=speaker,
+            length_scale=r.uniform(0.8, 1.25),
+            noise_scale=r.uniform(0.5, 0.9),
+            noise_w_scale=r.uniform(0.6, 1.0),
         )
         chunks = list(voice.synthesize(text, syn_config=config))
         audio = np.concatenate([c.audio_float_array for c in chunks]).astype(np.float32)

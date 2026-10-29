@@ -129,6 +129,8 @@ class GameSettings(_Section):
     # lectura, sin salir del PC). false = sin sección «Partida».
     match: bool = True
     rocket_port: int = Field(default=49123, ge=1, le=65535)
+    # Puerto UDP donde escucha la telemetría «Data Out» de Forza Horizon (el mismo que pones en el juego).
+    forza_port: int = Field(default=5300, ge=1024, le=65535)
 
 
 class IntentSettings(_Section):

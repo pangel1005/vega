@@ -32,6 +32,9 @@ LOL_EVERY = 2.0  # segundos entre lecturas de League of Legends
 ROCKET_PORT = 49123
 STALE_SECONDS = 6.0  # si Rocket League lleva más de esto sin decir nada, se da por perdida la conexión
 FEED_MAX = 4
+# Colores de cada equipo: azul y naranja en Rocket League; azul (ORDER) y rojo (CHAOS) en League of Legends.
+ROCKET_BLUE, ROCKET_ORANGE = "#3D8BFF", "#FF8A3D"
+LOL_BLUE, LOL_RED = "#3DA9FF", "#FF4D5E"
 
 # Mapas y modos de League of Legends con nombre en español (el resto se enseña tal cual lo manda el juego).
 LOL_MAPS = {"Map11": "Grieta del Invocador", "Map12": "Abismo de los Lamentos", "Map21": "Nexus Blitz"}
@@ -55,6 +58,7 @@ class Match:
     stats: tuple[tuple[str, str], ...] = ()
     feed: tuple[str, ...] = ()  # lo último que pasó, lo más nuevo primero
     hint: str = ""
+    colors: tuple[str, ...] = ()  # el color de cada lado del marcador, en el mismo orden que `score`
 
 
 def _number(value: object) -> int:
@@ -147,6 +151,7 @@ def parse_lol(data: dict[str, Any]) -> Match | None:
         clock_step=1,
         stats=tuple(stats),
         feed=tuple(reversed(feed[-FEED_MAX:])),
+        colors=(LOL_BLUE if mine == "ORDER" else LOL_RED, LOL_RED if mine == "ORDER" else LOL_BLUE),
     )
 
 
@@ -273,6 +278,7 @@ class RocketState:
             clock_step=-1 if running else 0,
             stats=tuple(stats),
             feed=tuple(self.feed),
+            colors=(ROCKET_BLUE, ROCKET_ORANGE),
         )
 
 
@@ -368,7 +374,13 @@ class MatchSource:
         *,
         lol: Callable[[], dict[str, Any] | None] = fetch_lol,
         now: Callable[[], float] = time.monotonic,
+        cs2: Any = None,
+        cs2_installed: Callable[[], bool] = lambda: True,
+        forza: Any = None,
     ) -> None:
+        self._cs2 = cs2  # un `Cs2State`
+        self._cs2_installed = cs2_installed
+        self._forza = forza  # un `ForzaTelemetry`
         self._rocket = rocket
         self._lol = lol
         self._now = now
@@ -387,6 +399,17 @@ class MatchSource:
             )
         if "rocket league" in low and self._rocket is not None:
             return self._rocket.read()
+        if "counter-strike" in low and self._cs2 is not None:
+            found: Match | None = self._cs2.match()
+            if found is None and not self._cs2_installed():
+                return Match(
+                    hint="Para ver tu partida de Counter-Strike 2, crea su archivo de integración con "
+                    "tools/cs2_gsi.py --apply y reinicia el juego."
+                )
+            return found
+        if "forza" in low and self._forza is not None:
+            reading: Match | None = self._forza.read()
+            return reading
         self._close_rocket()
         return None
 
@@ -406,3 +429,5 @@ class MatchSource:
     def _close_rocket(self) -> None:
         if self._rocket is not None:
             self._rocket.stop()
+        if self._forza is not None:
+            self._forza.stop()

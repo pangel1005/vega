@@ -10,7 +10,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -134,6 +134,21 @@ def register_media_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None
         if data is None:
             return Response(status_code=404)
         return Response(data, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
+
+def register_gsi(app: FastAPI, feed: Callable[[dict[str, object]], bool]) -> None:
+    """Recibe los avisos de «Game State Integration» de Counter-Strike 2 (solo con su clave)."""
+
+    @app.post("/app/gsi/cs2", include_in_schema=False)
+    async def gsi_cs2(request: Request) -> Response:
+        if int(request.headers.get("content-length") or 0) > 200_000:
+            return Response(status_code=413)
+        try:
+            body = await request.json()
+        except ValueError:
+            return Response(status_code=400)
+        ok = isinstance(body, dict) and feed(body)
+        return Response(status_code=200 if ok else 403)
 
 
 def register_game_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None:

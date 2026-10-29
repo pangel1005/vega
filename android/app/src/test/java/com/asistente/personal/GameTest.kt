@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
@@ -35,6 +36,7 @@ import com.asistente.personal.ui.SidePage
 import com.asistente.personal.ui.Vega
 import com.asistente.personal.ui.VegaScreen
 import com.asistente.personal.ui.agoLabel
+import com.asistente.personal.ui.feedColor
 import com.asistente.personal.ui.firstSidePage
 import com.asistente.personal.ui.friendsLabel
 import com.asistente.personal.ui.gameSections
@@ -203,11 +205,13 @@ class GameTest {
         title = "Clásica · Grieta del Invocador", score = "9 – 9", clock = 1_472.0, clockStep = 1,
         stats = listOf("Campeón" to "Ahri", "Nivel" to "11", "K / D / A" to "5 / 2 / 7", "Súbditos" to "144 · 5,9/min", "Oro" to "8 540"),
         feed = listOf("Torre destruida", "Dragón", "Yo#EUW eliminó a Rival1"), hint = "",
+        colors = listOf("#3DA9FF", "#FF4D5E"),
     )
     private val rocket = MatchInfo(
         title = "Partida en curso", score = "2 – 1", clock = 134.0, clockStep = -1,
         stats = listOf("Puntos" to "410", "Goles" to "2", "Asistencias" to "1", "Paradas" to "3", "Tiros" to "5", "Demoliciones" to "1"),
         feed = listOf("Yo: Save", "¡Gol de Yo!"), hint = "",
+        colors = listOf("#3D8BFF", "#FF8A3D"),
     )
 
     @Test fun theMatchClockKeepsRunningOnThePhoneInTheRightDirection() {
@@ -253,18 +257,35 @@ class GameTest {
 
     @Test fun matchScreenLeague() {
         matchScreen(lol, "72_partida_lol", "League of Legends")
-        compose.onNodeWithText("9 – 9").assertExists()
-        compose.onNodeWithText("· Dragón").assertExists()
+        compose.onNodeWithContentDescription("marcador 9 – 9").assertExists()
+        compose.onNodeWithText("Dragón").assertExists()
     }
 
     @Test fun matchScreenRocketLeague() {
         matchScreen(rocket, "73_partida_rocket", "Rocket League")
-        compose.onNodeWithText("2 – 1").assertExists()
+        compose.onNodeWithContentDescription("marcador 2 – 1").assertExists()
     }
 
     @Test fun matchScreenTellsHowToEnableTheApi() {
         matchScreen(MatchInfo("", "", null, 0, emptyList(), emptyList(), "Para ver la partida de Rocket League, activa su API: pon PacketSendRate=10."), "74_partida_sin_api", "Rocket League")
         compose.onNodeWithText("PacketSendRate", substring = true).assertExists()
+    }
+
+    @Test fun eventColorsFollowWhatHappened() {
+        assertEquals(Vega.Red, feedColor("Yo#EUW eliminó a Rival1"))
+        assertEquals(Vega.Amber, feedColor("Dragón"))
+        assertEquals(Vega.Amber, feedColor("Torre destruida"))
+        assertEquals(Vega.Mint, feedColor("¡Gol de Yo!"))
+        assertEquals(Vega.Mint, feedColor("Yo: Save"))
+        assertEquals(Vega.Ink3, feedColor("algo cualquiera"))
+    }
+
+    @Test fun teamColorsComeFromTheServer() {
+        val e = Protocol.parse(
+            """{"type":"game","active":true,"key":"k","name":"X","source":"Steam","played":1,""" +
+                """"match":{"title":"t","score":"2 – 1","colors":["#3D8BFF","#FF8A3D"]}}""",
+        ) as ServerEvent.Game
+        assertEquals(listOf("#3D8BFF", "#FF8A3D"), e.game!!.match!!.colors)
     }
 
     @Test fun theCardShowsTheLiveScore() {
@@ -276,7 +297,7 @@ class GameTest {
             )
         }
         compose.mainClock.advanceTimeBy(300)
-        compose.onNodeWithText("9 – 9").assertExists()
+        compose.onNodeWithContentDescription("marcador 9 – 9").assertExists()
         compose.onNodeWithText("5 / 2 / 7").assertExists()
         compose.onRoot().captureRoboImage("build/capturas/75_tarjeta_partida.png")
     }

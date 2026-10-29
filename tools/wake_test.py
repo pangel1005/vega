@@ -62,7 +62,10 @@ def main() -> int:
                             flush=True,
                         )
                     elif kind != "audio":
-                        print(f"\n[{stamp}] {kind}: { {k: v for k, v in event.items() if k != 'type'} }", flush=True)
+                        print(
+                            f"\n[{stamp}] {kind}: { {k: v for k, v in event.items() if k != 'type'} }",
+                            flush=True,
+                        )
             except Exception:
                 pass
 

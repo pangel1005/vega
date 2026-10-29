@@ -296,6 +296,7 @@ class Hub:
                 stats=[GameStat(label=k, value=v) for k, v in found.stats],
                 feed=list(found.feed),
                 hint=found.hint,
+                colors=list(found.colors),
             ),
         )
 

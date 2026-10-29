@@ -76,7 +76,9 @@ def main() -> int:
     args = parser.parse_args()
 
     router, actions = build()
-    fresh = build  # cada frase parte de una memoria limpia: «olvida…» y «recuerda…» no deben afectar a las demás
+    fresh = (
+        build  # cada frase parte de una memoria limpia: «olvida…» y «recuerda…» no deben afectar a las demás
+    )
     if args.matcher == "semantico":
         from tools.intent_bench.semantic import SemanticRouter  # noqa: PLC0415
 
@@ -120,11 +122,17 @@ def report(args, cases, route, semantic, router, actions) -> None:  # type: igno
                 harmful += 1  # activó algo que no tocaba
     total = sum(len(v) for v in by_kind.values())
     good = sum(sum(v) for v in by_kind.values())
-    print(f"Enrutado «{args.matcher}»: {good}/{total} bien ({100 * good / total:.0f} %); activó algo que no tocaba: {harmful}")
+    print(
+        f"Enrutado «{args.matcher}»: {good}/{total} bien ({100 * good / total:.0f} %); activó algo que no tocaba: {harmful}"
+    )
     if semantic is not None:
-        print(f"  preguntaría «¿quieres…?» en {asked_ok + asked_bad} frases (de ellas, con la intención correcta: {asked_ok})")
+        print(
+            f"  preguntaría «¿quieres…?» en {asked_ok + asked_bad} frases (de ellas, con la intención correcta: {asked_ok})"
+        )
     for kind, results in by_kind.items():
-        print(f"  {kind:10s} {sum(results):3d}/{len(results):3d}  ({100 * sum(results) / len(results):.0f} %)")
+        print(
+            f"  {kind:10s} {sum(results):3d}/{len(results):3d}  ({100 * sum(results) / len(results):.0f} %)"
+        )
     if args.verbose:
         for kind, expected, got, phrase in fails:
             print(f"  [{kind}] «{phrase}» → {got}   (esperado {expected})")

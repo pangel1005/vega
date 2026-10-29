@@ -40,10 +40,13 @@ STORE_URL = "https://store.steampowered.com/api/appdetails"
 RETRY_SECONDS = 600  # tras fallar la tienda, no se vuelve a probar hasta pasado este tiempo
 REFRESH_SECONDS = 60  # cada cuánto se vuelven a leer los manifiestos y las horas jugadas
 SCAN_SECONDS = 5  # cada cuánto se miran los procesos (Epic y hora de inicio)
-# Los juegos de Riot, por el nombre de su programa de partida (no el cliente): clave, nombre.
-RIOT_GAMES = {
-    "league of legends.exe": ("riot:lol", "League of Legends"),
-    "valorant-win64-shipping.exe": ("riot:valorant", "VALORANT"),
+# Juegos que no están en Steam ni Epic, por el nombre de su programa de partida (no el lanzador):
+# clave, nombre y tienda.
+KNOWN_GAMES = {
+    "league of legends.exe": ("riot:lol", "League of Legends", "Riot"),
+    "valorant-win64-shipping.exe": ("riot:valorant", "VALORANT", "Riot"),
+    "rainbowsix.exe": ("ubi:r6", "Rainbow Six Siege", "Ubisoft"),
+    "rainbowsix_vulkan.exe": ("ubi:r6", "Rainbow Six Siege", "Ubisoft"),
 }
 STORE_KEYS = (
     "short_description",
@@ -364,18 +367,18 @@ class GameWatcher:
 
     # --- el juego de ahora ---
 
-    def _riot_game(self) -> Game | None:
-        """Los juegos de Riot: solo cuentan mientras hay partida (el cliente abierto no es una partida)."""
+    def _known_game(self) -> Game | None:
+        """Riot y Ubisoft: solo cuentan mientras hay partida (el lanzador abierto no es una partida)."""
         for exe, when in self._scan():
-            found = RIOT_GAMES.get(exe.lower().rsplit("\\", 1)[-1])
+            found = KNOWN_GAMES.get(exe.lower().rsplit("\\", 1)[-1])
             if found is None:
                 continue
-            key, name = found
+            key, name, store = found
             self._exe_art[f"exe-{key.split(':')[1]}"] = Path(exe)
             return Game(
                 key=key,
                 name=name,
-                source="Riot",
+                source=store,
                 appid=None,
                 started=when if when > 0 else self._seen.setdefault(key, self._now()),
                 art_id=f"exe-{key.split(':')[1]}",
@@ -388,7 +391,7 @@ class GameWatcher:
         """El juego en marcha, o None. Barato: se puede llamar cada segundo."""
         with self._lock:
             self._refresh()
-            game = self._steam_game() or self._epic_game() or self._riot_game()
+            game = self._steam_game() or self._epic_game() or self._known_game()
             keys = {game.key} if game else set()
             for gone in set(self._seen) - keys:
                 del self._seen[gone]  # al cerrarlo, la próxima vez cuenta desde cero
@@ -472,6 +475,14 @@ class GameWatcher:
             self._matches.idle()
             return None
         return self._matches.match(game.name, game.key)
+
+    def steam_install(self, appid: int) -> Path | None:
+        """La carpeta donde Steam instaló el juego (p. ej. Counter-Strike 2 = 730), si está instalado."""
+        with self._lock:
+            self._refresh()
+            _name, folder, _size, lib = self._steam_apps.get(appid, ("", "", 0, Path()))
+        path = lib / "common" / folder
+        return path if folder and path.is_dir() else None
 
     def rocket_ini(self) -> Path | None:
         """El archivo de configuración de la Stats API de Rocket League, si está instalado (Epic o Steam)."""
