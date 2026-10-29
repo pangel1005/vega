@@ -38,12 +38,12 @@ Los botones (apagar, volumen, abrir apps…) los ejecuta el sistema, no tú: no 
 
 [speech]
 # Voz a texto (faster-whisper). Medido con frases de ~3 s:
-#   base en CPU: ~0,6 s y sin tarjeta gráfica  ← por defecto: la GPU queda libre
+#   base en CPU: ~0,6 s y sin tarjeta gráfica (para no gastar nada de GPU: "base", "cpu", "int8")
 #   small en CPU: ~1,5 s, algo más preciso
-#   small en GPU ("cuda", "int8_float16"): ~0,2–0,3 s, pero ocupa ~1 GB de vídeo
-stt_model = "base"
-stt_device = "cpu"
-stt_compute = "int8"
+#   small en GPU ("cuda", "int8_float16"): ~0,2–0,3 s, pero ocupa ~1 GB de vídeo  ← activo
+stt_model = "small"
+stt_device = "cuda"
+stt_compute = "int8_float16"
 # Máximo de una grabación, en segundos.
 max_seconds = 30
 
