@@ -136,8 +136,6 @@ data class ScreenModel(
     val musicSpectrum: () -> FloatArray = { FloatArray(0) },
     /** El próximo aviso del propio teléfono (alarma o recordatorio), para cuando el PC no lo cuenta. */
     val localNext: NextAlert? = null,
-    /** Modo de lejos: tras 10 minutos sin nadie, solo la hora enorme y la última respuesta. */
-    val far: Boolean = false,
     /** Memoria usada del teléfono (0 a 1), para la tarjeta «Cuerpo». */
     val phoneRam: () -> Float? = { null },
     /** Temperatura del teléfono en °C, para la tarjeta «Cuerpo». */
@@ -370,7 +368,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     Box(modifier.fillMaxSize().background(Vega.Bg)) {
         if (m.glass) AuroraBackground(aurora)
         androidx.compose.runtime.CompositionLocalProvider(LocalAurora provides if (m.glass) aurora else null) {
-        if (sleepFade < 1f && !m.far) Box(
+        if (sleepFade < 1f) Box(
             Modifier.fillMaxSize().graphicsLayer {
                 alpha = 1f - sleepFade
                 scaleX = 1f - 0.05f * sleepFade
@@ -539,7 +537,6 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
             }
         }
         }
-        if (m.far && sleepFade == 0f) FarScreen(m)
         if (sleepFade > 0f) {
             SleepScreen(
                 m,
@@ -554,7 +551,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     },
             )
         }
-        if (ui.pending != null && sleepFade == 0f && !m.far) AlertFrame()
+        if (ui.pending != null && sleepFade == 0f) AlertFrame()
         AnimatedVisibility(visible = showChat && sleepFade == 0f, enter = fadeIn(tween(160)), exit = fadeOut(tween(160))) {
             ConversationOverlay(ui.messages, ui.assistant, onClose = { showChat = false })
         }

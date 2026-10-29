@@ -5,7 +5,6 @@ import com.asistente.personal.state.Role
 import com.asistente.personal.ui.BrainLoad
 import com.asistente.personal.ui.LED_BAR_DOTS
 import com.asistente.personal.ui.brainLoad
-import com.asistente.personal.ui.farAnswer
 import com.asistente.personal.ui.ledBarLit
 import com.asistente.personal.ui.ledBarRuns
 import org.junit.Assert.assertEquals
@@ -50,12 +49,5 @@ class BrainLoadTest {
         assertFalse(ledBarRuns(20, 0))
         assertTrue(ledBarRuns(20, 22)) // y avanza hacia la derecha
         assertEquals(6, (0 until LED_BAR_DOTS).count { ledBarRuns(it, 20) }) // en medio, la ventana entera
-    }
-
-    @Test fun `la pantalla de lejos dice la ultima respuesta de Vega`() {
-        val m = listOf(Message(1, Role.USER, "hola"), Message(2, Role.ASSISTANT, "Hola.\nBuenas"), Message(3, Role.USER, "gracias"))
-        assertEquals("Hola. Buenas", farAnswer(m))
-        assertEquals("", farAnswer(emptyList()))
-        assertEquals("", farAnswer(listOf(Message(1, Role.USER, "hola"))))
     }
 }

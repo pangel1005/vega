@@ -456,12 +456,6 @@ class ScreenshotTest {
         afterMs = 700,
     )
 
-    @Test fun noche_de_lejos() = shot(
-        "45_noche_de_lejos",
-        model(base).copy(far = true, localTimerEndsAt = 1_000 + 299_000),
-        afterMs = 700,
-    )
-
     // --- Noche: música que tiñe, agenda de tres avisos, teclas vivas, batería baja ---
 
     private val agenda = telemetry.copy(
@@ -488,12 +482,6 @@ class ScreenshotTest {
     )
 
     // --- Próximo aviso en las pantallas de lejos y de dormida ---
-
-    @Test fun noche_de_lejos_con_alarma() = shot(
-        "49_noche_de_lejos_alarma",
-        model(base).copy(far = true, battery = 12, charging = false, wallMs = 1_761_300_000_000, localNext = com.asistente.personal.ui.NextAlert("es la hora de la alarma", 1_761_300_000_000 + 4 * 3_600_000)),
-        afterMs = 700,
-    )
 
     @Test fun noche_dormida_con_alarma() = shot(
         "50_noche_dormida_alarma",

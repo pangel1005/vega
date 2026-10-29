@@ -5,9 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.view.MotionEvent
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
@@ -17,7 +14,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -87,7 +83,7 @@ class MainActivity : ComponentActivity() {
 
         controller = VegaRuntime.controller(applicationContext)
         takeToken(intent)
-        setContent { AssistantScreen(controller, ::openAndroid, ::dimScreen, far = ambient) }
+        setContent { AssistantScreen(controller, ::openAndroid, ::dimScreen) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -101,8 +97,6 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         controller.start()
-        lastActive = SystemClock.elapsedRealtime()
-        handler.postDelayed(ambientTick, 15_000)
         // Escucha continua: hace falta el permiso de micrófono (se pide una sola vez).
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             controller.micPermission(true)
@@ -116,7 +110,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        handler.removeCallbacks(ambientTick)
         // Sin el servicio, en segundo plano no se mantiene la conexión ni el micrófono.
         controller.stop()
         super.onStop()
@@ -144,9 +137,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private var sleepDim = false
-    private var ambient by mutableStateOf(false)
-    private var lastActive = SystemClock.elapsedRealtime()
-    private val handler = Handler(Looper.getMainLooper())
 
     /** Con Vega dormida (PC apagado) la pantalla baja casi al mínimo; al despertar, vuelve a la normal. */
     private fun dimScreen(dim: Boolean) {
@@ -158,35 +148,9 @@ class MainActivity : ComponentActivity() {
         window.attributes = window.attributes.apply {
             screenBrightness = when {
                 sleepDim -> 0.02f
-                ambient -> AMBIENT_BRIGHTNESS
                 else -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
             }
         }
-    }
-
-    /** Cada 15 s mira si pasó algo; tras 10 minutos sin nada, baja el brillo («modo ambiente»). */
-    private val ambientTick = object : Runnable {
-        override fun run() {
-            val now = SystemClock.elapsedRealtime()
-            val c = controller
-            if (c.ui.state != AssistantState.IDLE || c.speaking || c.ui.notice != null) lastActive = now
-            val due = ambientDue(lastActive, now)
-            if (due != ambient) {
-                ambient = due
-                applyBrightness()
-            }
-            handler.postDelayed(this, 15_000)
-        }
-    }
-
-    /** Un toque (en cualquier sitio) cuenta como actividad y devuelve el brillo normal. */
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        lastActive = SystemClock.elapsedRealtime()
-        if (ambient) {
-            ambient = false
-            applyBrightness()
-        }
-        return super.dispatchTouchEvent(ev)
     }
 
     private fun takeToken(intent: Intent?): Boolean {
@@ -212,7 +176,7 @@ class MainActivity : ComponentActivity() {
 
 /** Une el controlador (estado vivo) con la pantalla, que no sabe nada de él. */
 @Composable
-private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sleepChanged: (Boolean) -> Unit, far: Boolean = false) {
+private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sleepChanged: (Boolean) -> Unit) {
     val ui = c.ui
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val clock by produceState("" to "") {
@@ -298,7 +262,6 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             glass = c.glass,
             terminal = c.terminal,
             orb = c.orb,
-            far = far,
             localNext = c.localNext,
             musicLevel = c::musicLevel,
             musicSignal = c::musicSignal,
