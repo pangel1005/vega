@@ -46,6 +46,23 @@ data class MediaInfo(
     val canNext: Boolean,
 )
 
+/** El juego abierto en el PC. `art` = id de la carátula en el PC; `played` = segundos de sesión al mandarlo. */
+data class GameInfo(
+    val key: String,
+    val name: String,
+    val source: String,
+    val played: Double,
+    val hours: Double?,
+    val sizeGb: Double?,
+    val art: String,
+    val summary: String,
+    val genres: List<String>,
+    val developer: String,
+    val released: String,
+    val rating: Int?,
+    val tags: List<String>,
+)
+
 /** Una línea de la letra: `t` = segundo en que empieza (-1 si la letra no está sincronizada). */
 data class LyricLine(val t: Double, val text: String)
 
@@ -104,6 +121,8 @@ sealed interface ServerEvent {
     data class Stats(val telemetry: Telemetry) : ServerEvent
     /** Lo que suena en el PC; null = nada. */
     data class Media(val media: MediaInfo?) : ServerEvent
+    /** El juego al que se juega en el PC (null: ninguno). */
+    data class Game(val game: GameInfo?) : ServerEvent
 
     /** Cuánto suena el PC ahora (0 a 1), unas 20 veces por segundo mientras suena algo. */
     data class MusicLevel(val level: Float) : ServerEvent
@@ -182,6 +201,19 @@ object Protocol {
                     album = o.optString("album"), playing = o.optBoolean("playing"),
                     position = o.optDouble("position", 0.0), duration = o.optDouble("duration", 0.0),
                     art = o.optString("art"), canPrevious = o.optBoolean("can_previous"), canNext = o.optBoolean("can_next"),
+                ),
+            )
+            "game" -> ServerEvent.Game(
+                if (!o.optBoolean("active")) null else GameInfo(
+                    key = o.optString("key"), name = o.optString("name"), source = o.optString("source"),
+                    played = o.optDouble("played", 0.0),
+                    hours = if (o.isNull("hours")) null else o.optDouble("hours"),
+                    sizeGb = if (o.isNull("size_gb")) null else o.optDouble("size_gb"),
+                    art = o.optString("art"), summary = o.optString("summary"),
+                    genres = o.optJSONArray("genres")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
+                    developer = o.optString("developer"), released = o.optString("released"),
+                    rating = if (o.isNull("rating")) null else o.optInt("rating"),
+                    tags = o.optJSONArray("tags")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
                 ),
             )
             "notifications" -> {

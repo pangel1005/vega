@@ -24,6 +24,7 @@ from server.core.maintenance import Maintenance
 from server.core.stallwatch import StallWatch
 from server.device.audio_capture import SpotifyTap
 from server.device.audio_meter import AudioMeter
+from server.device.games import GameWatcher, epic_manifests, steam_root
 from server.device.lyrics import LyricsFinder
 from server.device.media import MediaWatcher
 from server.device.notifications import NotificationReader
@@ -42,6 +43,7 @@ from server.tools.app_icons import AppIcons
 from server.web import (
     UI_DIST,
     register_app_icons,
+    register_game_art,
     register_lyrics,
     register_media_art,
     register_notification_icons,
@@ -141,8 +143,18 @@ def create_app(
             ask=settings.intents.ask,
             margin=settings.intents.margin,
         )
+    games = None
+    if settings.games.enabled and media is not None:  # sin «media» (pruebas) no hay nada del PC que mirar
+        games = GameWatcher(
+            steam_root(),
+            epic_manifests(),
+            ROOT / "data" / "games",
+            store_info=settings.games.store_info,
+            ignore=settings.games.ignore,
+        )
     hub = Hub(
         memory,
+        games=games,
         media=media,
         notifications=notifications if settings.notifications.enabled else None,
         level=AudioMeter().poll if media is not None else None,
@@ -192,6 +204,7 @@ def create_app(
     if app_icons is not None:
         register_app_icons(app, app_icons)
     register_media_art(app, hub.media_art)
+    register_game_art(app, hub.game_art)
     register_phone_models(app)
     register_notification_icons(app, hub.notification_icon)
     register_lyrics(app, LyricsFinder(ROOT / "data" / "lyrics", enabled=settings.media.lyrics))

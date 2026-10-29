@@ -105,6 +105,9 @@ data class ScreenModel(
     /** Carátula de lo que suena y su color; reloj del teléfono para avanzar la canción. */
     val mediaArt: ImageBitmap? = null,
     val mediaAccent: Color = Vega.Coral,
+    /** Carátula del juego abierto en el PC y su color (sección «Juego»). */
+    val gameArt: ImageBitmap? = null,
+    val gameAccent: Color = Vega.Mint,
     val clockMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
     val lyrics: com.asistente.personal.net.Lyrics? = null,
     /** Dónde piensa Vega: «IA: PC», «IA: teléfono» o cómo va la descarga de sus modelos. */
@@ -242,8 +245,11 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     var showMore by remember { mutableStateOf(false) }
     var showMusic by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
+    var showGame by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = showMusic) { showMusic = false }
+    androidx.activity.compose.BackHandler(enabled = showGame) { showGame = false }
     if (ui.media == null && showMusic) showMusic = false
+    if (ui.game == null && showGame) showGame = false
     androidx.activity.compose.BackHandler(enabled = showMore) { showMore = false }
 
     // Cuenta atrás de la confirmación (compartida por las teclas y la hoja «Más»).
@@ -400,19 +406,30 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     // estas tarjetas no se vuelven a dibujar.
                     Column(Modifier.width(250.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         ClockCard(m, a, Modifier.fillMaxWidth(), aura)
-                        // Mientras suena algo en el PC hay dos páginas: estado del PC y reproductor. Se
-                        // cambia deslizando el dedo o con el selector; al empezar la música pasa sola a ella.
+                        // Hay hasta tres páginas: estado del PC, reproductor (mientras suena algo) y juego (mientras hay
+                        // uno abierto). Se cambia deslizando el dedo o con el selector; al empezar algo pasa solo a ello.
                         val media = ui.media
-                        var musicPage by remember { mutableStateOf(media != null) }
-                        LaunchedEffect(media != null) { musicPage = media != null }
-                        if (media != null) PageSwitch(musicPage, if (m.brainOnPhone) "Cuerpo" else "PC") { musicPage = it }
+                        val game = ui.game
+                        val pages = sidePages(media != null, game != null)
+                        var chosen by remember { mutableStateOf(firstSidePage(media != null, game != null)) }
+                        LaunchedEffect(media != null) {
+                            if (media != null) chosen = SidePage.MUSIC else if (chosen == SidePage.MUSIC) chosen = SidePage.BODY
+                        }
+                        LaunchedEffect(game?.key) {
+                            if (game != null) chosen = SidePage.GAME else if (chosen == SidePage.GAME) chosen = SidePage.BODY
+                        }
+                        val page = if (chosen in pages) chosen else SidePage.BODY
+                        if (pages.size > 1) {
+                            val labels = pages.map { it.label(m.brainOnPhone) }
+                            PageSwitch(labels, pages.indexOf(page)) { chosen = pages[it] }
+                        }
                         Box(
-                            Modifier.fillMaxWidth().weight(1f).pointerInput(media != null) {
-                                if (media == null) return@pointerInput
+                            Modifier.fillMaxWidth().weight(1f).pointerInput(pages) {
+                                if (pages.size < 2) return@pointerInput
                                 var dx = 0f
                                 detectHorizontalDragGestures(
                                     onDragStart = { dx = 0f },
-                                    onDragEnd = { if (abs(dx) > 40.dp.toPx()) musicPage = dx < 0 },
+                                    onDragEnd = { if (abs(dx) > 40.dp.toPx()) chosen = nextSidePage(pages, chosen, forward = dx < 0) },
                                 ) { change, amount ->
                                     change.consume()
                                     dx += amount
@@ -420,20 +437,27 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                             },
                         ) {
                             AnimatedContent(
-                                targetState = musicPage && media != null,
+                                targetState = page,
                                 transitionSpec = {
-                                    // La música entra por la derecha; el estado del PC, por la izquierda.
-                                    val dir = if (targetState) 1 else -1
+                                    // La página nueva entra por el lado hacia el que se avanza en el selector.
+                                    val dir = if (pages.indexOf(targetState) > pages.indexOf(initialState)) 1 else -1
                                     (slideInHorizontally(tween(260)) { it * dir } + fadeIn(tween(200))) togetherWith
                                         (slideOutHorizontally(tween(260)) { -it * dir } + fadeOut(tween(160)))
                                 },
                                 label = "páginas",
-                            ) { showPlayer ->
+                            ) { shown ->
                                 val playing = ui.media
-                                if (showPlayer && playing != null) {
+                                val playingGame = ui.game
+                                if (shown == SidePage.MUSIC && playing != null) {
                                     NowPlayingCard(
                                         playing, livePosition(playing, ui.mediaAt, m.clockMs), m.mediaArt, m.mediaAccent,
                                         onControl = a.mediaControl, onOpen = { showMusic = true },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else if (shown == SidePage.GAME && playingGame != null) {
+                                    GameCard(
+                                        playingGame, liveSession(playingGame, ui.gameAt, m.clockMs, tickMs = 15_000),
+                                        m.gameArt, m.gameAccent, ui.telemetry, onOpen = { showGame = true },
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 } else {
@@ -526,6 +550,20 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         if (ui.pending != null && sleepFade == 0f && !m.far) AlertFrame()
         AnimatedVisibility(visible = showChat && sleepFade == 0f, enter = fadeIn(tween(160)), exit = fadeOut(tween(160))) {
             ConversationOverlay(ui.messages, ui.assistant, onClose = { showChat = false })
+        }
+        // Pantalla «Juego» (se abre tocando la tarjeta del juego).
+        val playingGame = ui.game
+        AnimatedVisibility(
+            visible = showGame && playingGame != null && sleepFade == 0f,
+            enter = fadeIn(tween(220)) + androidx.compose.animation.scaleIn(tween(260), initialScale = 0.96f),
+            exit = fadeOut(tween(180)) + androidx.compose.animation.scaleOut(tween(180), targetScale = 0.96f),
+        ) {
+            if (playingGame != null) {
+                GameScreen(
+                    playingGame, ui.gameAt, m.clockMs, m.gameArt, m.gameAccent, m.clock, ui.telemetry,
+                    onClose = { showGame = false },
+                )
+            }
         }
         // Pantalla «Sonando» (se abre tocando el mini reproductor).
         val playing = ui.media
@@ -721,19 +759,50 @@ private fun SleepScreen(m: ScreenModel, modifier: Modifier = Modifier) {
     }
 }
 
-/** Selector «PC | Música» (solo mientras suena algo). Salta al tocar. */
+/** Las páginas de la columna derecha: estado del PC (o del cuerpo), reproductor y juego. */
+enum class SidePage {
+    BODY, MUSIC, GAME;
+
+    fun label(brainOnPhone: Boolean): String = when (this) {
+        BODY -> if (brainOnPhone) "Cuerpo" else "PC"
+        MUSIC -> "Música"
+        GAME -> "Juego"
+    }
+}
+
+/** Las páginas disponibles, en orden: el estado siempre, y música y juego solo mientras haya algo. */
+fun sidePages(music: Boolean, game: Boolean): List<SidePage> = buildList {
+    add(SidePage.BODY)
+    if (music) add(SidePage.MUSIC)
+    if (game) add(SidePage.GAME)
+}
+
+/** La página con la que se empieza: el juego si hay uno abierto (es lo que se hace ahora), si no la música, si no el estado. */
+fun firstSidePage(music: Boolean, game: Boolean): SidePage = when {
+    game -> SidePage.GAME
+    music -> SidePage.MUSIC
+    else -> SidePage.BODY
+}
+
+/** La página siguiente (o anterior) al deslizar el dedo; en los extremos se queda donde está. */
+fun nextSidePage(pages: List<SidePage>, current: SidePage, forward: Boolean): SidePage {
+    val i = pages.indexOf(current).takeIf { it >= 0 } ?: return pages.first()
+    return pages[(if (forward) i + 1 else i - 1).coerceIn(0, pages.lastIndex)]
+}
+
+/** Selector de páginas («PC | Música | Juego»), solo si hay más de una. Salta al tocar. */
 @Composable
-private fun PageSwitch(music: Boolean, firstLabel: String, onChange: (Boolean) -> Unit) {
+private fun PageSwitch(labels: List<String>, selectedIndex: Int, onChange: (Int) -> Unit) {
     Row(
         Modifier.fillMaxWidth().height(24.dp).background(Vega.Card, RoundedCornerShape(50)).padding(2.dp),
     ) {
-        for ((label, isMusic) in listOf(firstLabel to false, "Música" to true)) {
+        labels.forEachIndexed { index, label ->
             val pressed = remember { mutableStateOf(false) }
-            val selected = music == isMusic
+            val selected = index == selectedIndex
             Box(
                 Modifier.weight(1f).fillMaxHeight()
                     .background(if (selected) Vega.CardHi else Color.Transparent, RoundedCornerShape(50))
-                    .instantPress(enabled = true, pressed = pressed) { onChange(isMusic) },
+                    .instantPress(enabled = true, pressed = pressed) { onChange(index) },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(label, style = Vega.label.copy(color = if (selected) Vega.Ink else Vega.Ink3))

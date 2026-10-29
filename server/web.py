@@ -136,6 +136,17 @@ def register_media_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None
         return Response(data, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 
 
+def register_game_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None:
+    """Carátula del juego al que se juega en el PC (JPEG), para la sección «Juego» del teléfono."""
+
+    @app.get("/app/games/art/{art_id}.jpg", include_in_schema=False)
+    async def game_art(art_id: str) -> Response:
+        data = art(art_id)
+        if data is None:
+            return Response(status_code=404)
+        return Response(data, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
+
 def register_lyrics(app: FastAPI, finder: LyricsFinder) -> None:
     """Letra de una canción (sincronizada si se puede) para el modo letra del teléfono."""
 

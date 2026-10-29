@@ -62,6 +62,9 @@ data class UiState(
     /** Lo que suena en el PC (null = nada) y cuándo llegó (reloj del teléfono, ms). */
     val media: com.asistente.personal.net.MediaInfo? = null,
     val mediaAt: Long = 0,
+    /** El juego abierto en el PC y cuándo (reloj del teléfono) llegó el aviso, para seguir contando la sesión. */
+    val game: com.asistente.personal.net.GameInfo? = null,
+    val gameAt: Long = 0,
 )
 
 sealed interface Action {
@@ -73,6 +76,7 @@ sealed interface Action {
     data class NoticeExpired(val seq: Int) : Action
     data class Telemetry(val data: com.asistente.personal.net.Telemetry, val at: Long) : Action
     data class Media(val media: com.asistente.personal.net.MediaInfo?, val at: Long) : Action
+    data class Game(val game: com.asistente.personal.net.GameInfo?, val at: Long) : Action
 }
 
 private fun UiState.notify(text: String, ok: Boolean, reminder: Boolean = false) =
@@ -96,6 +100,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
             link = action.status, retryInMs = action.retryInMs,
             telemetry = if (action.status == LinkStatus.OPEN) s.telemetry else null,
             media = if (action.status == LinkStatus.OPEN) s.media else null,
+            game = if (action.status == LinkStatus.OPEN) s.game else null,
             pcOff = if (action.status == LinkStatus.OPEN) null else s.pcOff,
             pcNotes = if (action.status == LinkStatus.OPEN) s.pcNotes else emptyList(),
             freshNotes = if (action.status == LinkStatus.OPEN) s.freshNotes else emptySet(),
@@ -111,6 +116,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
     is Action.NoticeExpired -> if (s.notice?.seq == action.seq) s.copy(notice = null) else s
     is Action.Telemetry -> s.copy(telemetry = action.data, telemetryAt = action.at)
     is Action.Media -> s.copy(media = action.media, mediaAt = action.at)
+    is Action.Game -> s.copy(game = action.game, gameAt = action.at)
     is Action.Server -> when (val e = action.event) {
         is ServerEvent.Ready -> s.copy(assistant = e.assistant, model = e.model)
         is ServerEvent.History -> e.messages.fold(s.copy(messages = emptyList())) { acc, m ->
@@ -154,6 +160,7 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         // Llega sin hora local; AssistantController la reenvía como Action.Telemetry con la hora.
         is ServerEvent.Stats -> s.copy(telemetry = e.telemetry)
         is ServerEvent.Media -> s.copy(media = e.media)
+        is ServerEvent.Game -> s.copy(game = e.game)
         is ServerEvent.MusicSpectrum -> s // idem: lo lee la onda del controlador, sin recomponer
         is ServerEvent.MusicLevel -> s // el volumen no toca el estado (llega 20 veces por segundo): lo lee la onda del controlador
         is ServerEvent.Notifications -> {

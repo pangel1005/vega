@@ -80,6 +80,19 @@ class Updater(private val context: Context) {
         }
     }
 
+    /** Carátula del juego abierto en el PC (JPEG, de la caché de Steam), o null. */
+    suspend fun gameArt(id: String): androidx.compose.ui.graphics.ImageBitmap? = withContext(Dispatchers.IO) {
+        try {
+            http.newCall(Request.Builder().url("$SERVER_HTTP/app/games/art/$id.jpg").build()).execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                val bytes = resp.body.bytes()
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Letra de una canción (el PC la busca en lrclib.net y la guarda), o null. */
     suspend fun lyrics(media: com.asistente.personal.net.MediaInfo): com.asistente.personal.net.Lyrics? = withContext(Dispatchers.IO) {
         try {

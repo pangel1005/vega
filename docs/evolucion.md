@@ -541,3 +541,24 @@ El audio no se guarda en ningún sitio ni el texto va a los registros; solo viaj
 
 Cambiar a un modelo mejor es una línea en `config/assistant.toml` (`stt_model = "small"`, `stt_device = "cuda"`,
 `stt_compute = "int8_float16"`: ~0,2 s y mejor español, a cambio de ~1 GB de vídeo mientras el PC está encendido).
+
+## Etapa 34 — La sección «Juego»
+
+Junto a «Cuerpo/PC» y «Música» hay una tercera página, **Juego**, que aparece sola mientras tienes un juego abierto en el
+PC (y pasa a ella al empezar). Es una tarjeta con la carátula, el nombre, cuánto llevas hoy y las cifras de la gráfica;
+al tocarla se abre una pantalla grande con el reloj de la sesión, tus horas totales, lo que ocupa, géneros, quién lo
+hizo, cuándo salió, la nota de Metacritic, la descripción y las cifras en vivo del PC (GPU, temperatura, vídeo, CPU).
+
+**Cómo se sabe qué juego es** (`server/device/games.py`), sin instalar nada: Steam lo apunta en el registro
+(`RunningAppID`); el nombre y el tamaño salen de sus `appmanifest_*.acf`, las horas de `localconfig.vdf` del usuario más
+reciente y la carátula de su caché local (sin internet). Los juegos de Epic se detectan por tener un programa en marcha
+dentro de su carpeta de instalación (sin carátula ni horas). La hora de inicio es la del proceso, no la de cuando Vega
+lo vio. Wallpaper Engine y Steamworks no cuentan como juegos (`[games] ignore` para añadir más).
+
+La descripción, géneros y nota vienen de la tienda pública de Steam: solo se le manda el número del juego y se guarda en
+`data/games/`; con `[games] store_info = false` solo se usa lo que Steam ya tiene en el PC. Nada de lo que haces dentro
+del juego se lee ni se guarda.
+
+Probado con la biblioteca real de este PC (Marvel Rivals: 268 h, 92,1 GB, carátula, nota y descripción), pero con el
+juego **cerrado**: la detección en marcha (el registro mientras se juega) solo está probada con simulaciones.
+

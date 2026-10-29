@@ -456,6 +456,27 @@ class MediaEvent(_Msg):
     can_next: bool = False
 
 
+class GameEvent(_Msg):
+    """El juego al que se juega en el PC (o `active = false`). La carátula está en /app/games/art/<art>.jpg;
+    los segundos de la sesión los sigue contando el teléfono desde `played`."""
+
+    type: Literal["game"] = "game"
+    active: bool
+    key: str = ""
+    name: str = ""
+    source: str = ""
+    played: float = 0.0  # segundos que lleva abierto, al mandarlo
+    hours: float | None = None  # horas jugadas en total (según Steam)
+    size_gb: float | None = None
+    art: str = ""
+    summary: str = ""
+    genres: list[str] = []
+    developer: str = ""
+    released: str = ""
+    rating: int | None = None
+    tags: list[str] = []
+
+
 class PhoneStateEvent(PhoneState):
     """Estado del teléfono para la app del PC; `online` es false si el teléfono no está conectado."""
 
@@ -562,6 +583,7 @@ ServerEvent = (
     | ReminderEvent
     | TelemetryEvent
     | MediaEvent
+    | GameEvent
     | MusicLevelEvent
     | MusicSpectrumEvent
     | NotificationsEvent

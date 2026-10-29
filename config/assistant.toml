@@ -77,6 +77,16 @@ lyrics = true
 # al teléfono solo viajan ~24 números por cada instante. false = sin espectro.
 spectrum = true
 
+[games]
+# Sección «Juego» del teléfono: el juego que tienes abierto en el PC (Steam o Epic), con su carátula, el tiempo de esta
+# sesión, tus horas totales y su información. Solo mira qué juego está abierto; no lee nada de dentro del juego.
+enabled = true
+# Descripción, géneros y nota desde la tienda pública de Steam: solo se le manda el número del juego y se guarda en
+# data/games. false = solo lo que Steam ya tiene en este PC (nombre, carátula y horas).
+store_info = true
+# Números de Steam que no son juegos y no deben salir (Wallpaper Engine y Steamworks ya se ignoran).
+ignore = []
+
 [intents]
 # Entender por significado: además de las frases exactas, Vega entiende «apágame la compu» o «súbele a la
 # música» comparando lo que dices con ejemplos de cada botón (modelo pequeño en el PC; se baja una vez, ~120 MB,

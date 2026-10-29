@@ -10,15 +10,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from datetime import datetime
 from typing import Protocol
 
+from server.device.games import Game, GameWatcher
 from server.device.media import Command, MediaWatcher, NowPlaying
 from server.device.notifications import NotificationReader, PcNotification
 from server.memory.personal import PersonalMemory, Reminder
 from server.skills.status import PcSample, sample_pc
 from server.ws.protocol import (
+    GameEvent,
     MediaEvent,
     MusicLevelEvent,
     MusicSpectrumEvent,
@@ -65,7 +68,11 @@ class Hub:
         level: Callable[[], float | None] | None = None,
         level_apps: tuple[str, ...] = ("spotify",),
         spectrum: Callable[[], list[float] | None] | None = None,
+        games: GameWatcher | None = None,
     ) -> None:
+        self._games = games
+        self._game_sent: GameEvent | None = None
+        self._game_known = False
         self._memory = memory
         self._level = level  # volumen real de la app que suena (0 a 1), o None si no se puede medir
         self._spectrum = spectrum  # bandas de frecuencia del audio de Spotify (o None si no se analiza)
@@ -89,6 +96,7 @@ class Hub:
         self._clients.add(client)
         self._roles[client] = role
         self._media_known = False  # el que llega recibe lo que suena en la próxima vuelta
+        self._game_known = False  # y el juego
         self._notes_sent = None  # y las notificaciones
 
     def remove(self, client: Listener) -> asyncio.Task[None] | None:
@@ -221,6 +229,46 @@ class Hub:
             except Exception:
                 log.debug("No pude mandar lo que suena a un cliente", exc_info=True)
 
+    def _game_event(self, game: Game | None) -> GameEvent:
+        if game is None:
+            return GameEvent(active=False)
+        info = self._games.info(game) if self._games is not None else None
+        return GameEvent(
+            active=True,
+            key=game.key,
+            name=game.name,
+            source=game.source,
+            played=max(0.0, round(time.time() - game.started)),
+            hours=None if game.hours is None else round(game.hours, 1),
+            size_gb=game.size_gb,
+            art=game.art_id,
+            summary=info.summary if info else "",
+            genres=list(info.genres) if info else [],
+            developer=info.developer if info else "",
+            released=info.released if info else "",
+            rating=info.rating if info else None,
+            tags=list(info.tags) if info else [],
+        )
+
+    async def send_game(self) -> None:
+        """Manda al teléfono el juego que se está jugando, cuando empieza, termina o llega su información."""
+        if self._games is None or not self._with_role("phone"):
+            return
+        event = self._game_event(await asyncio.to_thread(self._games.current))
+        previous = self._game_sent
+        # `played` crece solo: el teléfono lo sigue contando, así que no cuenta como cambio.
+        if (
+            self._game_known
+            and previous is not None
+            and event.model_copy(update={"played": 0}) == previous.model_copy(update={"played": 0})
+        ):
+            return
+        self._game_sent, self._game_known = event, True
+        await self.broadcast("phone", event)
+
+    def game_art(self, art_id: str) -> bytes | None:
+        return self._games.art(art_id) if self._games else None
+
     async def send_notifications(self) -> None:
         """Manda las notificaciones del PC si cambiaron (llega una, se lee o se descarta)."""
         if self._notifications is None or not self._clients:
@@ -328,6 +376,10 @@ class Hub:
                 await self.send_media()
             except Exception:
                 log.exception("Fallo al leer lo que suena")
+            try:
+                await self.send_game()
+            except Exception:
+                log.exception("Fallo al leer el juego")
             if tick % TELEMETRY_EVERY == 0:
                 try:
                     await self.send_telemetry()

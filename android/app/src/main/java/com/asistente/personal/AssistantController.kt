@@ -567,10 +567,13 @@ class AssistantController(context: Context) {
                 loadMediaArt(event.media?.art)
                 loadLyrics(event.media)
             }
+            if (event is ServerEvent.Game) loadGameArt(event.game?.art)
             if (event is ServerEvent.Stats) {
                 dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
             } else if (event is ServerEvent.Media) {
                 dispatch(Action.Media(event.media, android.os.SystemClock.elapsedRealtime()))
+            } else if (event is ServerEvent.Game) {
+                dispatch(Action.Game(event.game, android.os.SystemClock.elapsedRealtime()))
             } else if (event is ServerEvent.MusicSpectrum) {
                 spectrumRaw = event.bands.toFloatArray()
                 spectrumAt = android.os.SystemClock.elapsedRealtime()
@@ -680,6 +683,30 @@ class AssistantController(context: Context) {
             if (mediaArtId == id) {
                 mediaArt = art
                 mediaAccent = com.asistente.personal.ui.accentOf(art)
+            }
+        }
+    }
+
+    /** Carátula del juego abierto en el PC y su color principal (para la sección «Juego»). */
+    var gameArt by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+        private set
+    var gameAccent by mutableStateOf(com.asistente.personal.ui.Vega.Mint)
+        private set
+    private var gameArtId: String? = null
+
+    private fun loadGameArt(id: String?) {
+        if (id == gameArtId) return
+        gameArtId = id
+        if (id.isNullOrEmpty()) {
+            gameArt = null
+            gameAccent = com.asistente.personal.ui.Vega.Mint
+            return
+        }
+        scope.launch {
+            val art = updater.gameArt(id)
+            if (gameArtId == id) {
+                gameArt = art
+                gameAccent = if (art != null) com.asistente.personal.ui.accentOf(art) else com.asistente.personal.ui.Vega.Mint
             }
         }
     }

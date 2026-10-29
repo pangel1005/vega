@@ -114,6 +114,17 @@ class MediaSettings(_Section):
     spectrum: bool = True
 
 
+class GameSettings(_Section):
+    """La sección «Juego» del teléfono: qué juego está abierto en el PC y su información."""
+
+    enabled: bool = True
+    # Descripción, géneros y nota desde la tienda de Steam (pública). Solo se le manda el número del juego;
+    # se guarda en data/games para no volver a pedirla. False = solo lo que Steam ya tiene en este PC.
+    store_info: bool = True
+    # Números de Steam que no son juegos y no deben salir (Wallpaper Engine y Steamworks ya están ignorados).
+    ignore: list[int] = []
+
+
 class IntentSettings(_Section):
     """Entender por significado: complementa a las reglas con un modelo pequeño en el PC, sin red."""
 
@@ -152,6 +163,7 @@ class Settings(_Section):
     speech: SpeechSettings = SpeechSettings()
     device: DeviceSettings = DeviceSettings()
     media: MediaSettings = MediaSettings()
+    games: GameSettings = GameSettings()
     notifications: NotificationSettings = NotificationSettings()
     weather: WeatherSettings = WeatherSettings()
     intents: IntentSettings = IntentSettings()
