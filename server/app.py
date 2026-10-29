@@ -24,10 +24,11 @@ from server.core.maintenance import Maintenance
 from server.core.stallwatch import StallWatch
 from server.device.audio_capture import SpotifyTap
 from server.device.audio_meter import AudioMeter
-from server.device.games import GameWatcher, epic_manifests, steam_root
+from server.device.games import GameWatcher, epic_manifests, steam_id64, steam_root
 from server.device.lyrics import LyricsFinder
 from server.device.media import MediaWatcher
 from server.device.notifications import NotificationReader
+from server.device.steam_web import SteamWeb, read_key
 from server.device.usb import PhoneStatus
 from server.llm.base import ChatModel
 from server.llm.ollama import OllamaChat
@@ -145,12 +146,22 @@ def create_app(
         )
     games = None
     if settings.games.enabled and media is not None:  # sin «media» (pruebas) no hay nada del PC que mirar
+        steam = steam_root()
+        key_file = ROOT / "config" / "steam_key.txt"
+        key = read_key(key_file.read_text(encoding="utf-8")) if key_file.is_file() else None
+        if key_file.is_file() and key is None:
+            log.warning(
+                "config/steam_key.txt no tiene una clave de Steam válida (32 caracteres hexadecimales)"
+            )
         games = GameWatcher(
-            steam_root(),
+            steam,
             epic_manifests(),
             ROOT / "data" / "games",
             store_info=settings.games.store_info,
             ignore=settings.games.ignore,
+            web=SteamWeb(key, steam_id64(steam), friends=settings.games.friends)
+            if settings.games.store_info
+            else None,
         )
     hub = Hub(
         memory,

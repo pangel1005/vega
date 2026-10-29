@@ -108,6 +108,9 @@ data class ScreenModel(
     /** Carátula del juego abierto en el PC y su color (sección «Juego»). */
     val gameArt: ImageBitmap? = null,
     val gameAccent: Color = Vega.Mint,
+    /** Carátulas de los últimos juegos (por id) y lecturas del PC de la sesión de juego (para la gráfica). */
+    val recentArts: Map<String, ImageBitmap> = emptyMap(),
+    val gameSamples: List<GameSample> = emptyList(),
     val clockMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
     val lyrics: com.asistente.personal.net.Lyrics? = null,
     /** Dónde piensa Vega: «IA: PC», «IA: teléfono» o cómo va la descarga de sus modelos. */
@@ -410,7 +413,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         // uno abierto). Se cambia deslizando el dedo o con el selector; al empezar algo pasa solo a ello.
                         val media = ui.media
                         val game = ui.game
-                        val pages = sidePages(media != null, game != null)
+                        val pages = sidePages(media != null)
                         var chosen by remember { mutableStateOf(firstSidePage(media != null, game != null)) }
                         LaunchedEffect(media != null) {
                             if (media != null) chosen = SidePage.MUSIC else if (chosen == SidePage.MUSIC) chosen = SidePage.BODY
@@ -454,12 +457,16 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                                         onControl = a.mediaControl, onOpen = { showMusic = true },
                                         modifier = Modifier.fillMaxSize(),
                                     )
-                                } else if (shown == SidePage.GAME && playingGame != null) {
-                                    GameCard(
-                                        playingGame, liveSession(playingGame, ui.gameAt, m.clockMs, tickMs = 15_000),
-                                        m.gameArt, m.gameAccent, ui.telemetry, onOpen = { showGame = true },
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
+                                } else if (shown == SidePage.GAME) {
+                                    if (playingGame != null) {
+                                        GameCard(
+                                            playingGame, liveSession(playingGame, ui.gameAt, m.clockMs, tickMs = 15_000),
+                                            m.gameArt, m.gameAccent, ui.telemetry, onOpen = { showGame = true },
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    } else {
+                                        GameIdleCard(ui.recentGames, m.recentArts, System.currentTimeMillis() / 1000, Modifier.fillMaxSize())
+                                    }
                                 } else {
                                     if (m.brainOnPhone) BodyCard(m, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxSize(), aura)
                                     else StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxSize(), aura)
@@ -562,6 +569,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 GameScreen(
                     playingGame, ui.gameAt, m.clockMs, m.gameArt, m.gameAccent, m.clock, ui.telemetry,
                     onClose = { showGame = false },
+                    samples = m.gameSamples, actions = ui.actions, onPress = { if (canAct) a.press(it) }, account = ui.steamAccount,
                 )
             }
         }
@@ -770,11 +778,11 @@ enum class SidePage {
     }
 }
 
-/** Las páginas disponibles, en orden: el estado siempre, y música y juego solo mientras haya algo. */
-fun sidePages(music: Boolean, game: Boolean): List<SidePage> = buildList {
+/** Las páginas, en orden: el estado y «Juego» siempre (sin juego abierto dice «Sin juegos ahora mismo»), y música solo mientras suena algo. */
+fun sidePages(music: Boolean): List<SidePage> = buildList {
     add(SidePage.BODY)
     if (music) add(SidePage.MUSIC)
-    if (game) add(SidePage.GAME)
+    add(SidePage.GAME)
 }
 
 /** La página con la que se empieza: el juego si hay uno abierto (es lo que se hace ahora), si no la música, si no el estado. */

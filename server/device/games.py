@@ -27,6 +27,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from server.device.steam_web import Live, SteamWeb
+
 log = logging.getLogger(__name__)
 
 # Lo que Steam abre pero no es un juego (Steamworks, Wallpaper Engine…).
@@ -37,7 +39,15 @@ STORE_URL = "https://store.steampowered.com/api/appdetails"
 RETRY_SECONDS = 600  # tras fallar la tienda, no se vuelve a probar hasta pasado este tiempo
 REFRESH_SECONDS = 60  # cada cuánto se vuelven a leer los manifiestos y las horas jugadas
 SCAN_SECONDS = 5  # cada cuánto se miran los procesos (Epic y hora de inicio)
-STORE_KEYS = ("short_description", "developers", "genres", "categories", "release_date", "metacritic")
+STORE_KEYS = (
+    "short_description",
+    "developers",
+    "genres",
+    "categories",
+    "release_date",
+    "metacritic",
+    "achievements",
+)
 TAGS = (
     "Un jugador",
     "Multijugador",
@@ -60,6 +70,17 @@ class Game:
     art_id: str  # vacío si no hay carátula
     hours: float | None  # horas jugadas en total según Steam
     size_gb: float | None  # lo que ocupa en el disco
+    played_2w: float | None = None  # horas de las últimas dos semanas según Steam
+
+
+@dataclass(frozen=True)
+class RecentGame:
+    """Un juego de los que jugaste hace poco, para cuando no hay ninguno abierto."""
+
+    name: str
+    art_id: str
+    hours: float | None
+    last_played: float  # segundos desde 1970 (UTC)
 
 
 @dataclass(frozen=True)
@@ -70,12 +91,27 @@ class GameInfo:
     released: str = ""
     rating: int | None = None  # nota de Metacritic, si la tiene
     tags: tuple[str, ...] = ()
+    achievements: int | None = None  # cuántos logros tiene el juego (en total)
 
 
 def vdf_value(text: str, key: str) -> str:
     """El valor de `"clave" "valor"` en un archivo de Steam (.acf, .vdf); vacío si no está."""
     m = re.search(r'"' + re.escape(key) + r'"\s+"([^"]*)"', text)
     return m.group(1) if m else ""
+
+
+def steam_id64(steam: Path | None) -> int | None:
+    """El SteamID64 de la cuenta con la que se entró la última vez en Steam (de config/loginusers.vdf)."""
+    if steam is None:
+        return None
+    try:
+        text = (steam / "config" / "loginusers.vdf").read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    for steam_id, block in re.findall(r'"(\d{17})"\s*\{([^{}]*)\}', text):
+        if vdf_value(block, "MostRecent") == "1":
+            return int(steam_id)
+    return None
 
 
 def read_running_appid() -> int:
@@ -159,6 +195,8 @@ def parse_info(data: dict[str, object]) -> GameInfo:
     metacritic = data.get("metacritic")
     score = metacritic.get("score") if isinstance(metacritic, dict) else None
     categories = names(data.get("categories"))
+    ach = data.get("achievements")
+    total = ach.get("total") if isinstance(ach, dict) else None
     return GameInfo(
         summary=text(data.get("short_description"))[:320],
         genres=tuple(names(data.get("genres"))[:4]),
@@ -168,6 +206,7 @@ def parse_info(data: dict[str, object]) -> GameInfo:
         else "",
         rating=int(score) if isinstance(score, int) else None,
         tags=tuple(t for t in TAGS if t in categories)[:3],
+        achievements=total if isinstance(total, int) and total > 0 else None,
     )
 
 
@@ -185,7 +224,11 @@ class GameWatcher:
         fetch: Callable[[int], dict[str, object] | None] = fetch_store,
         now: Callable[[], float] = time.time,
         background: bool = True,
+        web: SteamWeb | None = None,
     ) -> None:
+        self._web = web
+        self._last_played: dict[int, float] = {}
+        self._playtime_2w: dict[int, float] = {}
         self._steam = steam
         self._epic = epic
         self._cache = cache
@@ -250,16 +293,20 @@ class GameWatcher:
             for acf in lib.glob("appmanifest_*.acf"):
                 try:
                     text = acf.read_text(encoding="utf-8", errors="ignore")
-                    apps[int(vdf_value(text, "appid"))] = (
+                    appid = int(vdf_value(text, "appid"))
+                    apps[appid] = (
                         vdf_value(text, "name"),
                         vdf_value(text, "installdir"),
                         int(vdf_value(text, "SizeOnDisk") or 0),
                         lib,
                     )
+                    last = vdf_value(text, "LastPlayed")
+                    if last.isdigit() and int(last) > 0:
+                        self._last_played[appid] = float(last)
                 except (OSError, ValueError):
                     continue
         self._steam_apps = apps
-        self._playtime = self._read_playtime()
+        self._playtime, self._playtime_2w = self._read_playtime()
         epic: list[tuple[str, str, str]] = []
         if self._epic is not None:
             for item in self._epic.glob("*.item"):
@@ -274,13 +321,14 @@ class GameWatcher:
                     epic.append((str(data.get("AppName")), str(data.get("DisplayName") or ""), where))
         self._epic_apps = epic
 
-    def _read_playtime(self) -> dict[int, float]:
-        """Horas jugadas por juego, según Steam (minutos en su localconfig.vdf)."""
+    def _read_playtime(self) -> tuple[dict[int, float], dict[int, float]]:
+        """Horas jugadas por juego, en total y en las dos últimas semanas, según Steam (localconfig.vdf)."""
         user = self._steam_user_dir()
         files = [user / "config" / "localconfig.vdf"] if user else []
         if not files and self._steam is not None:  # sin saber cuál es el usuario: el que más haya jugado
             files = list((self._steam / "userdata").glob("*/config/localconfig.vdf"))
         best: dict[int, float] = {}
+        recent: dict[int, float] = {}
         for path in files:
             try:
                 text = path.read_text(encoding="utf-8", errors="ignore")
@@ -290,7 +338,10 @@ class GameWatcher:
                 minutes = vdf_value(block, "Playtime")
                 if minutes.isdigit():
                     best[int(appid)] = max(best.get(int(appid), 0.0), int(minutes) / 60)
-        return best
+                    fortnight = vdf_value(block, "Playtime2wks")
+                    if fortnight.isdigit():
+                        recent[int(appid)] = max(recent.get(int(appid), 0.0), int(fortnight) / 60)
+        return best, recent
 
     def _scan(self) -> list[tuple[str, float]]:
         if self._now() - self._procs_at >= SCAN_SECONDS:
@@ -334,6 +385,7 @@ class GameWatcher:
             art_id=f"steam-{appid}" if self._steam_art(appid) else "",
             hours=self._playtime.get(appid),
             size_gb=round(size / 1e9, 1) if size else None,
+            played_2w=self._playtime_2w.get(appid),
         )
 
     def _epic_game(self) -> Game | None:
@@ -357,6 +409,39 @@ class GameWatcher:
                     size_gb=None,
                 )
         return None
+
+    # --- lo que no depende de que haya un juego abierto ---
+
+    def recent(self, count: int = 3) -> list[RecentGame]:
+        """Los últimos juegos de Steam que jugaste (instalados), del más reciente al más antiguo."""
+        with self._lock:
+            self._refresh()
+            found = [
+                (when, appid)
+                for appid, when in self._last_played.items()
+                if appid in self._steam_apps and appid not in self._ignore
+            ]
+            found.sort(reverse=True)
+            return [
+                RecentGame(
+                    name=self._steam_apps[appid][0] or f"Juego de Steam {appid}",
+                    art_id=f"steam-{appid}" if self._steam_art(appid) else "",
+                    hours=self._playtime.get(appid),
+                    last_played=when,
+                )
+                for when, appid in found[:count]
+            ]
+
+    def live(self, game: Game) -> Live:
+        """Jugadores, noticias y (con cuenta) logros y amigos del juego abierto; vacío si no es de Steam."""
+        if game.appid is None or self._web is None:
+            return Live()
+        return self._web.live(game.appid)
+
+    @property
+    def account(self) -> bool:
+        """¿Hay una cuenta de Steam conectada (para logros y amigos)?"""
+        return self._web is not None and self._web.connected
 
     # --- carátula ---
 

@@ -34,3 +34,6 @@ android/app/libs/*.aar
 
 # Modelo de lenguaje del teléfono: lo compila tools/android_llama.ps1
 android/app/src/main/jniLibs/
+
+# Clave personal de la Web API de Steam (cuenta conectada)
+config/steam_key.txt

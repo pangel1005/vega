@@ -36,6 +36,9 @@ private const val KEY_FLAT = "musica_portada_plana"
 /** Cuánto tiempo sin recibir volumen antes de dar la señal por perdida (el servidor manda ~20 por segundo). */
 const val MUSIC_SIGNAL_MS = 1_500L
 
+/** Cuántas lecturas del PC se guardan para la gráfica de la sesión (a una cada ~2 s son ~2 horas). */
+const val MAX_GAME_SAMPLES = 3_600
+
 /** Cuánto espera el teléfono a que el PC transcriba una frase antes de oírla él mismo (el PC tarda ~0,5 s). */
 const val HEAR_PC_MS = 2_500L
 private const val KEY_GLASS = "estilo_cristal"
@@ -567,13 +570,17 @@ class AssistantController(context: Context) {
                 loadMediaArt(event.media?.art)
                 loadLyrics(event.media)
             }
-            if (event is ServerEvent.Game) loadGameArt(event.game?.art)
+            if (event is ServerEvent.Game) {
+                loadGameArt(event.game?.art)
+                loadRecentArts(event.recent)
+            }
             if (event is ServerEvent.Stats) {
+                mainThread.post { sampleGame(event.telemetry) }
                 dispatch(Action.Telemetry(event.telemetry, android.os.SystemClock.elapsedRealtime()))
             } else if (event is ServerEvent.Media) {
                 dispatch(Action.Media(event.media, android.os.SystemClock.elapsedRealtime()))
             } else if (event is ServerEvent.Game) {
-                dispatch(Action.Game(event.game, android.os.SystemClock.elapsedRealtime()))
+                dispatch(Action.Game(event.game, android.os.SystemClock.elapsedRealtime(), event.recent, event.account))
             } else if (event is ServerEvent.MusicSpectrum) {
                 spectrumRaw = event.bands.toFloatArray()
                 spectrumAt = android.os.SystemClock.elapsedRealtime()
@@ -693,6 +700,34 @@ class AssistantController(context: Context) {
     var gameAccent by mutableStateOf(com.asistente.personal.ui.Vega.Mint)
         private set
     private var gameArtId: String? = null
+
+    /** Carátulas de los últimos juegos (pestaña «Juego» sin juego abierto), por id. */
+    val recentArts = androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
+
+    private fun loadRecentArts(recent: List<com.asistente.personal.net.RecentGame>) {
+        for (id in recent.map { it.art }.filter { it.isNotEmpty() && it !in recentArts }) {
+            scope.launch { updater.gameArt(id)?.let { recentArts[id] = it } }
+        }
+    }
+
+    /** Lecturas del PC mientras juegas (una cada ~2 s), para la gráfica de la sesión; se vacían al cambiar de juego. */
+    val gameSamples = androidx.compose.runtime.mutableStateListOf<com.asistente.personal.ui.GameSample>()
+    private var sampledGame: String? = null
+
+    private fun sampleGame(t: com.asistente.personal.net.Telemetry) {
+        val key = ui.game?.key
+        if (key == null) {
+            if (sampledGame != null) gameSamples.clear()
+            sampledGame = null
+            return
+        }
+        if (key != sampledGame) {
+            gameSamples.clear()
+            sampledGame = key
+        }
+        gameSamples.add(com.asistente.personal.ui.GameSample(t.gpuUtil, t.gpuTemp, t.vramUsed, t.cpu))
+        if (gameSamples.size > MAX_GAME_SAMPLES) gameSamples.removeRange(0, gameSamples.size - MAX_GAME_SAMPLES)
+    }
 
     private fun loadGameArt(id: String?) {
         if (id == gameArtId) return

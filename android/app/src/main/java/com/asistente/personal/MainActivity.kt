@@ -287,6 +287,8 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             mediaAccent = c.mediaAccent,
             gameArt = c.gameArt,
             gameAccent = c.gameAccent,
+            recentArts = c.recentArts,
+            gameSamples = c.gameSamples,
             lyrics = c.lyrics,
             brainLabel = c.brainLabel,
             brainOnPhone = c.brainOnPhone,

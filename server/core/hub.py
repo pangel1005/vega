@@ -22,6 +22,7 @@ from server.memory.personal import PersonalMemory, Reminder
 from server.skills.status import PcSample, sample_pc
 from server.ws.protocol import (
     GameEvent,
+    GameNews,
     MediaEvent,
     MusicLevelEvent,
     MusicSpectrumEvent,
@@ -30,6 +31,7 @@ from server.ws.protocol import (
     PhoneControlEvent,
     PhoneState,
     PhoneStateEvent,
+    RecentGameItem,
     ServerEvent,
     TelemetryEvent,
     Upcoming,
@@ -230,9 +232,22 @@ class Hub:
                 log.debug("No pude mandar lo que suena a un cliente", exc_info=True)
 
     def _game_event(self, game: Game | None) -> GameEvent:
-        if game is None:
+        if self._games is None:
             return GameEvent(active=False)
-        info = self._games.info(game) if self._games is not None else None
+        if game is None:
+            recent = [
+                RecentGameItem(
+                    name=r.name,
+                    art=r.art_id,
+                    hours=None if r.hours is None else round(r.hours, 1),
+                    last_played=r.last_played,
+                )
+                for r in self._games.recent()
+            ]
+            return GameEvent(active=False, recent=recent, account=self._games.account)
+        info = self._games.info(game)
+        live = self._games.live(game)
+        ach = live.achievements
         return GameEvent(
             active=True,
             key=game.key,
@@ -248,6 +263,14 @@ class Hub:
             released=info.released if info else "",
             rating=info.rating if info else None,
             tags=list(info.tags) if info else [],
+            achievements=(ach.total if ach else info.achievements if info else None),
+            played_2w=None if game.played_2w is None else round(game.played_2w, 1),
+            players=live.players,
+            news=[GameNews(title=n.title, at=n.at) for n in live.news],
+            ach_unlocked=ach.unlocked if ach else None,
+            ach_recent=list(ach.recent) if ach else [],
+            friends=list(live.friends),
+            account=self._games.account,
         )
 
     async def send_game(self) -> None:

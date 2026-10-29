@@ -86,6 +86,11 @@ enabled = true
 store_info = true
 # Números de Steam que no son juegos y no deben salir (Wallpaper Engine y Steamworks ya se ignoran).
 ignore = []
+# Cuenta de Steam (opcional): guarda tu «Web API key» (gratis en steamcommunity.com/dev/apikey) en
+# config/steam_key.txt, una sola línea. Es tuya: no se muestra ni se escribe en los registros y solo se manda a
+# api.steampowered.com. Con ella salen tus logros del juego y qué amigos juegan a lo mismo. Tu perfil de Steam debe
+# tener «Detalles del juego» en público. Sin ella, la sección funciona igual pero sin logros ni amigos.
+friends = true
 
 [intents]
 # Entender por significado: además de las frases exactas, Vega entiende «apágame la compu» o «súbele a la

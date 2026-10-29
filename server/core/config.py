@@ -123,6 +123,8 @@ class GameSettings(_Section):
     store_info: bool = True
     # Números de Steam que no son juegos y no deben salir (Wallpaper Engine y Steamworks ya están ignorados).
     ignore: list[int] = []
+    # Con tu cuenta conectada (config/steam_key.txt): enseñar qué amigos de Steam juegan a lo mismo ahora.
+    friends: bool = True
 
 
 class IntentSettings(_Section):

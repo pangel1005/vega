@@ -456,6 +456,18 @@ class MediaEvent(_Msg):
     can_next: bool = False
 
 
+class GameNews(_Msg):
+    title: str
+    at: float  # segundos desde 1970 (UTC)
+
+
+class RecentGameItem(_Msg):
+    name: str
+    art: str = ""
+    hours: float | None = None
+    last_played: float = 0.0  # segundos desde 1970 (UTC)
+
+
 class GameEvent(_Msg):
     """El juego al que se juega en el PC (o `active = false`). La carátula está en /app/games/art/<art>.jpg;
     los segundos de la sesión los sigue contando el teléfono desde `played`."""
@@ -475,6 +487,15 @@ class GameEvent(_Msg):
     released: str = ""
     rating: int | None = None
     tags: list[str] = []
+    achievements: int | None = None  # logros que tiene el juego
+    played_2w: float | None = None  # horas de las últimas dos semanas
+    players: int | None = None  # gente jugando ahora mismo
+    news: list[GameNews] = []
+    ach_unlocked: int | None = None  # tus logros (solo con la cuenta de Steam conectada)
+    ach_recent: list[str] = []
+    friends: list[str] = []  # amigos que juegan a esto ahora (solo con cuenta)
+    account: bool = False  # ¿hay una cuenta de Steam conectada?
+    recent: list[RecentGameItem] = []  # los últimos juegos, para cuando no hay ninguno abierto
 
 
 class PhoneStateEvent(PhoneState):

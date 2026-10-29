@@ -562,3 +562,21 @@ del juego se lee ni se guarda.
 Probado con la biblioteca real de este PC (Marvel Rivals: 268 h, 92,1 GB, carátula, nota y descripción), pero con el
 juego **cerrado**: la detección en marcha (el registro mientras se juega) solo está probada con simulaciones.
 
+### Etapa 34b — Pestaña fija, secciones y cuenta de Steam
+
+La pestaña **Juego** ya no desaparece: sin juego abierto enseña un mando y «Sin juegos ahora mismo», con los tres últimos
+que jugaste (de los `appmanifest` de Steam). La pantalla grande tiene secciones (**Sesión · Juego · Comunidad · Logros**):
+- *Sesión*: gráfica de GPU y temperatura desde que empezó (lecturas del PC en el teléfono, solo en memoria), cifras en
+  vivo, GPU media, temperatura y vídeo máximos y las horas de las últimas dos semanas.
+- *Comunidad*: cuánta gente juega ahora y las últimas novedades (API pública de Steam, sin clave).
+- *Logros*: cuántos tiene el juego; con la cuenta conectada, cuántos llevas y los últimos desbloqueados.
+- Abajo, los botones de «Más» que sirven jugando: Captura, Grabar, Discord y Silenciar.
+
+**Cuenta de Steam** (opcional): la clave personal («Web API key», gratis en steamcommunity.com/dev/apikey) va en
+`config/steam_key.txt` (una línea; fuera de git). Nunca se muestra, no entra en los registros (los fallos de red solo
+registran su tipo) y solo se manda a api.steampowered.com. Con ella salen tus logros y qué amigos juegan a lo mismo
+(`[games] friends = false` lo desactiva). Tu perfil debe tener «Detalles del juego» en público. **Sin probar en vivo con
+una clave real**: las pruebas usan un Steam simulado. Datos de la *partida* en curso (muertes, rango, marcador) no los
+da ningún juego de forma general: solo algunos tienen una API local oficial (CS2, Dota 2, League of Legends, Rocket
+League) y cada uno necesitaría su propia integración.
+

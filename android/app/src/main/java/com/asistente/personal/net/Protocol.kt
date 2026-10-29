@@ -61,7 +61,22 @@ data class GameInfo(
     val released: String,
     val rating: Int?,
     val tags: List<String>,
+    /** Logros que tiene el juego; `achUnlocked` = los tuyos (solo con la cuenta de Steam conectada). */
+    val achievements: Int? = null,
+    val achUnlocked: Int? = null,
+    val achRecent: List<String> = emptyList(),
+    val played2w: Double? = null,
+    /** Gente jugando ahora, novedades y amigos que juegan a esto. */
+    val players: Int? = null,
+    val news: List<GameNews> = emptyList(),
+    val friends: List<String> = emptyList(),
 )
+
+/** Una novedad del juego (parche, anuncio); `at` en segundos desde 1970. */
+data class GameNews(val title: String, val at: Double)
+
+/** Un juego de los que jugaste hace poco (cuando no hay ninguno abierto). */
+data class RecentGame(val name: String, val art: String, val hours: Double?, val lastPlayed: Double)
 
 /** Una línea de la letra: `t` = segundo en que empieza (-1 si la letra no está sincronizada). */
 data class LyricLine(val t: Double, val text: String)
@@ -122,7 +137,7 @@ sealed interface ServerEvent {
     /** Lo que suena en el PC; null = nada. */
     data class Media(val media: MediaInfo?) : ServerEvent
     /** El juego al que se juega en el PC (null: ninguno). */
-    data class Game(val game: GameInfo?) : ServerEvent
+    data class Game(val game: GameInfo?, val recent: List<RecentGame> = emptyList(), val account: Boolean = false) : ServerEvent
 
     /** Cuánto suena el PC ahora (0 a 1), unas 20 veces por segundo mientras suena algo. */
     data class MusicLevel(val level: Float) : ServerEvent
@@ -214,7 +229,24 @@ object Protocol {
                     developer = o.optString("developer"), released = o.optString("released"),
                     rating = if (o.isNull("rating")) null else o.optInt("rating"),
                     tags = o.optJSONArray("tags")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
+                    achievements = if (o.isNull("achievements")) null else o.optInt("achievements"),
+                    achUnlocked = if (o.isNull("ach_unlocked")) null else o.optInt("ach_unlocked"),
+                    achRecent = o.optJSONArray("ach_recent")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
+                    played2w = if (o.isNull("played_2w")) null else o.optDouble("played_2w"),
+                    players = if (o.isNull("players")) null else o.optInt("players"),
+                    news = o.optJSONArray("news")?.let { a ->
+                        List(a.length()) { i -> a.getJSONObject(i).let { GameNews(it.optString("title"), it.optDouble("at", 0.0)) } }
+                    }.orEmpty(),
+                    friends = o.optJSONArray("friends")?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty(),
                 ),
+                recent = o.optJSONArray("recent")?.let { a ->
+                    List(a.length()) { i ->
+                        a.getJSONObject(i).let {
+                            RecentGame(it.optString("name"), it.optString("art"), if (it.isNull("hours")) null else it.optDouble("hours"), it.optDouble("last_played", 0.0))
+                        }
+                    }
+                }.orEmpty(),
+                account = o.optBoolean("account"),
             )
             "notifications" -> {
                 val arr = o.getJSONArray("items")
