@@ -243,3 +243,7 @@ cd android; .\gradlew.bat testDebugUnitTest assembleRelease  # app (JAVA_HOME = 
 
 Cómo ha evolucionado el proyecto y por qué cambió de rumbo: [docs/evolucion.md](docs/evolucion.md).
 El plan original y las decisiones de partida están en `docs/plan-inicial.md`.
+
+## Licencia
+
+MIT: ver [LICENSE](LICENSE).
