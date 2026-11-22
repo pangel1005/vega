@@ -63,6 +63,27 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX reminders_pending ON reminders(delivered_at, cancelled, due_at);
     """,
+    # v3: entregas de la universidad (Moodle). Cada tarea sabe qué avisos ya se programaron para ella.
+    """
+    CREATE TABLE tasks (
+        uid           TEXT PRIMARY KEY,
+        title         TEXT NOT NULL,
+        course        TEXT NOT NULL DEFAULT '',
+        due_at        TEXT NOT NULL,             -- hora local del PC, ISO 8601 sin zona
+        url           TEXT NOT NULL DEFAULT '',
+        done          INTEGER NOT NULL DEFAULT 0,
+        alerted       TEXT NOT NULL DEFAULT '',  -- minutos de antelación ya programados, separados por comas
+        reminder_ids  TEXT NOT NULL DEFAULT '',  -- recordatorios creados para esta tarea
+        seen_at       TEXT NOT NULL              -- última sincronización en que Moodle la devolvió
+    );
+    """,
+    # v4: la racha del gimnasio (un día por fila, fecha local del PC).
+    """
+    CREATE TABLE gym (
+        day  TEXT PRIMARY KEY,   -- AAAA-MM-DD
+        at   TEXT NOT NULL       -- cuándo se encendió la llama
+    );
+    """,
 ]
 
 

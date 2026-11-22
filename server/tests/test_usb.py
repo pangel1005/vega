@@ -1,6 +1,9 @@
 import subprocess
 from pathlib import Path
 
+import pytest
+
+from server.device import usb
 from server.device.usb import (
     LOST_PHONE_SECONDS,
     MIN_RESTART_GAP,
@@ -33,12 +36,16 @@ class FakeAdb:
         return subprocess.CompletedProcess(cmd, code, "", "error: device offline" if code else "")
 
 
-def test_connecting_phone_is_linked_and_app_opened() -> None:
+def test_connecting_phone_is_linked_and_app_opened(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(usb, "APP_PACKAGE", "com.asistente.personal")
+    monkeypatch.setattr(usb, "APP_ACTIVITY", "com.asistente.personal/com.asistente.personal.MainActivity")
     adb = FakeAdb()
     w = UsbWatcher("adb", 8000, "secreto", run=adb)
     w.on_devices({"ABC": "device"})
     assert adb.calls == [
         ["-s", "ABC", "reverse", "tcp:8000", "tcp:8000"],
+        # la otra versión de Vega (el rediseño) se cierra para que no se peleen por el micrófono
+        ["-s", "ABC", "shell", "am", "force-stop", "com.asistente.personal.rediseno"],
         [
             "-s",
             "ABC",
@@ -46,7 +53,7 @@ def test_connecting_phone_is_linked_and_app_opened() -> None:
             "am",
             "start",
             "-n",
-            "com.asistente.personal/.MainActivity",
+            "com.asistente.personal/com.asistente.personal.MainActivity",
             "--es",
             "token",
             "secreto",
@@ -56,7 +63,7 @@ def test_connecting_phone_is_linked_and_app_opened() -> None:
 
     # La misma lista otra vez (adb repite avisos): no se vuelve a enlazar.
     w.on_devices({"ABC": "device"})
-    assert len(adb.calls) == 2
+    assert len(adb.calls) == 3
 
 
 def test_reconnecting_relinks() -> None:
@@ -164,3 +171,78 @@ def test_remembers_phone_between_sessions(tmp_path: Path) -> None:
     w2 = UsbWatcher("adb", 8000, "t", open_app=False, run=FakeAdb(), memory_file=memory)
     assert not w2.should_restart(True, 1000.0)
     assert w2.should_restart(True, 1000.0 + LOST_PHONE_SECONDS)
+
+
+class ListingAdb(FakeAdb):
+    """Un adb que sabe qué reenvíos tiene puestos (`reverse --list`) y puede perderlos."""
+
+    def __init__(self, forwards: str = "UsbFfs tcp:8000 tcp:8000\n", fail_fix: bool = False) -> None:
+        super().__init__()
+        self.forwards = forwards
+        self.fail_fix = fail_fix
+
+    def __call__(self, cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        self.calls.append(cmd[1:])
+        if "--list" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, self.forwards, "")
+        if "reverse" in cmd:
+            if self.fail_fix:
+                return subprocess.CompletedProcess(cmd, 1, "", "error: closed")
+            self.forwards = "UsbFfs tcp:8000 tcp:8000\n"
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+
+def linked_watcher(adb: ListingAdb) -> UsbWatcher:
+    w = UsbWatcher("adb", 8000, "secreto", open_app=False, run=adb)
+    w.on_devices({"ABC": "device"})
+    adb.calls.clear()
+    return w
+
+
+def test_a_forward_that_is_still_there_is_left_alone() -> None:
+    adb = ListingAdb()
+    w = linked_watcher(adb)
+    w.verify_links()
+    assert adb.calls == [["-s", "ABC", "reverse", "--list"]]
+    assert w.status.linked == {"ABC"}
+
+
+def test_a_lost_forward_is_put_back_without_reopening_the_app() -> None:
+    adb = ListingAdb()
+    w = linked_watcher(adb)
+    adb.forwards = ""  # adb se reinició: el reenvío desapareció
+    w.verify_links()
+    assert ["-s", "ABC", "reverse", "tcp:8000", "tcp:8000"] in adb.calls
+    assert not any("start" in c for c in adb.calls)
+    assert w.status.linked == {"ABC"}
+    adb.calls.clear()
+    w.verify_links()  # ya está puesto: no vuelve a hacer nada
+    assert adb.calls == [["-s", "ABC", "reverse", "--list"]]
+
+
+def test_another_port_does_not_count_as_ours() -> None:
+    adb = ListingAdb()
+    w = linked_watcher(adb)
+    adb.forwards = "UsbFfs tcp:9000 tcp:9000\n"  # solo hay un reenvío de otro puerto
+    w.verify_links()
+    assert ["-s", "ABC", "reverse", "tcp:8000", "tcp:8000"] in adb.calls
+
+
+def test_if_it_cannot_be_put_back_the_phone_is_relinked_on_the_next_notice() -> None:
+    adb = ListingAdb(fail_fix=True)
+    w = linked_watcher(adb)
+    adb.forwards = ""
+    w.verify_links()
+    assert w.status.linked == set()
+    adb.fail_fix = False
+    w.on_devices({"ABC": "device"})
+    assert w.status.linked == {"ABC"}
+
+
+def test_unlinked_phones_are_not_checked() -> None:
+    adb = ListingAdb()
+    w = UsbWatcher("adb", 8000, "secreto", open_app=False, run=adb)
+    w.on_devices({"XYZ": "unauthorized"})
+    adb.calls.clear()
+    w.verify_links()
+    assert adb.calls == []

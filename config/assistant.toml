@@ -20,9 +20,20 @@ model = "qwen3.5:4b"
 #   gpu_layers = 0  → nada de vídeo, pero la primera palabra tarda ~2,3 s
 #   gpu_layers = -1 → todo en la gráfica: ~3,7 GB de vídeo, ~65 palabras/s
 gpu_layers = 1
+# La IA sigue a tu PC: sin juego abierto usa `gpu_layers_free` (-1 = todo en la gráfica: respuesta en ~0,7 s en vez
+# de 3–4 s, a costa de ~3 GB de vídeo) y en cuanto abres un juego (o otro programa se queda con el vídeo) vuelve a
+# `gpu_layers` y la voz a texto pasa al procesador (`stt_game_model`), para no quitarle nada al juego.
+# Vuelve a la gráfica 20 s después de cerrarlo, y solo si caben `gpu_free_mib` MiB libres. false = fijo, como antes.
+follow_game = true
+# Medido (RTX 4060 Ti, escritorio normal abierto): todas las capas = 3,7 GB de vídeo y 0,6 s por respuesta (deja
+# solo ~0,5 GB libres con Discord y la cámara); 24 capas = 2,2 GB y 1,8 s; 16 capas = 1,7 GB y 2,5 s; 1 capa = 0,6 GB y 3,5 s.
+gpu_layers_free = 24
+gpu_free_mib = 4000
 # Hilos del procesador para el modelo. Se dejan núcleos libres para la voz (Kokoro, 4 hilos).
 threads = 6
 context = 2048
+# Más bajo = menos inventos. Medido con 20 preguntas: a 0,8 mezclaba francés, contaba mal y metía datos tuyos donde no tocaba.
+temperature = 0.5
 # Tiempo sin uso tras el cual Ollama saca el modelo de la memoria. Casi todo va en la RAM
 # (~3 GB de 32) y cargarlo de nuevo cuesta ~6 s, así que se deja todo el día.
 keep_alive = "12h"
@@ -30,10 +41,11 @@ keep_alive = "12h"
 # Corto a propósito: en el procesador, el modelo relee estas instrucciones en cada turno
 # (Qwen 3.5 no puede reaprovecharlas), y cada línea de más retrasa la primera palabra.
 system_prompt = """
-Eres {name}, asistente de voz del usuario (él no se llama {name}). Habla en primera persona y en español.
-Responde MUY breve: una o dos frases cortas, sin preguntas de cortesía al final, sin listas, emojis ni Markdown (se leerá en voz alta).
-Usa la fecha y hora que se te dan. No tienes internet ni clima: dilo si te lo piden.
-Los botones (apagar, volumen, abrir apps…) los ejecuta el sistema, no tú: no digas que hiciste algo que no hiciste.
+Eres {name}, la asistente de voz de tu usuario. Respondes siempre en español, con una o dos frases cortas y naturales, como si hablaras.
+Contesta solo a lo que se pregunta y termina ahí: sin preguntas al final, sin ofrecer más ayuda, sin presentarte y sin listas, emojis ni Markdown.
+Si no sabes algo o no puedes saberlo (noticias, tiempo, internet, lugares cercanos), dilo en una frase corta; nunca te inventes datos ni digas que vas a buscar algo.
+Para la fecha y la hora usa exactamente la que se te da. En las cuentas, calcula con cuidado.
+No digas que has hecho algo que no has hecho.
 """
 
 [speech]
@@ -44,6 +56,8 @@ Los botones (apagar, volumen, abrir apps…) los ejecuta el sistema, no tú: no 
 stt_model = "small"
 stt_device = "cuda"
 stt_compute = "int8_float16"
+# Mientras hay un juego abierto la voz a texto va en el procesador con este modelo (~0,6 s por frase).
+stt_game_model = "base"
 # Máximo de una grabación, en segundos.
 max_seconds = 30
 
@@ -99,6 +113,47 @@ rocket_port = 49123
 # Forza Horizon: activa «Data Out» en los ajustes del juego con IP 127.0.0.1 y este puerto UDP.
 forza_port = 5300
 # Counter-Strike 2: la integración oficial («Game State Integration») la crea tools/cs2_gsi.py con tu permiso.
+
+[telegram]
+# Vega fuera de casa: escríbele desde Telegram («recuérdame…», «pon un fondo de paisaje», cualquier pregunta) y recibe
+# sus recordatorios cuando el teléfono no está conectado. El PC pregunta a Telegram (nada entra a tu red) y solo
+# contesta a las cuentas de config/telegram.json, que se crea con `python -m server.tools.telegram_setup`
+# (ahí vive el token del bot; está fuera de git). De los botones del PC solo apaga, y siempre preguntando antes
+# con botones («/apagar», «apaga la PC» o tras «buenas noches»), con 60 s para cancelarlo.
+enabled = true
+reminders = "away"   # away: solo si el teléfono no está conectado · always: siempre · never: nunca
+
+[moodle]
+# Entregas de la universidad: Vega lee el calendario que exporta tu Moodle (sin tu contraseña) y te avisa antes de
+# que venza cada tarea, por el teléfono y, si no está conectado, por Telegram. El enlace de exportación se guarda con
+# `python -m server.tools.moodle_setup` en config/moodle.json (fuera de git). Di «ya entregué <tarea>» para
+# que no te avise de lo hecho, o «qué tareas tengo» para ver lo pendiente.
+enabled = true 
+alerts = [60]          # minutos antes de la entrega en que avisa; [1440, 60] = un día antes y una hora antes
+refresh_minutes = 20   # cada cuánto relee el calendario
+only_deadlines = true  # solo lo que vence o cierra (no «se abre»)
+
+[xiaozhi]
+# PROTOTIPO: que una placa ESP32 con el firmware abierto «xiaozhi» (78/xiaozhi-esp32) sea un altavoz de voz de Vega:
+# la placa detecta la palabra de activación y manda el audio; Vega lo entiende (Whisper), contesta (el modelo del PC y las
+# habilidades) y le devuelve la voz (Kokoro). Atiende en ws://127.0.0.1:8000/xiaozhi/v1/ con el mismo token que la app.
+# Solo escucha en este PC: para una placa de verdad en la red de casa hay que abrir el servidor a la red (decisión aparte).
+enabled = false
+
+[camera]
+# La cámara del Redmi como cámara de Windows (para Discord, el navegador…), con el icono de cámara de la app.
+# Usa scrcpy y OBS Studio (winget install Genymobile.scrcpy OBSProject.OBSStudio): scrcpy lleva la cámara por el
+# cable USB sin instalar nada en el teléfono y OBS la publica como «OBS Virtual Camera». Todo queda en segundo plano
+# (la ventana al fondo, OBS en la bandeja) y se apaga del todo al desactivarla. Medido: ~0,4 % de CPU, ~250 MB de
+# memoria y ~3 % de la gráfica mientras está encendida.
+enabled = true
+facing = "front"   # front (frontal) o back (trasera)
+rotate = 180       # giro de la imagen en grados: con el teléfono tumbado sale al revés
+size = "1280x720"  # tamaño de la imagen que ven los programas
+# Al apagar la cámara, OBS se queda en la bandeja (~180 MB): Discord y compañía no pierden la cámara y al encenderla
+# otra vez la imagen vuelve sola. false = se cierra todo, pero esos programas se quedan con el logotipo de OBS
+# hasta que vuelvas a elegir la cámara en ellos.
+keep_obs = true
 
 [intents]
 # Entender por significado: además de las frases exactas, Vega entiende «apágame la compu» o «súbele a la

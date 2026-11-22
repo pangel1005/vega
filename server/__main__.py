@@ -14,6 +14,7 @@ from server.core.config import ROOT, ConfigError, Settings, load_settings
 from server.core.logs import setup_logging
 from server.core.maintenance import Maintenance
 from server.core.token import load_or_create_token
+from server.device.camera import CameraController
 from server.device.media import MediaWatcher
 from server.device.notifications import NotificationReader
 from server.device.usb import UsbWatcher, find_adb
@@ -120,6 +121,18 @@ def main() -> int:
     log.info("Panel con %d botones", len(actions.actions))
     token = load_or_create_token()
     usb = build_usb_watcher(settings, token)
+    cam = settings.camera
+    camera = (
+        CameraController(
+            settings.device.adb_path or find_adb() or "adb",
+            rotate=cam.rotate,
+            size=cam.size,
+            facing=cam.facing,
+            keep_obs=cam.keep_obs,
+        )
+        if cam.enabled
+        else None
+    )
     uvicorn.run(
         create_app(
             settings,
@@ -134,6 +147,8 @@ def main() -> int:
             notifications=NotificationReader(),
             car=CarConfig(known_actions={a.id for a in actions.actions}),
             maintenance=maintenance,
+            follow_gpu=True,
+            camera=camera,
         ),
         host=settings.server.host,
         port=settings.server.port,

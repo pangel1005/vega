@@ -16,15 +16,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from datetime import datetime
 from typing import Any
 
 from server.core.clock import time_context
+from server.core.placement import PlacementState
+from server.core.text import trim_offers
 from server.llm.base import ChatMessage, ChatModel, LlmUnavailable
 from server.memory.personal import PersonalMemory, Reminder, naive_local
 from server.memory.store import ConversationStore
-from server.skills.router import SkillRouter
+from server.skills.router import SkillReply, SkillRouter
 from server.skills.semantic import Match, SemanticIntents
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
 from server.speech.listener import SpeechSegmenter, parse_wake, yes_or_no
@@ -44,6 +46,7 @@ from server.ws.protocol import (
     MediaEvent,
     MemoryImport,
     NotificationsEvent,
+    PhoneChatReplyEvent,
     PhoneReplyEvent,
     ReminderEvent,
     ServerEvent,
@@ -70,6 +73,8 @@ FOLLOWUP_SECONDS = 8.0
 ASK_SECONDS = 12.0
 # Al detectar voz se precarga el modelo de lenguaje, como mucho una vez por este intervalo.
 PRELOAD_GAP_SECONDS = 60.0
+# Como mucho esto espera el teléfono la charla libre del PC antes de contestar él.
+PHONE_CHAT_SECONDS = 8.0
 
 
 class Orchestrator:
@@ -89,7 +94,9 @@ class Orchestrator:
         skills: SkillRouter | None = None,
         memory: PersonalMemory | None = None,
         semantic: SemanticIntents | None = None,
+        placement: PlacementState | None = None,
     ) -> None:
+        self._placement = placement
         self._semantic = semantic
         self._skills = skills
         self._memory = memory
@@ -109,6 +116,8 @@ class Orchestrator:
         self._voice_task: asyncio.Task[None] | None = None
         self._voice_confirm: tuple[str, float] | None = None  # (código, caduca)
         self._voice_ask: tuple[str, float] | None = None  # (id del botón sugerido, caduca): «¿quieres…?»
+        self._ask_sleep = False  # tras un «no» a la pregunta, el teléfono se duerme («buenas noches»)
+        self.last_ask: tuple[str, str] | None = None  # la pregunta de la última habilidad (Telegram: botones)
         self._last_preload = -PRELOAD_GAP_SECONDS
         self._tasks: set[asyncio.Task[None]] = set()
         self._model = model
@@ -224,14 +233,59 @@ class Orchestrator:
         saca el modelo de la gráfica (con 1 capa eran ~700 MB que estorbaban al jugar).
         «pc»: se vuelve a cargar para que la primera respuesta no espere."""
         self._brain_phone = where == "phone"
+        shared = self._placement
+        if shared is not None:
+            shared.phone_brain = self._brain_phone
+            shared.ready = False
         if where == "phone":
             await self.set_wake_mode(False)
-            await self._model.unload()
-            log.info("Vega piensa en el teléfono: modelo fuera de la gráfica")
+            if shared is not None and shared.hybrid and shared.mode == "free":
+                # Modo mixto: sin juego el modelo grande se queda listo en la gráfica para la charla libre.
+                self._spawn(self._ready_for_phone_chat(shared))
+                log.info("Vega piensa en el teléfono; el modelo del PC queda listo para la charla libre")
+            else:
+                await self._model.unload()
+                log.info("Vega piensa en el teléfono: modelo fuera de la gráfica")
         else:
             self._last_preload = time.monotonic()
             self._spawn(self._model.preload())
             log.info("Vega piensa en el PC")
+
+    async def _ready_for_phone_chat(self, shared: PlacementState) -> None:
+        await self._model.preload()
+        shared.ready = shared.phone_brain and shared.mode == "free"
+
+    async def phone_chat(self, text: str, history: Sequence[tuple[str, str]] = ()) -> None:
+        """IA en el teléfono: una pregunta libre. Si el PC está libre (sin juego) y su modelo está cargado en
+        la gráfica, la contesta con él; si no, `handled` falso y contesta el teléfono con el suyo. No guarda
+        nada: ni la pregunta ni la respuesta."""
+        shared = self._placement
+        if shared is None or not shared.can_chat or getattr(self._model, "busy", False):
+            await self._emit(PhoneChatReplyEvent(handled=False))
+            return
+        extra = []
+        if self._memory is not None:
+            known = await asyncio.to_thread(self._memory.prompt_context, text)
+            if known:
+                extra.append(known)
+        context = [
+            ChatMessage("system", "\n".join([self._system.content, *extra])),
+            *(ChatMessage("user" if r == "user" else "assistant", c) for r, c in history[-4:]),
+            ChatMessage("system", self._now_context()),
+            ChatMessage("user", text),
+        ]
+        start = time.perf_counter()
+        try:
+            async with asyncio.timeout(PHONE_CHAT_SECONDS):
+                reply = "".join([piece async for piece in self._model.stream(context)]).strip()
+        except (LlmUnavailable, TimeoutError) as exc:
+            log.warning("El PC no pudo contestar la charla del teléfono: %s", exc)
+            await self._emit(PhoneChatReplyEvent(handled=False))
+            return
+        took = time.perf_counter() - start
+        log.info("Charla del teléfono contestada por el PC en %.2f s (%d caracteres)", took, len(reply))
+        reply = trim_offers(reply, self._name)
+        await self._emit(PhoneChatReplyEvent(handled=bool(reply), text=reply))
 
     async def phone_command(self, text: str) -> None:
         """IA en el teléfono: el teléfono ya entendió la frase y pregunta si es cosa del PC
@@ -274,7 +328,7 @@ class Orchestrator:
                     conversation,
                     [ChatMessage("user", text), ChatMessage("assistant", reply.text)],
                 )
-                await self._emit(PhoneReplyEvent(handled=True, text=reply.text))
+                await self._emit(PhoneReplyEvent(handled=True, text=self._ask_from(reply)[0]))
                 return
         action = self._actions.match(text) if self._actions else None
         if action is None and self._actions is not None:
@@ -462,12 +516,14 @@ class Orchestrator:
                     if pending:
                         self._voice_confirm = (pending, time.monotonic() + CONFIRM_SECONDS)
                 else:
-                    await self._skill_reply(command, "Vale, no hago nada.", persist=False)
+                    sleep, self._ask_sleep = self._ask_sleep, False
+                    text = "Vale. Que descanses." if sleep else "Vale, no hago nada."
+                    await self._skill_reply(command, text, persist=False, sleep=sleep)
                 return
         if self._skills is not None:
             reply = await asyncio.to_thread(self._skills.handle, command)
             if reply is not None:
-                await self._skill_reply(command, reply.text, sleep=reply.sleep, persist=reply.persist)
+                await self._reply_with_ask(command, reply)
                 return
         action = self._actions.match(command) if (spoken and self._actions) else None
         if action is not None:
@@ -497,7 +553,7 @@ class Orchestrator:
             if reply is None:
                 return False
             log.info("Entendido por significado: habilidad «%s» (%.2f)", match.id, match.score)
-            await self._skill_reply(command, reply.text, sleep=reply.sleep, persist=reply.persist)
+            await self._reply_with_ask(command, reply)
             return True
         action = self._actions.get(match.id) if self._actions else None
         if action is None:
@@ -513,6 +569,21 @@ class Orchestrator:
         if pending:
             self._voice_confirm = (pending, time.monotonic() + CONFIRM_SECONDS)
         return True
+
+    def _ask_from(self, reply: SkillReply) -> tuple[str, bool]:
+        """Si la habilidad acaba preguntando por un botón que existe, añade la pregunta y la deja abierta.
+        Devuelve el texto y si el teléfono debe dormirse ya (no: primero se espera la respuesta)."""
+        ask = self.last_ask = reply.ask
+        if ask is None or self._actions is None or self._actions.get(ask[0]) is None:
+            return reply.text, reply.sleep  # sin botones (Telegram): la pregunta la pone quien la lea
+        # La pregunta caduca contando lo que se tarda en decir la respuesta (unas 14 letras por segundo).
+        self._voice_ask = (ask[0], time.monotonic() + ASK_SECONDS + len(reply.text) / 14)
+        self._ask_sleep = reply.sleep
+        return f"{reply.text} {ask[1]} Di sí o no.", False
+
+    async def _reply_with_ask(self, command: str, reply: SkillReply) -> None:
+        text, sleep = self._ask_from(reply)
+        await self._skill_reply(command, text, sleep=sleep, persist=reply.persist)
 
     async def _skill_reply(self, command: str, text: str, sleep: bool = False, persist: bool = True) -> None:
         """Respuesta de una habilidad: se muestra, se dice y (salvo `persist=False`) se guarda."""
@@ -672,7 +743,7 @@ class Orchestrator:
         # instrucciones, en el procesador releía todo en cada turno: 7–17 s hasta la primera palabra.
         extra = []
         if self._memory is not None:
-            known = await asyncio.to_thread(self._memory.prompt_context)
+            known = await asyncio.to_thread(self._memory.prompt_context, text)
             if known:
                 extra.append(known)
         system = ChatMessage("system", "\n".join([self._system.content, *extra]))

@@ -109,6 +109,22 @@ def vdf_value(text: str, key: str) -> str:
     return m.group(1) if m else ""
 
 
+def steam_libraries(steam: Path | None) -> list[Path]:
+    """Las carpetas `steamapps` de las bibliotecas de Steam (la principal y las de otros discos)."""
+    if steam is None:
+        return []
+    libs = [steam / "steamapps"]
+    try:
+        text = (steam / "steamapps" / "libraryfolders.vdf").read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return libs
+    for raw in re.findall(r'"path"\s+"([^"]*)"', text):
+        path = Path(raw.replace("\\\\", "\\")) / "steamapps"
+        if path not in libs and path.is_dir():
+            libs.append(path)
+    return libs
+
+
 def steam_id64(steam: Path | None) -> int | None:
     """El SteamID64 de la cuenta con la que se entró la última vez en Steam (de config/loginusers.vdf)."""
     if steam is None:
@@ -268,20 +284,24 @@ class GameWatcher:
     # --- lectura de Steam y Epic ---
 
     def _libraries(self) -> list[Path]:
-        if self._steam is None:
-            return []
-        libs = [self._steam / "steamapps"]
-        try:
-            text = (self._steam / "steamapps" / "libraryfolders.vdf").read_text(
-                encoding="utf-8", errors="ignore"
-            )
-        except OSError:
-            return libs
-        for raw in re.findall(r'"path"\s+"([^"]*)"', text):
-            path = Path(raw.replace("\\\\", "\\")) / "steamapps"
-            if path not in libs and path.is_dir():
-                libs.append(path)
-        return libs
+        return steam_libraries(self._steam)
+
+    def installed_games(self) -> list[tuple[str, str]]:
+        """(nombre, dirección para abrirlo) de los juegos instalados en Steam y Epic («Vega, abre Fortnite»).
+        Steam se abre con `steam://rungameid/<número>`; Epic, con `com.epicgames.launcher://apps/<AppName>`."""
+        with self._lock:
+            self._refresh()
+            games = [
+                (name, f"steam://rungameid/{appid}")
+                for appid, (name, _folder, _size, _lib) in self._steam_apps.items()
+                if name and appid not in self._ignore
+            ]
+            games += [
+                (name, f"com.epicgames.launcher://apps/{app}?action=launch&silent=true")
+                for app, name, _where in self._epic_apps
+                if name
+            ]
+        return games
 
     def _steam_user_dir(self) -> Path | None:
         if self._steam is None:

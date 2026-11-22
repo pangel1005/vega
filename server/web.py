@@ -162,6 +162,19 @@ def register_game_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None:
         return Response(data, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 
 
+def register_wallpaper_art(app: FastAPI, art: Callable[[str], bytes | None]) -> None:
+    """Miniatura de un fondo de Wallpaper Engine (JPEG), para la «Mesa» del teléfono."""
+
+    @app.get("/app/wallpaper/{wallpaper_id}.jpg", include_in_schema=False)
+    async def wallpaper_art(wallpaper_id: str) -> Response:
+        if not wallpaper_id.isdigit() or len(wallpaper_id) > 20:
+            return Response(status_code=404)
+        data = await asyncio.to_thread(art, wallpaper_id)
+        if data is None:
+            return Response(status_code=404)
+        return Response(data, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
+
+
 def register_lyrics(app: FastAPI, finder: LyricsFinder) -> None:
     """Letra de una canción (sincronizada si se puede) para el modo letra del teléfono."""
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
@@ -52,9 +52,68 @@ class LlmSettings(_Section):
     keep_alive: str = Field(default="10m", pattern=r"^\d+[smh]$")
     # Capas del modelo en la gráfica: 1 (por defecto, ~650 MB), 0 (ninguna) o -1 (todas, ~3,7 GB).
     gpu_layers: int = Field(default=1, ge=-1, le=200)
+    # Con `follow_game`, el modelo usa `gpu_layers_free` (-1 = todo en la gráfica: ~0,7 s por respuesta)
+    # mientras no hay juego ni otro programa pesado, y vuelve a `gpu_layers` en cuanto se abre uno.
+    # `gpu_free_mib`: vídeo libre que hace falta (sin contar el de Vega) para ponerlo todo en la gráfica.
+    follow_game: bool = True
+    # Con la IA en el teléfono, la charla libre (lo que no es botón ni habilidad) la contesta el modelo grande
+    # del PC mientras la gráfica esté libre; jugando o sin PC, el pequeño del teléfono.
+    phone_chat: bool = True
+    gpu_layers_free: int = Field(default=-1, ge=-1, le=200)
+    gpu_free_mib: int = Field(default=4000, ge=0, le=100_000)
     threads: int = Field(default=8, ge=1, le=64)  # hilos del procesador para lo que no va en la gráfica
     context: int = Field(default=2048, ge=512, le=32768)
+    # Más bajo = respuestas más seguras (medido: con 0,8 mezclaba francés y se inventaba datos).
+    temperature: float = Field(default=0.5, ge=0.0, le=2.0)
     system_prompt: str = "Eres {name}, un asistente personal. Responde en español, breve y claro."
+
+
+class DeskSettings(_Section):
+    """«Vega manda en tu PC»: fondos de Wallpaper Engine, volumen por programa y abrir juegos por voz."""
+
+    enabled: bool = True
+    wallpaper: bool = True
+    volume: bool = True
+    games: bool = True
+
+
+class XiaozhiSettings(_Section):
+    """Altavoces ESP32 con el protocolo «xiaozhi» (PROTOTIPO), en `/xiaozhi/v1/`. Va desactivado."""
+
+    enabled: bool = False
+
+
+class TelegramSettings(_Section):
+    """Vega por Telegram (fuera de casa): hablarle desde el móvil y recibir avisos si el teléfono no está."""
+
+    enabled: bool = False
+    # away: los recordatorios llegan por Telegram solo si no hay teléfono conectado; always: siempre; never.
+    reminders: Literal["away", "always", "never"] = "away"
+
+
+class MoodleSettings(_Section):
+    """Entregas de la universidad (Moodle), leídas del calendario exportado. Solo habla con tu Moodle."""
+
+    enabled: bool = False
+    # Minutos antes de la entrega en que avisa; con varios, varios avisos ([1440, 60] = un día y una hora).
+    alerts: list[Annotated[int, Field(ge=1, le=10080)]] = [60]
+    refresh_minutes: int = Field(default=20, ge=5, le=240)
+    # Solo los eventos que vencen o cierran (no «se abre»); con false entran todos los del calendario.
+    only_deadlines: bool = True
+
+
+class CameraSettings(_Section):
+    """La cámara del teléfono como cámara de Windows (scrcpy + OBS Studio instalados con winget)."""
+
+    enabled: bool = True
+    facing: Literal["front", "back"] = "front"
+    # Giro de la imagen en grados (sentido de las agujas del reloj): con el teléfono tumbado sale al revés.
+    rotate: Literal[0, 90, 180, 270] = 180
+    size: str = Field(default="1280x720", pattern=r"^\d{3,4}x\d{3,4}$")
+    # Al apagar la cámara, OBS se queda en la bandeja (unos 180 MB): Discord y compañía no pierden la cámara
+    # y al encenderla otra vez la imagen vuelve sola. Con false se cierra todo, pero esos programas se quedan
+    # con el logotipo de OBS hasta que vuelvas a elegir la cámara en ellos.
+    keep_obs: bool = True
 
 
 class LoggingSettings(_Section):
@@ -71,6 +130,7 @@ class SpeechSettings(_Section):
     stt_model: str = "small"
     stt_device: Literal["cuda", "cpu"] = "cuda"
     stt_compute: str = "int8_float16"
+    stt_game_model: str = "base"  # el modelo que se usa en el procesador mientras hay un juego abierto
     max_seconds: int = Field(default=30, ge=1, le=120)
     models_dir: Path = Path("models/whisper")
     tts_enabled: bool = True
@@ -174,6 +234,11 @@ class Settings(_Section):
     games: GameSettings = GameSettings()
     notifications: NotificationSettings = NotificationSettings()
     weather: WeatherSettings = WeatherSettings()
+    camera: CameraSettings = CameraSettings()
+    desk: DeskSettings = DeskSettings()
+    xiaozhi: XiaozhiSettings = XiaozhiSettings()
+    telegram: TelegramSettings = TelegramSettings()
+    moodle: MoodleSettings = MoodleSettings()
     intents: IntentSettings = IntentSettings()
 
     @property

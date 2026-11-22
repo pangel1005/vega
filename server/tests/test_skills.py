@@ -115,9 +115,27 @@ def test_facts_reach_the_model_prompt() -> None:
     mem = PersonalMemory(ConversationStore(":memory:"))
     assert mem.prompt_context() == ""
     mem.remember("se llama Pablo")
-    assert mem.prompt_context() == "Lo que sabes del usuario (háblale de tú): se llama Pablo."
+    assert mem.prompt_context() == (
+        "Lo que sabes del usuario (háblale de tú; úsalo solo si la pregunta trata de ello): se llama Pablo."
+    )
     mem.remember("me gusta el café y mi perro se llama Toby")
     assert "te gusta el café y tu perro se llama Toby" in mem.prompt_context()
+
+
+def test_only_the_facts_that_fit_the_question_reach_the_model() -> None:
+    mem = PersonalMemory(ConversationStore(":memory:"))
+    mem.remember("tengo un perro llamado Toby")
+    mem.remember("me gusta el café")
+    # Una pregunta sin relación no lleva ningún dato (antes el perro salía en la explicación de un firewall).
+    assert mem.prompt_context("Explícame qué es un firewall") == ""
+    assert mem.prompt_context("¿Qué es la fotosíntesis?") == ""
+    # Si la pregunta comparte una palabra con el dato, ese dato sí.
+    assert "perro" in mem.prompt_context("¿Cómo cuido a mi perro en verano?")
+    only_coffee = mem.prompt_context("¿Qué café me recomiendas?")
+    assert "café" in only_coffee and "Toby" not in only_coffee
+    # Si habla de sí mismo, todo lo que se sabe.
+    everything = mem.prompt_context("¿Qué sabes de mí?")
+    assert "Toby" in everything and "café" in everything
 
 
 def test_timer_time_left(router: SkillRouter) -> None:

@@ -27,6 +27,7 @@ class OllamaChat:
         gpu_layers: int = 1,
         threads: int = 8,
         context: int = 2048,
+        temperature: float | None = None,
     ) -> None:
         self._url = url.rstrip("/")
         self._model = model
@@ -38,13 +39,59 @@ class OllamaChat:
         #   gpu_layers = 0: nada en la gráfica, pero la primera palabra tarda ~2,3 s.
         #   gpu_layers = -1: todo en la gráfica (~3,7 GB), lo más rápido.
         # El contexto (2048) reserva menos memoria que el de serie y sobra para charlas cortas.
-        self._options: dict[str, int] = {"num_ctx": context}
+        self._context = context
+        self._temperature = temperature
+        self._threads = threads
+        self._layers = gpu_layers
+        self._options = self._make_options(gpu_layers)
+        self._active = 0  # respuestas en curso (no se cambia de sitio el modelo a mitad de una)
+
+    def _make_options(self, gpu_layers: int) -> dict[str, float]:
+        options: dict[str, float] = {"num_ctx": self._context}
+        if self._temperature is not None:
+            options["temperature"] = self._temperature
         if gpu_layers >= 0:
-            self._options |= {"num_gpu": gpu_layers, "num_thread": threads}
+            options |= {"num_gpu": gpu_layers, "num_thread": self._threads}
+        return options
 
     @property
     def name(self) -> str:
         return self._model
+
+    @property
+    def gpu_layers(self) -> int:
+        return self._layers
+
+    @property
+    def busy(self) -> bool:
+        return self._active > 0
+
+    async def vram_mib(self) -> int | None:
+        """Vídeo que ocupa el modelo ahora mismo (MiB), o None si no está cargado (o Ollama no responde)."""
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT, transport=self._transport) as client:
+                resp = await client.get(f"{self._url}/api/ps")
+            for item in resp.json().get("models", []):
+                if item.get("name") == self._model or item.get("model") == self._model:
+                    return int(item.get("size_vram", 0)) // (1024 * 1024)
+        except (httpx.HTTPError, ValueError):
+            log.debug("No pude preguntar a Ollama qué hay cargado", exc_info=True)
+        return None
+
+    async def place(self, gpu_layers: int, *, reload: bool = True) -> None:
+        """Cambia cuántas capas van en la gráfica. Si el modelo estaba cargado se recarga ya con el
+        reparto nuevo (si no, se aplica la próxima vez que se cargue: dormida, o con la IA en el teléfono).
+        Con `reload` falso solo se libera la gráfica y no se vuelve a cargar."""
+        if gpu_layers == self._layers:
+            return
+        was_loaded = await self.vram_mib() is not None
+        self._layers = gpu_layers
+        self._options = self._make_options(gpu_layers)
+        if was_loaded:
+            await self.unload()
+            if reload:
+                await self.preload()
+        log.info("Modelo de lenguaje con %s capas en la gráfica", "todas" if gpu_layers < 0 else gpu_layers)
 
     async def preload(self) -> None:
         # Una petición sin texto solo carga el modelo en memoria (o renueva su keep_alive).
@@ -66,6 +113,14 @@ class OllamaChat:
             log.debug("No se pudo descargar el modelo de la memoria: %s", exc)
 
     async def stream(self, messages: Sequence[ChatMessage]) -> AsyncIterator[str]:
+        self._active += 1
+        try:
+            async for piece in self._stream(messages):
+                yield piece
+        finally:
+            self._active -= 1
+
+    async def _stream(self, messages: Sequence[ChatMessage]) -> AsyncIterator[str]:
         payload = {
             "model": self._model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],

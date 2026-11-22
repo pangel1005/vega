@@ -20,6 +20,8 @@ models/
 # Secretos
 .env
 config/token.txt
+config/telegram.json
+config/moodle.json
 *.tsbuildinfo
 
 # Android

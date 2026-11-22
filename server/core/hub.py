@@ -12,7 +12,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol
 
 from server.device.games import Game, GameWatcher
@@ -20,7 +20,9 @@ from server.device.match import Match
 from server.device.media import Command, MediaWatcher, NowPlaying
 from server.device.notifications import NotificationReader, PcNotification
 from server.memory.personal import PersonalMemory, Reminder
+from server.skills.moodle import Task
 from server.skills.status import PcSample, sample_pc
+from server.skills.streak import GymLog
 from server.ws.protocol import (
     GameEvent,
     GameNews,
@@ -36,6 +38,9 @@ from server.ws.protocol import (
     PhoneStateEvent,
     RecentGameItem,
     ServerEvent,
+    StreakEvent,
+    TaskItemInfo,
+    TasksEvent,
     TelemetryEvent,
     Upcoming,
 )
@@ -80,7 +85,15 @@ class Hub:
         level_apps: tuple[str, ...] = ("spotify",),
         spectrum: Callable[[], list[float] | None] | None = None,
         games: GameWatcher | None = None,
+        tasks: Callable[[], list[Task]] | None = None,
+        task_done: Callable[[str], bool] | None = None,
+        gym: GymLog | None = None,
     ) -> None:
+        self._gym = gym  # la racha del gimnasio (la llama)
+        self._streak_sent: StreakEvent | None = None
+        self._tasks = tasks  # las entregas de Moodle que enseña el tablero del teléfono
+        self._task_done = task_done
+        self._tasks_sent: list[Task] | None = None  # None = aún no se mandó nada
         self._games = games
         self._game_sent: GameEvent | None = None
         self._game_known = False
@@ -109,6 +122,8 @@ class Hub:
         self._media_known = False  # el que llega recibe lo que suena en la próxima vuelta
         self._game_known = False  # y el juego
         self._notes_sent = None  # y las notificaciones
+        self._tasks_sent = None  # y las entregas
+        self._streak_sent = None  # y la racha
 
     def remove(self, client: Listener) -> asyncio.Task[None] | None:
         """Quita un cliente. Si era el último teléfono, avisa a la app del PC de que se fue."""
@@ -118,6 +133,10 @@ class Hub:
             self._phone_state = None
             return asyncio.ensure_future(self.broadcast("desktop", PhoneStateEvent(online=False)))
         return None
+
+    def has_phone(self) -> bool:
+        """¿Hay un teléfono conectado ahora mismo?"""
+        return bool(self._with_role("phone"))
 
     def _with_role(self, role: str) -> list[Listener]:
         return [c for c in self._clients if self._roles.get(c, "phone") == role]
@@ -336,6 +355,55 @@ class Hub:
             except Exception:
                 log.debug("No pude mandar las notificaciones a un cliente", exc_info=True)
 
+    @staticmethod
+    def _tasks_event(items: list[Task]) -> TasksEvent:
+        return TasksEvent(
+            items=[
+                TaskItemInfo(uid=t.uid, title=t.title, course=t.course, due=t.due.timestamp()) for t in items
+            ]
+        )
+
+    async def send_tasks(self, force: bool = False) -> None:
+        """Manda al teléfono las entregas de Moodle si cambiaron (o siempre, con `force`)."""
+        if self._tasks is None or not self._with_role("phone"):
+            return
+        items = await asyncio.to_thread(self._tasks)
+        if not force and items == self._tasks_sent:
+            return
+        self._tasks_sent = items
+        await self.broadcast("phone", self._tasks_event(items))
+
+    def _streak_event(self) -> StreakEvent:
+        assert self._gym is not None
+        s = self._gym.state()
+        return StreakEvent(
+            count=s.count, best=s.best, total=s.total, today=s.today, rest=s.rest, rest_left=s.rest_left,
+            alive=s.alive, heat=round(s.heat, 2), week=s.week, days=s.days,
+        )  # fmt: skip
+
+    async def send_streak(self, force: bool = False) -> None:
+        """Manda al teléfono la racha del gimnasio si cambió (también cambia sola al pasar el día)."""
+        if self._gym is None or not self._with_role("phone"):
+            return
+        event = await asyncio.to_thread(self._streak_event)
+        if not force and event == self._streak_sent:
+            return
+        self._streak_sent = event
+        await self.broadcast("phone", event)
+
+    async def streak(self, action: str, day: str | None = None) -> None:
+        """Lo que pide la hoja «Racha» del teléfono: encender o apagar un día (hoy si no se dice)."""
+        if self._gym is not None and action in ("light", "out"):
+            gym = self._gym
+            when = date.fromisoformat(day) if day else None
+            await asyncio.to_thread(gym.light if action == "light" else gym.put_out, when)
+        await self.send_streak(force=True)
+
+    async def task_done(self, uid: str) -> None:
+        """El tablero del teléfono marcó una entrega como hecha: se anulan sus avisos y se manda lo nuevo."""
+        if self._task_done is not None and await asyncio.to_thread(self._task_done, uid):
+            await self.send_tasks(force=True)
+
     async def dismiss_notification(self, notification_id: int | None) -> None:
         if self._notifications is not None and await self._notifications.dismiss(notification_id):
             await self.send_notifications()
@@ -427,6 +495,14 @@ class Hub:
                 await self.send_game()
             except Exception:
                 log.exception("Fallo al leer el juego")
+            try:
+                await self.send_tasks()
+            except Exception:
+                log.exception("Fallo al leer las entregas")
+            try:
+                await self.send_streak()
+            except Exception:
+                log.exception("Fallo al leer la racha")
             if tick % TELEMETRY_EVERY == 0:
                 try:
                     await self.send_telemetry()

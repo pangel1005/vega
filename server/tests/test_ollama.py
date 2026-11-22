@@ -101,3 +101,73 @@ def test_unload_never_fails() -> None:
         raise httpx.ConnectError("Ollama apagado")
 
     asyncio.run(OllamaChat("http://ollama", "m", transport=httpx.MockTransport(handler)).unload())
+
+
+def fake_ollama(loaded: bool, calls: list[tuple[str, str, dict[str, object]]]) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content) if request.content else {}
+        calls.append((request.method, request.url.path, body))
+        if request.url.path == "/api/ps":
+            models = [{"name": "m", "model": "m", "size_vram": 620 * 1024 * 1024}] if loaded else []
+            return httpx.Response(200, json={"models": models})
+        return httpx.Response(200, json={})
+
+    return httpx.MockTransport(handler)
+
+
+def test_reports_the_video_memory_the_model_uses() -> None:
+    chat = OllamaChat("http://ollama", "m", transport=fake_ollama(True, []))
+    assert asyncio.run(chat.vram_mib()) == 620
+    assert asyncio.run(OllamaChat("http://ollama", "m", transport=fake_ollama(False, [])).vram_mib()) is None
+
+
+def test_moving_a_loaded_model_unloads_and_reloads_it_with_the_new_layers() -> None:
+    calls: list[tuple[str, str, dict[str, object]]] = []
+    chat = OllamaChat("http://ollama", "m", transport=fake_ollama(True, calls), gpu_layers=1)
+    asyncio.run(chat.place(-1))
+    posts = [(p, b) for m, p, b in calls if m == "POST"]
+    assert posts[0][1].get("keep_alive") == 0  # primero se libera
+    assert posts[1][1]["options"] == {"num_ctx": 2048}  # y se carga con todas las capas en la gráfica
+    assert chat.gpu_layers == -1
+
+
+def test_moving_an_unloaded_model_only_changes_the_next_load() -> None:
+    calls: list[tuple[str, str, dict[str, object]]] = []
+    chat = OllamaChat("http://ollama", "m", transport=fake_ollama(False, calls), gpu_layers=1)
+    asyncio.run(chat.place(0))
+    assert [c for c in calls if c[0] == "POST"] == []  # dormida: no se carga nada
+    assert chat.gpu_layers == 0
+
+
+def test_a_reply_in_progress_marks_the_model_busy() -> None:
+    seen: list[bool] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=ndjson({"message": {"content": "ok"}, "done": True}))
+
+    chat = OllamaChat("http://ollama", "m", transport=httpx.MockTransport(handler))
+
+    async def run() -> None:
+        async for _ in chat.stream(MESSAGES):
+            seen.append(chat.busy)
+
+    asyncio.run(run())
+    assert seen == [True] and chat.busy is False
+
+
+def test_temperature_goes_to_the_model_and_changing_layers_keeps_it() -> None:
+    chat = OllamaChat("http://ollama", "m", transport=fake_ollama(False, []), gpu_layers=-1, temperature=0.5)
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(200, content=ndjson({"message": {"content": "ok"}, "done": True}))
+
+    chat = OllamaChat(
+        "http://ollama", "m", transport=httpx.MockTransport(handler), gpu_layers=-1, temperature=0.5
+    )
+    collect(chat)
+    assert seen["options"] == {"num_ctx": 2048, "temperature": 0.5}
+    asyncio.run(chat.place(1))
+    collect(chat)
+    assert seen["options"] == {"num_ctx": 2048, "temperature": 0.5, "num_gpu": 1, "num_thread": 8}

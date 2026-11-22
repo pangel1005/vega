@@ -17,6 +17,22 @@ from server.memory.store import ConversationStore
 
 Kind = Literal["reminder", "timer"]
 MAX_FACTS_IN_PROMPT = 30
+# Palabras con las que el usuario habla de sí mismo: entonces sí conviene darle todo lo que se sabe de él.
+SELF_WORDS = frozenset(
+    {"mi", "mis", "mio", "mia", "mios", "mias", "yo", "soy", "conmigo", "sabes", "recuerdas", "conoces"}
+)
+
+
+def _content_words(text: str) -> set[str]:
+    return {w[:5] for w in normalize(text).split() if len(w) >= 4}
+
+
+def _relevant(facts: list[str], question: str) -> list[str]:
+    words = normalize(question).split()
+    if SELF_WORDS.intersection(words):
+        return facts
+    asked = _content_words(question)
+    return [f for f in facts if asked & _content_words(f)]
 
 
 @dataclass(frozen=True)
@@ -55,13 +71,23 @@ class PersonalMemory:
             self._db.execute("DELETE FROM facts WHERE id = ?", (r["id"],))
         return [r["text"] for r in gone]
 
-    def prompt_context(self) -> str:
+    def prompt_context(self, question: str | None = None) -> str:
         """Lo que sabe del usuario, para añadirlo a las instrucciones del modelo. Va en
-        segunda persona («te gusta…»): en primera, el modelo lo repetía como si fuera suyo."""
+        segunda persona («te gusta…»): en primera, el modelo lo repetía como si fuera suyo.
+
+        Con `question`, solo los datos que vienen al caso: si se daban todos en cada pregunta, el modelo los
+        colaba donde no tocaban (un perro en un firewall). Vienen al caso si el usuario habla de sí mismo
+        («mi nombre», «qué sabes de mí») o la pregunta comparte una palabra con el dato."""
         facts = self.facts()
+        if question is not None:
+            facts = _relevant(facts, question)
         if not facts:
             return ""
-        return "Lo que sabes del usuario (háblale de tú): " + "; ".join(to_you(f) for f in facts) + "."
+        return (
+            "Lo que sabes del usuario (háblale de tú; úsalo solo si la pregunta trata de ello): "
+            + "; ".join(to_you(f) for f in facts)
+            + "."
+        )
 
     # --- Notas ---
 
@@ -94,6 +120,12 @@ class PersonalMemory:
 
     def mark_delivered(self, reminder_id: int) -> None:
         self._db.execute("UPDATE reminders SET delivered_at = ? WHERE id = ?", (_now_iso(), reminder_id))
+
+    def cancel_reminder(self, reminder_id: int) -> None:
+        """Anula un recordatorio concreto si aún no se entregó."""
+        self._db.execute(
+            "UPDATE reminders SET cancelled = 1 WHERE id = ? AND delivered_at IS NULL", (reminder_id,)
+        )
 
     def cancel(self, kind: Kind | None = None) -> int:
         if kind is None:

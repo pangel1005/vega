@@ -19,9 +19,12 @@ from server.core.config import Settings
 from server.core.hub import Hub
 from server.core.maintenance import Maintenance
 from server.core.orchestrator import Orchestrator
+from server.core.placement import PlacementState
+from server.device.camera import CameraController
 from server.llm.base import ChatModel
 from server.memory.personal import PersonalMemory
 from server.memory.store import ConversationStore
+from server.skills.desk import Desk
 from server.skills.router import SkillRouter
 from server.skills.semantic import SemanticIntents
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
@@ -33,8 +36,12 @@ from server.ws.protocol import (
     ActionResultEvent,
     Attention,
     Brain,
+    CameraSet,
+    CameraStateEvent,
     ChatRequest,
     ConfirmEvent,
+    DeskCommand,
+    DeskStateEvent,
     DoneEvent,
     ErrorEvent,
     Hear,
@@ -48,6 +55,7 @@ from server.ws.protocol import (
     MediaControl,
     MemoryImport,
     NotificationDismiss,
+    PhoneChat,
     PhoneCommand,
     PhoneControl,
     PhoneState,
@@ -61,6 +69,8 @@ from server.ws.protocol import (
     SetVoice,
     SleepMode,
     StateEvent,
+    StreakCommand,
+    TasksCommand,
     TokenEvent,
     TranscriptEvent,
     WakeMode,
@@ -84,6 +94,57 @@ def allowed_origins(settings: Settings) -> set[str]:
     return {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in ports}
 
 
+async def _desk_state(desk: Desk) -> DeskStateEvent:
+    return DeskStateEvent.model_validate(await asyncio.to_thread(desk.panel))
+
+
+async def _run_desk(desk: Desk, emit: Callable[[ServerEvent], Awaitable[None]], msg: DeskCommand) -> None:
+    """Un gesto de la «Mesa»: se hace y se contesta con el estado nuevo (solo al teléfono que lo pidió)."""
+    try:
+        if msg.action == "volume" and msg.app is not None and msg.level is not None:
+            await asyncio.to_thread(desk.panel_volume, msg.app, msg.level)
+        elif msg.action == "mute" and msg.app is not None and msg.muted is not None:
+            await asyncio.to_thread(desk.panel_mute, msg.app, msg.muted)
+        elif msg.action == "wallpaper" and msg.id is not None:
+            if await asyncio.to_thread(desk.panel_wallpaper, msg.id) is None:
+                await emit(ErrorEvent(message="No pude cambiar el fondo: ¿está abierto Wallpaper Engine?"))
+        elif msg.action == "random":
+            if await asyncio.to_thread(desk.panel_wallpaper_random) is None:
+                await emit(ErrorEvent(message="No pude cambiar el fondo: ¿está abierto Wallpaper Engine?"))
+        elif msg.action == "more":
+            await asyncio.to_thread(desk.panel_wallpaper_more)
+        elif msg.action in ("pause", "play"):
+            await asyncio.to_thread(desk.panel_wallpaper_pause, msg.action == "pause")
+    except Exception as exc:  # la Mesa nunca debe tumbar la conexión
+        log.warning("La Mesa no pudo hacerlo: %s", exc)
+    await emit(await _desk_state(desk))
+
+
+async def _camera_state(camera: CameraController) -> CameraStateEvent:
+    return CameraStateEvent(
+        available=camera.available, on=await asyncio.to_thread(camera.is_on), facing=camera.facing
+    )
+
+
+async def _set_camera(
+    camera: CameraController, hub: Hub | None, emit: Callable[[ServerEvent], Awaitable[None]], msg: CameraSet
+) -> None:
+    """Enciende o apaga la cámara (tarda unos segundos) y avisa del estado a todos los clientes."""
+    try:
+        if msg.on:
+            await asyncio.to_thread(camera.start, msg.facing)
+        else:
+            await asyncio.to_thread(camera.stop)
+    except Exception as exc:  # falta un programa, o scrcpy no pudo abrir la cámara: se cuenta, no se cae
+        log.warning("La cámara no pudo cambiar: %s", exc)
+        await emit(ErrorEvent(message=f"La cámara no pudo cambiar: {exc}"))
+    state = await _camera_state(camera)
+    if hub is not None:
+        await hub.broadcast_all(state)
+    else:
+        await emit(state)
+
+
 def register_ws(
     app: FastAPI,
     settings: Settings,
@@ -99,6 +160,9 @@ def register_ws(
     car: CarConfig | None = None,
     maintenance: Maintenance | None = None,
     semantic: SemanticIntents | None = None,
+    placement: PlacementState | None = None,
+    camera: CameraController | None = None,
+    desk: Desk | None = None,
 ) -> None:
     origins = allowed_origins(settings)
 
@@ -147,6 +211,8 @@ def register_ws(
         role = hello.role
         log.info("Cliente conectado (%s, %s)", role, origin or "sin origen")
         await emit(Ready(assistant=settings.assistant.name, model=model.name))
+        if camera is not None:
+            await emit(await _camera_state(camera))
         # La app del PC solo lee y escribe: no oye ni habla (eso es del teléfono).
         desktop = role == "desktop"
         orchestrator = Orchestrator(
@@ -163,6 +229,7 @@ def register_ws(
             skills=skills,
             memory=memory,
             semantic=semantic,
+            placement=placement,
         )
         if hub is not None:
             hub.add(orchestrator, role)
@@ -247,6 +314,28 @@ def register_ws(
                         await orchestrator.playback_done()
                     elif isinstance(msg, PhoneCommand):
                         slow.put_nowait(partial(orchestrator.phone_command, msg.text))
+                    elif isinstance(msg, DeskCommand) and desk is not None and role == "phone":
+                        if msg.action in (
+                            "get",
+                            "volume",
+                            "mute",
+                            "more",
+                        ):  # rápidos: no esperan a un fondo que tarda
+                            await _run_desk(desk, emit, msg)
+                        else:
+                            slow.put_nowait(partial(_run_desk, desk, emit, msg))
+                    elif isinstance(msg, StreakCommand) and hub is not None and role == "phone":
+                        await hub.streak(msg.action, msg.day)
+                    elif isinstance(msg, TasksCommand) and hub is not None and role == "phone":
+                        if msg.action == "done" and msg.uid is not None:
+                            await hub.task_done(msg.uid)
+                        else:
+                            await hub.send_tasks(force=True)
+                    elif isinstance(msg, CameraSet) and camera is not None:
+                        slow.put_nowait(partial(_set_camera, camera, hub, emit, msg))
+                    elif isinstance(msg, PhoneChat) and role == "phone":
+                        history = [(t.role, t.content) for t in msg.history]
+                        slow.put_nowait(partial(orchestrator.phone_chat, msg.text, history))
                     elif isinstance(msg, Hear) and role == "phone":
                         # Sin pasar por la cola lenta: el teléfono espera la transcripción y la voz que
                         # esté diciendo el PC no debe retrasarla.

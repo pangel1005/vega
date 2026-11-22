@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import logging
 import os
 import sys
@@ -100,6 +101,17 @@ class WhisperSTT:
         except (OSError, ValueError):
             log.info("Descargando el modelo de voz %s (solo la primera vez)…", self._model_name)
             return build(local_only=False)
+
+    def place(self, model: str, device: str, compute_type: str) -> None:
+        """Cambia de modelo o de sitio (gráfica ↔ procesador). Espera a que termine la transcripción en curso;
+        el modelo nuevo se carga en cuanto se pide (o con `warmup`)."""
+        with self._lock:
+            if (model, device, compute_type) == (self._model_name, self._device, self._compute_type):
+                return
+            self._model_name, self._device, self._compute_type = model, device, compute_type
+            self._model = None
+        gc.collect()  # que el modelo anterior suelte ya el vídeo
+        log.info("Voz a texto pasa a %s", self.name)
 
     def warmup(self) -> None:
         with self._lock:

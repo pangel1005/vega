@@ -26,7 +26,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -149,6 +151,8 @@ data class ScreenModel(
     val touchFeel: TouchFeel = TouchFeel.SOFT,
     /** Dormida a mano (botón o «duérmete»): pantalla de noche hasta que se toca. */
     val sleeping: Boolean = false,
+    /** Distribución de la pantalla principal: 0 = la de siempre; 1, 2 y 3 son las propuestas nuevas (ver Layouts.kt). */
+    val layout: Int = 0,
 )
 
 class ScreenActions(
@@ -380,6 +384,24 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
             ) else if (m.terminal) NostromoScreen(
                 m, secondsLeft, canAct, onPress = press, onMore = { showMore = true }, onAttention = a.attention,
             ) else Column(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              if (m.layout in 1..3) {
+                val x = LayoutArgs(
+                    m, a, mood, color, glance, aura, elapsed, secondsLeft, canAct, press,
+                    onMore = {
+                        look(0.6f, 1f)
+                        showMore = true
+                    },
+                    onChat = { if (recentChat(ui.messages).isNotEmpty()) showChat = true },
+                    onOpenMusic = { showMusic = true },
+                    onOpenGame = { showGame = true },
+                    confirmFraction = ui.pending?.let { if (it.expiresIn > 0) secondsLeft.toFloat() / it.expiresIn else 0f },
+                )
+                when (m.layout) {
+                    1 -> PanelLayout(x)
+                    2 -> FlankLayout(x)
+                    else -> GridLayout(x)
+                }
+              } else {
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (ui.pcNotes.isNotEmpty()) {
                         NotesRail(
@@ -487,6 +509,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                     icons = m.icons,
                     media = ui.media,
                 )
+              }
             }
             AnimatedVisibility(
                 visible = showMore,
@@ -589,13 +612,19 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
 }
 
 /** Capa en caché: se dibuja una vez y se reutiliza hasta que su contenido cambia. */
-private fun Modifier.cached(): Modifier = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+internal fun Modifier.cached(): Modifier = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
 
 /** La cara de LED con su estado arriba y lo último que dijo abajo. */
 @Composable
-private fun FaceCard(
+internal fun FaceCard(
     mood: Mood, color: Color, m: ScreenModel, glance: Glance?, aura: Color, onChat: () -> Unit = {},
     confirmFraction: Float? = null, onRetry: () -> Unit = {}, modifier: Modifier = Modifier,
+    /** Sin tarjeta propia: la cara vive dentro de otra tarjeta más grande. */
+    bare: Boolean = false,
+    /** Sustituye lo que va a la derecha de la cabecera (nombre y cerebro). */
+    headerRight: (@Composable RowScope.() -> Unit)? = null,
+    /** Una franja de datos entre la cara y lo que dice. */
+    belowFace: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val border by animateColorAsState(
         if (mood == Mood.ALERT || mood == Mood.ERROR) Vega.Red.copy(alpha = 0.7f) else aura,
@@ -608,7 +637,7 @@ private fun FaceCard(
     val music = mood == Mood.IDLE && m.ui.media?.playing == true
     val glow by animateColorAsState(if (notice != null) Vega.Amber else if (music) m.mediaAccent else color, tween(700), label = "halo")
     Column(
-        modifier.card(border).drawBehind {
+        (if (bare) modifier else modifier.card(border)).drawBehind {
             drawRect(
                 Brush.radialGradient(
                     listOf(glow.copy(alpha = 0.16f), glow.copy(alpha = 0.05f), Color.Transparent),
@@ -616,22 +645,25 @@ private fun FaceCard(
                     radius = size.minDimension * 0.78f,
                 ),
             )
-        }.padding(horizontal = 16.dp, vertical = 12.dp),
+        }.padding(horizontal = if (bare) 10.dp else 16.dp, vertical = if (bare) 10.dp else 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(color)
             Spacer(Modifier.width(7.dp))
             Text(moodLabel(mood, m.ui.assistant), maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = color))
             Spacer(Modifier.weight(1f))
-            // Con la IA en el teléfono (o mientras se prepara) se ve aquí, junto al nombre.
-            if (m.brainOnPhone) {
-                Text(m.brainLabel, maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Mint))
-                Spacer(Modifier.width(10.dp))
+            if (headerRight != null) headerRight()
+            else {
+                // Con la IA en el teléfono (o mientras se prepara) se ve aquí, junto al nombre.
+                if (m.brainOnPhone) {
+                    Text(m.brainLabel, maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Mint))
+                    Spacer(Modifier.width(10.dp))
+                }
+                Text(
+                    m.ui.assistant.uppercase().ifEmpty { "VEGA" },
+                    style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp, color = Vega.Ink3),
+                )
             }
-            Text(
-                m.ui.assistant.uppercase().ifEmpty { "VEGA" },
-                style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp, color = Vega.Ink3),
-            )
         }
         // Con música sonando y Vega en reposo, la cara se hace onda (el volumen real del PC); en cuanto pasa algo
         // (le hablas, piensa, contesta, avisa…) vuelve la cara, y la onda regresa a los segundos de quedarse quieta.
@@ -691,6 +723,7 @@ private fun FaceCard(
                 mood == Mood.LISTEN -> VoiceScope(m.pulse, m.pulseAmount, color, bottom.height(20.dp))
             }
         }
+        belowFace?.invoke(this)
         // Tocar la respuesta abre la conversación reciente en letra grande.
         Subtitle(
             m,
@@ -705,7 +738,7 @@ private fun FaceCard(
  * con la telemetría) o el del teléfono (IA sin PC). Null si no hay ninguno en marcha.
  */
 @Composable
-private fun timerLeft(m: ScreenModel): Long? {
+internal fun timerLeft(m: ScreenModel): Long? {
     val pc = m.ui.telemetry?.upcoming?.firstOrNull { it.kind == "timer" }
     val endsAt = when {
         pc != null -> m.ui.telemetryAt + pc.dueIn * 1000L
@@ -818,7 +851,7 @@ private fun PageSwitch(labels: List<String>, selectedIndex: Int, onChange: (Int)
 
 /** Hora en grande (tipografía de puntos), fecha y los botones del sistema. */
 @Composable
-private fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier, border: Color = Vega.Line) {
+internal fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier, border: Color = Vega.Line) {
     val ui = m.ui
     Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -964,7 +997,7 @@ private fun StatRow(name: String, value: String?, fraction: Float?, invert: Bool
 }
 
 @Composable
-private fun DotBar(fraction: Float?, invert: Boolean, charging: Boolean, modifier: Modifier = Modifier) {
+internal fun DotBar(fraction: Float?, invert: Boolean, charging: Boolean, modifier: Modifier = Modifier) {
     val off = com.asistente.personal.ui.led.ledOff
     // Los puntos se encienden (o apagan) de uno en uno hasta el valor nuevo, en vez de saltar.
     val target = if (fraction == null) 0 else (fraction.coerceIn(0f, 1f) * 10 + 0.5f).toInt()

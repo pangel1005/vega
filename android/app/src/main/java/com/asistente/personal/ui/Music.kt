@@ -99,7 +99,7 @@ fun livePosition(media: MediaInfo, receivedAt: Long, now: () -> Long, tickMs: Lo
 
 /** Barra de progreso fina con los tiempos a los lados (o debajo, en pequeño). */
 @Composable
-private fun Progress(position: Double, duration: Double, color: Color, modifier: Modifier = Modifier, height: Dp = 4.dp) {
+internal fun Progress(position: Double, duration: Double, color: Color, modifier: Modifier = Modifier, height: Dp = 4.dp) {
     val f = if (duration > 0) (position / duration).toFloat().coerceIn(0f, 1f) else 0f
     Canvas(modifier.height(height)) {
         val r = CornerRadius(size.height / 2)
@@ -159,7 +159,7 @@ private fun DrawScope.drawTransport(kind: String, c: Color) {
 
 /** Ecualizador pequeño (5 barras) que se mueve mientras suena; quieto en pausa. */
 @Composable
-private fun Equalizer(playing: Boolean, color: Color, modifier: Modifier = Modifier) {
+internal fun Equalizer(playing: Boolean, color: Color, modifier: Modifier = Modifier) {
     var t by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(playing) {
         while (playing) {
@@ -179,7 +179,7 @@ private fun Equalizer(playing: Boolean, color: Color, modifier: Modifier = Modif
 }
 
 @Composable
-private fun Art(art: ImageBitmap?, accent: Color, modifier: Modifier, radius: Dp) {
+internal fun Art(art: ImageBitmap?, accent: Color, modifier: Modifier, radius: Dp) {
     val shape = RoundedCornerShape(radius)
     if (art != null) {
         Image(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = modifier.clip(shape))

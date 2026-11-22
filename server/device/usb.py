@@ -26,8 +26,13 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-APP_PACKAGE = "com.asistente.personal"
-APP_ACTIVITY = f"{APP_PACKAGE}/.MainActivity"
+# La app que se abre en el teléfono al enlazarlo: «Vega 2» (el rediseño, com.asistente.personal.rediseno), la
+# definitiva. Para abrir otra basta con VEGA_APP_PACKAGE; la clase de la actividad es la misma.
+APP_PACKAGE = os.environ.get("VEGA_APP_PACKAGE", "com.asistente.personal.rediseno")
+APP_ACTIVITY = f"{APP_PACKAGE}/com.asistente.personal.MainActivity"
+# Versiones de Vega que pueden estar instaladas a la vez. Solo debe estar abierta una: si no, se pelean
+# por el micrófono (Android se lo silencia a la de atrás, que reintenta) y se conectan dos veces al servidor.
+KNOWN_APPS = frozenset({"com.asistente.personal", "com.asistente.personal.rediseno"})
 _NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
@@ -152,6 +157,9 @@ class UsbWatcher:
             self._memory.write_text(serial, encoding="utf-8")
         log.info("Teléfono %s conectado por USB y enlazado (puerto %s)", serial, port)
         if self._open_app:
+            # Cierra las otras versiones de Vega que estuvieran abiertas (no las desinstala ni las desactiva).
+            for other in sorted(KNOWN_APPS - {APP_PACKAGE}):
+                self._run([self._adb, "-s", serial, "shell", "am", "force-stop", other])
             # Abre la app (o la trae al frente) y le entrega el token por el cable.
             self._run(
                 [
@@ -183,6 +191,28 @@ class UsbWatcher:
             if key == "level" and value.strip().isdigit():
                 return int(value)
         return None
+
+    def verify_links(self) -> None:
+        """Comprueba que el reenvío de puerto de cada teléfono enlazado sigue puesto y lo repone si no:
+        se pierde al reiniciar adb o al soltarse el cable un instante, y entonces Vega se queda
+        «reconectando» aunque el teléfono siga en la lista. Solo repone el reenvío (no reabre la app)."""
+        port = str(self._port)
+        for serial in sorted(self.status.linked):
+            try:
+                result = self._run([self._adb, "-s", serial, "reverse", "--list"])
+            except (OSError, subprocess.SubprocessError) as exc:
+                log.debug("adb reverse --list falló: %s", exc)
+                continue
+            if result.returncode != 0 or f"tcp:{port}" in result.stdout:
+                continue
+            fix = self._run([self._adb, "-s", serial, "reverse", f"tcp:{port}", f"tcp:{port}"])
+            if fix.returncode == 0:
+                log.warning("Teléfono %s: el reenvío del puerto %s se había perdido; lo repuse", serial, port)
+            else:
+                log.warning(
+                    "Teléfono %s: no pude reponer el reenvío (%s)", serial, (fix.stderr or fix.stdout).strip()
+                )
+                self.status.linked.discard(serial)  # se reintentará entero en la próxima lista
 
     # --- Bucle con adb ---
 
@@ -229,6 +259,8 @@ class UsbWatcher:
         while not self._stop.is_set():
             ok = self.poll_once()
             self.status.adb = ok
+            if ok:
+                self.verify_links()
             now = time.monotonic()
             if self.should_restart(ok, now):
                 self._restart_adb(now)

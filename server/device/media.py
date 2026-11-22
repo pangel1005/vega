@@ -8,9 +8,11 @@ la pantalla simplemente no aparece.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import io
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -204,3 +206,31 @@ class MediaWatcher:
         except Exception as exc:
             log.debug("No pude controlar la reproducción: %s", exc)
             return False
+
+
+def blocking_pause(
+    watcher: MediaWatcher, loop: asyncio.AbstractEventLoop, timeout: float = 3.0
+) -> Callable[[], bool]:
+    """Pausar lo que suena desde un hilo (las habilidades corren fuera del bucle). True si sonaba algo y paró.
+
+    Desde el propio bucle no se puede (se quedaría esperándose a sí mismo): entonces no hace nada."""
+
+    async def pause() -> bool:
+        now = await watcher.snapshot()
+        if now is None or not now.playing:
+            return False
+        return await watcher.control("play_pause")
+
+    def run() -> bool:
+        try:
+            asyncio.get_running_loop()
+            return False  # estamos dentro del bucle
+        except RuntimeError:
+            pass
+        try:
+            return asyncio.run_coroutine_threadsafe(pause(), loop).result(timeout)
+        except Exception:
+            log.warning("No pude pausar la música", exc_info=True)
+            return False
+
+    return run

@@ -85,6 +85,8 @@ fun Key(
     image: ImageBitmap? = null,
     id: String = label,
     live: Boolean = false,
+    /** Icono a la izquierda y nombre a la derecha (para teclas bajas en cuadrícula). */
+    horizontal: Boolean = false,
 ) {
     val pressed = remember { mutableStateOf(false) }
     val down = pressed.value
@@ -132,6 +134,16 @@ fun Key(
                     maxLines = 1,
                     style = TextStyle(fontFamily = Vega.Sans, fontSize = 10.sp, color = Color(0xFF1A0505), textAlign = TextAlign.Center),
                 )
+            }
+        } else if (horizontal) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                LedIcon(glyph, color, Modifier.size(22.dp), glow = glow)
+                Text(
+                    label,
+                    maxLines = 1,
+                    style = TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Vega.Ink),
+                )
+                if (live) Dot(color)
             }
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {

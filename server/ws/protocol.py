@@ -20,6 +20,19 @@ Cliente → servidor:
     {"type": "phone_command", "text": "..."}  (IA en el teléfono) una orden ya entendida:
                                          el PC prueba sus habilidades y botones, nunca el
                                          modelo; contesta con «phone_reply»
+    {"type": "phone_chat", "text": "...", "history": [{"role", "content"}]}  (IA en el teléfono) charla libre:
+                                         si el PC está libre (sin juego) la contesta su modelo grande;
+                                         contesta con «phone_chat_reply». No guarda nada
+    {"type": "camera", "on": true, "facing": "front|back"}  enciende o apaga la cámara del teléfono
+                                         como cámara de Windows (scrcpy + OBS); «facing» es opcional
+    {"type": "streak", "action": "get|light|out", "day": "2026-11-12"}  la racha del gimnasio: «light»
+                                         enciende la llama de un día (hoy si no se dice), «out» la
+                                         apaga; contesta con «streak»
+    {"type": "tasks", "action": "get|done", "uid": "..."}  el tablero de Moodle: «done» marca una entrega como
+                                         hecha (y anula sus avisos); contesta con «tasks»
+    {"type": "desk", "action": "get|volume|mute|wallpaper|random|more|pause|play", "app": "discord",
+     "level": 0.4, "muted": true, "id": "1001"}  la «Mesa» del teléfono: volumen por programa y fondo de
+                                         pantalla; contesta con «desk_state»
     {"type": "memory_import", "facts": [...], "notes": [...], "reminders": [{"kind",
      "text", "due_at"}]}                 lo que el teléfono guardó sin PC
     {"type": "hear", "id": 7, "audio": "<PCM16 mono 16 kHz en base64>"}  (IA en el teléfono) una frase
@@ -70,6 +83,19 @@ Servidor → cliente:
      "message": "...", "data": {...}}   (app del PC) respuesta a «maintenance»
     {"type": "sleep"}                    «Vega, duérmete»: el teléfono pasa a dormir
     {"type": "phone_reply", "handled": true, "text": "..."}  respuesta a «phone_command»
+    {"type": "streak", "count": 5, "best": 9, "total": 40, "today": true, "rest": 0, "rest_left": 2,
+     "alive": true, "heat": 1.0, "week": 3, "days": ["2026-11-10", ...]}  la racha del gimnasio (al conectar
+                                         y cada vez que cambia)
+    {"type": "tasks", "items": [{"uid", "title", "course", "due"}]}  las entregas de Moodle (pendientes y las
+                                         vencidas hace poco sin marcar); «due»: segundos desde 1970. Se manda
+                                         al conectar y cada vez que cambian
+    {"type": "desk_state", "apps": [{"key", "label", "volume", "muted"}], "wallpaper": {"available",
+     "current", "paused", "suggestions": [{"id", "title"}]}}  lo que enseña la «Mesa»
+    {"type": "camera_state", "available": true, "on": false, "facing": "front"}  estado de la cámara
+                                         (se manda al conectar y cada vez que cambia)
+    {"type": "phone_chat_reply", "handled": true, "text": "..."}  respuesta a «phone_chat» (handled falso:
+                                         el PC no puede ahora —juego abierto, modelo sin cargar—
+                                         y contesta el teléfono)
     {"type": "heard", "id": 7, "ok": true, "text": "..."}  respuesta a «hear» (ok false: no se pudo
                                          transcribir y el teléfono usa su propio oído)
                                          (lo dice el teléfono con su voz)
@@ -175,6 +201,70 @@ class PhoneCommand(_Msg):
 
     type: Literal["phone_command"] = "phone_command"
     text: str = Field(min_length=1, max_length=1000)
+
+
+class CameraSet(_Msg):
+    """Enciende o apaga la cámara del teléfono en el PC (y, si se da, elige trasera o frontal)."""
+
+    type: Literal["camera"] = "camera"
+    on: bool
+    facing: Literal["front", "back"] | None = None
+
+
+class StreakCommand(_Msg):
+    """La llama del gimnasio: pide el estado, enciende un día o lo apaga (por si fue sin querer)."""
+
+    type: Literal["streak"] = "streak"
+    action: Literal["get", "light", "out"]
+    day: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class TasksCommand(_Msg):
+    """El tablero de Moodle del teléfono: pide las entregas o marca una como hecha."""
+
+    type: Literal["tasks"] = "tasks"
+    action: Literal["get", "done"]
+    uid: str | None = Field(default=None, min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def _needs_its_data(self) -> TasksCommand:
+        if self.action == "done" and self.uid is None:
+            raise ValueError("«done» necesita «uid»")
+        return self
+
+
+class DeskCommand(_Msg):
+    """La «Mesa» del teléfono: pide el estado o mueve el volumen de un programa o el fondo de pantalla."""
+
+    type: Literal["desk"] = "desk"
+    action: Literal["get", "volume", "mute", "wallpaper", "random", "more", "pause", "play"]
+    app: str | None = Field(default=None, pattern=r"^[a-z0-9._-]{1,64}$")
+    level: float | None = Field(default=None, ge=0.0, le=1.0)
+    muted: bool | None = None
+    id: str | None = Field(default=None, pattern=r"^\d{1,20}$")
+
+    @model_validator(mode="after")
+    def _needs_its_data(self) -> DeskCommand:
+        if self.action == "volume" and (self.app is None or self.level is None):
+            raise ValueError("«volume» necesita «app» y «level»")
+        if self.action == "mute" and (self.app is None or self.muted is None):
+            raise ValueError("«mute» necesita «app» y «muted»")
+        if self.action == "wallpaper" and self.id is None:
+            raise ValueError("«wallpaper» necesita «id»")
+        return self
+
+
+class ChatTurn(_Msg):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=1000)
+
+
+class PhoneChat(_Msg):
+    """IA en el teléfono: una pregunta libre (que no es botón ni habilidad) para el modelo grande del PC."""
+
+    type: Literal["phone_chat"] = "phone_chat"
+    text: str = Field(min_length=1, max_length=1000)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=4)
 
 
 # Una frase de voz dura como mucho 12 s en el teléfono (Segmenter): 12 s · 32 000 B/s en base64 son ~512 000
@@ -315,6 +405,11 @@ AnyClientMessage = (
     | Brain
     | NotificationDismiss
     | PhoneCommand
+    | PhoneChat
+    | CameraSet
+    | DeskCommand
+    | TasksCommand
+    | StreakCommand
     | Hear
     | MemoryImport
     | Say
@@ -567,6 +662,70 @@ class PhoneReplyEvent(_Msg):
     text: str = ""
 
 
+class CameraStateEvent(_Msg):
+    type: Literal["camera_state"] = "camera_state"
+    available: bool
+    on: bool
+    facing: Literal["front", "back"] = "front"
+
+
+class StreakEvent(_Msg):
+    type: Literal["streak"] = "streak"
+    count: int
+    best: int
+    total: int
+    today: bool
+    rest: int
+    rest_left: int
+    alive: bool
+    heat: float
+    week: int
+    days: list[str] = Field(default_factory=list)
+
+
+class TaskItemInfo(_Msg):
+    uid: str
+    title: str
+    course: str = ""
+    due: float  # segundos desde 1970
+
+
+class TasksEvent(_Msg):
+    type: Literal["tasks"] = "tasks"
+    items: list[TaskItemInfo]
+
+
+class DeskAppInfo(_Msg):
+    key: str
+    label: str
+    volume: float
+    muted: bool
+
+
+class DeskWallpaperChoice(_Msg):
+    id: str
+    title: str
+
+
+class DeskWallpaperInfo(_Msg):
+    available: bool
+    current: str = ""
+    paused: bool = False
+    suggestions: list[DeskWallpaperChoice] = Field(default_factory=list)
+
+
+class DeskStateEvent(_Msg):
+    type: Literal["desk_state"] = "desk_state"
+    apps: list[DeskAppInfo]
+    wallpaper: DeskWallpaperInfo
+
+
+class PhoneChatReplyEvent(_Msg):
+    type: Literal["phone_chat_reply"] = "phone_chat_reply"
+    handled: bool
+    text: str = ""
+
+
 class HeardEvent(_Msg):
     """Lo que el PC entendió de una frase del teléfono. Sin texto y `ok` falso: que lo intente el teléfono."""
 
@@ -628,6 +787,11 @@ ServerEvent = (
     | MusicSpectrumEvent
     | NotificationsEvent
     | PhoneReplyEvent
+    | PhoneChatReplyEvent
+    | CameraStateEvent
+    | DeskStateEvent
+    | TasksEvent
+    | StreakEvent
     | HeardEvent
     | SleepEvent
     | PhoneStateEvent

@@ -10,6 +10,10 @@ la frase responde. Si ninguna la reconoce, la frase va al modelo de lenguaje.
 - Notas: «apunta…», «lee mis notas», «borra mis notas»
 - Estado: «cómo está el PC» (CPU, RAM, GPU, batería del teléfono)
 - Notificaciones del PC: «qué notificaciones tengo», «léeme el último mensaje (de WhatsApp)»
+- Entregas de la universidad (Moodle): «qué tareas tengo», «ya entregué el ensayo»
+- Racha del gimnasio: «fui al gimnasio», «ayer fui al gimnasio», «¿cómo va mi racha?»
+- El día: «buenos días» / «resumen del día» (recordatorios, entregas, la llama, el tiempo) y
+  «buenas noches» (pausa la música, lo de mañana, la llama y pregunta si apaga la PC)
 """
 
 from __future__ import annotations
@@ -21,8 +25,14 @@ from datetime import datetime, timedelta
 
 from server.core.text import normalize
 from server.device.notifications import PcNotification
-from server.memory.personal import PersonalMemory, to_you
+from server.memory.personal import PersonalMemory, Reminder, to_you
+from server.skills.desk import Desk
+from server.skills.moodle import TaskBook, clock, describe
 from server.skills.status import pc_status
+from server.skills.streak import GymLog
+from server.skills.streak import handle as streak_handle
+from server.skills.streak import morning as streak_morning
+from server.skills.streak import night as streak_night
 from server.skills.weather import Forecast
 from server.skills.weather import answer as weather_answer
 from server.skills.weather import brief as weather_brief
@@ -36,6 +46,9 @@ class SkillReply:
     persist: bool = (
         True  # False: no se guarda en el historial (p. ej. los mensajes que otras personas te mandan)
     )
+    # Una pregunta al final que, con un «sí», pulsa un botón: (id del botón, pregunta). Si hay pregunta, el
+    # teléfono no se duerme hasta que se conteste (con `sleep`, se duerme después del «no»).
+    ask: tuple[str, str] | None = None
 
 
 def _cut(text: str, span: tuple[int, int]) -> str:
@@ -101,6 +114,9 @@ _BRIEFING = re.compile(
     r"|\bcomo va (el|mi) dia\b"
     r"|\bbuenos dias\b"
 )
+_NIGHT = re.compile(
+    r"^(?:vega )?(?:bueno |pues )?buenas noches\b|\bme voy a (?:dormir|acostar)\b|\bhasta manana\b"
+)
 _DAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 _MONTHS = (
     "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
@@ -114,6 +130,18 @@ _WEATHER = re.compile(
     r"|\bcuantos grados (hay|hace)\b"
 )
 _TIMER = re.compile(r"\b(?:temporizador|cron[óo]metro|cuenta\s+atr[áa]s|alarma)\b", re.I)
+_TASKS = re.compile(
+    r"\b(que|cuales|cuantas|cuantos) (tareas|entregas|deberes|trabajos) (tengo|me quedan|hay|debo|faltan)\b"
+    r"|\b(mis|las|los) (tareas|entregas|deberes) (pendientes|de hoy|de esta semana)\b"
+    r"|\b(tareas|entregas|deberes) pendientes\b|\bproxima (tarea|entrega)\b|\bque (tengo que|debo) entregar\b"
+    r"|\bmoodle\b"
+)
+_TASK_DONE = re.compile(
+    r"^(?:vega )?(?:ya )?(?:entregue|termine|envie|subi|complete|hice)\s+(?:la |el |mi |las |los )?"
+    r"(?:tarea |entrega |trabajo |practica |actividad )?(?P<what>.+)$"
+    r"|^(?:vega )?marca (?:la |el )?(?:tarea |entrega )?(?P<what2>.+?)"
+    r" como (?:hecha|entregada|terminada|lista)$"
+)
 
 
 class SkillRouter:
@@ -132,17 +160,77 @@ class SkillRouter:
         self._now = now
         self._battery = phone_battery
         self._notifications = notifications
+        self._desk: Desk | None = None
+        self._moodle: TaskBook | None = None
+        self._gym: GymLog | None = None
+        self._pause_music: Callable[[], bool] | None = None
+
+    def attach_music(self, pause: Callable[[], bool] | None) -> None:
+        """Pausar lo que suena en el PC (para «buenas noches»). Devuelve True si había algo sonando."""
+        self._pause_music = pause
+
+    def attach_gym(self, gym: GymLog | None) -> None:
+        """La racha del gimnasio (la llama)."""
+        self._gym = gym
+
+    def attach_moodle(self, tasks: TaskBook | None) -> None:
+        """Las entregas de la universidad (Moodle)."""
+        self._moodle = tasks
+
+    def attach_desk(self, desk: Desk | None) -> None:
+        """Las órdenes de «Vega manda en tu PC» (fondos, volumen por programa, abrir juegos)."""
+        self._desk = desk
 
     def handle(self, text: str) -> SkillReply | None:
         said = normalize(text)
         for skill in (self._forget, self._what_you_know, self._remember, self._timer, self._reminders,
-                      self._notes, self._pc_notifications, self._status, self._weather_skill,
-                      self._briefing, self._sleep,
+                      self._notes, self._desk_skill, self._gym_skill, self._tasks, self._pc_notifications,
+                      self._status,
+                      self._weather_skill, self._night, self._briefing, self._sleep,
                       self._about_me):  # fmt: skip
             reply = skill(text, said)
             if reply is not None:
                 return reply
         return None
+
+    # --- El escritorio: fondos, volumen por programa, juegos ---
+
+    def _desk_skill(self, text: str, said: str) -> SkillReply | None:
+        reply = self._desk.handle(text, said) if self._desk is not None else None
+        return SkillReply(reply) if reply else None
+
+    # --- La racha del gimnasio ---
+
+    def _gym_skill(self, text: str, said: str) -> SkillReply | None:
+        reply = streak_handle(self._gym, said) if self._gym is not None else None
+        return SkillReply(reply) if reply else None
+
+    # --- Entregas de la universidad ---
+
+    def _tasks(self, text: str, said: str) -> SkillReply | None:
+        done = _TASK_DONE.match(said)
+        if done and self._moodle is not None:
+            return self._task_done(done["what"] or done["what2"])
+        if not _TASKS.search(said):
+            return None
+        if self._moodle is None:
+            return SkillReply(
+                "Aún no tengo Moodle conectado: copia el enlace de exportación de tu calendario "
+                "y guárdalo con python -m server.tools.moodle_setup."
+            )
+        now = self._now()
+        return SkillReply(describe(self._moodle.upcoming(now), now))
+
+    def _task_done(self, about: str) -> SkillReply | None:
+        assert self._moodle is not None
+        found = self._moodle.find(about, self._now())
+        if not found:
+            return None  # no es una entrega que conozca: «ya hice la cena» sigue su camino
+        if len(found) > 1:
+            names = _list([f"«{t.title}»" for t in found[:4]])
+            return SkillReply(f"¿Cuál de ellas: {names}? Dime el nombre completo.")
+        self._moodle.mark_done(found[0])
+        return SkillReply(f"Hecho: «{found[0].title}» entregada, ya no te avisaré de ella.")
 
     # --- Memoria ---
 
@@ -310,22 +398,29 @@ class SkillRouter:
 
     # --- Resumen del día ---
 
+    def _own_reminders(self) -> list[Reminder]:
+        """Tus recordatorios por hora, sin temporizadores ni los avisos de Moodle (se dicen aparte)."""
+        skip = self._moodle.alert_ids() if self._moodle is not None else set()
+        mine = (r for r in self._mem.pending() if r.kind == "reminder" and r.id not in skip)
+        return sorted(mine, key=lambda r: r.due_at)
+
     def _briefing(self, text: str, said: str) -> SkillReply | None:
         if not _BRIEFING.search(said):
             return None
         now = self._now()
         greet = "Buenos días. " if "buenos dias" in said else ""
         parts = [f"Hoy es {_DAYS[now.weekday()]} {now.day} de {_MONTHS[now.month - 1]}."]
-        today = sorted(
-            (r for r in self._mem.pending() if r.kind == "reminder" and r.due_at.date() == now.date()),
-            key=lambda r: r.due_at,
-        )
+        today = [r for r in self._own_reminders() if r.due_at.date() == now.date()]
         if today:
             parts.append(
                 "Hoy tienes: " + _list([f"{r.text} {spoken_time(r.due_at, now)}" for r in today]) + "."
             )
         else:
             parts.append("No tienes recordatorios para hoy.")
+        if self._moodle is not None and (due := self._moodle.upcoming(now, timedelta(days=2))):
+            parts.append("Entregas próximas: " + describe(due, now, limit=3).split(": ", 1)[1])
+        if self._gym is not None and (flame := streak_morning(self._gym.state())):
+            parts.append(flame)
         if self._weather_ready and self._weather is not None and (forecast := self._weather()) is not None:
             parts.append(weather_brief(forecast, now.timestamp()))
         notes = self._mem.notes()
@@ -335,6 +430,36 @@ class SkillRouter:
         if alerts:
             parts.append(f"Y {alerts} aviso{_s(alerts)} sin leer en el PC.")
         return SkillReply(greet + " ".join(parts))
+
+    # --- Buenas noches ---
+
+    def _night(self, text: str, said: str) -> SkillReply | None:
+        if not _NIGHT.search(said):
+            return None
+        now = self._now()
+        tomorrow = now.date() + timedelta(days=1)
+        parts = ["Buenas noches."]
+        if self._pause_music is not None and self._pause_music():
+            parts.append("He pausado la música.")
+        later = [r for r in self._own_reminders() if r.due_at.date() <= tomorrow]
+        if later:
+            parts.append(
+                "Te queda: " + _list([f"{r.text} {spoken_time(r.due_at, now)}" for r in later[:4]]) + "."
+            )
+        if self._moodle is not None:
+            until = datetime.combine(tomorrow, datetime.max.time()) - now
+            due = self._moodle.upcoming(now, until)
+            if due:
+                names = [f"«{t.title}», {clock(t.due, now)}" for t in due[:3]]
+                more = f" y {len(due) - 3} más" if len(due) > 3 else ""
+                parts.append(f"Entrega{_s(len(due))} para mañana: " + "; ".join(names) + more + ".")
+            elif not later:
+                parts.append("Mañana no tienes entregas ni recordatorios.")
+        elif not later:
+            parts.append("Mañana no tienes recordatorios.")
+        if self._gym is not None and (flame := streak_night(self._gym.state())):
+            parts.append(flame)
+        return SkillReply(" ".join(parts), sleep=True, ask=("apagar", "¿Apago la PC?"))
 
     # --- El tiempo ---
 
