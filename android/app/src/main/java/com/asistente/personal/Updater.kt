@@ -80,6 +80,19 @@ class Updater(private val context: Context) {
         }
     }
 
+    /** Miniatura de un fondo de Wallpaper Engine (JPEG que el PC saca de su vista previa), o null. */
+    suspend fun wallpaperThumb(id: String): androidx.compose.ui.graphics.ImageBitmap? = withContext(Dispatchers.IO) {
+        try {
+            http.newCall(Request.Builder().url("$SERVER_HTTP/app/wallpaper/$id.jpg").build()).execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                val bytes = resp.body.bytes()
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Carátula del juego abierto en el PC (JPEG, de la caché de Steam), o null. */
     suspend fun gameArt(id: String): androidx.compose.ui.graphics.ImageBitmap? = withContext(Dispatchers.IO) {
         try {

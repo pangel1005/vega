@@ -22,6 +22,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -51,19 +54,20 @@ fun KeyRow(
     modifier: Modifier = Modifier,
     icons: Map<String, ImageBitmap> = emptyMap(),
     media: com.asistente.personal.net.MediaInfo? = null,
+    compact: Boolean = false,
 ) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
         favorites.take(6).forEach { a ->
             val state = keyState(a, media)
             Key(
                 label = state.label, live = state.live, icon = a.icon, color = deckColor(a.color), enabled = enabled, image = icons[a.id], id = a.id,
                 confirming = pending?.id == a.id, secondsLeft = secondsLeft, onClick = { onPress(a.id) },
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.weight(1f).fillMaxHeight(), compact = compact,
             )
         }
         Key(
             label = "Más", icon = "more", color = Vega.Ink2, enabled = true, confirming = false, secondsLeft = 0,
-            onClick = onMore, modifier = Modifier.weight(0.75f).fillMaxHeight(),
+            onClick = onMore, modifier = Modifier.weight(0.75f).fillMaxHeight(), compact = compact,
         )
     }
 }
@@ -85,6 +89,10 @@ fun Key(
     image: ImageBitmap? = null,
     id: String = label,
     live: Boolean = false,
+    /** Icono a la izquierda y nombre a la derecha (para teclas bajas en cuadrícula). */
+    horizontal: Boolean = false,
+    /** Tecla baja: icono más pequeño y sin la tira de luz (para una fila estrecha). */
+    compact: Boolean = false,
 ) {
     val pressed = remember { mutableStateOf(false) }
     val down = pressed.value
@@ -116,6 +124,7 @@ fun Key(
                 else Modifier,
             )
             .background(fill, KeyShape)
+            .then(if (!glassy && !down && !confirming) Modifier.keycap(KeyShape) else Modifier)
             .then(
                 if (glassy) Modifier
                 else Modifier.border(1.dp, if (confirming) Vega.Red else if (down) color.copy(alpha = 0.6f) else Vega.Line, KeyShape),
@@ -133,18 +142,44 @@ fun Key(
                     style = TextStyle(fontFamily = Vega.Sans, fontSize = 10.sp, color = Color(0xFF1A0505), textAlign = TextAlign.Center),
                 )
             }
-        } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                // Las apps llevan su icono real (del .exe del PC) hecho de LED de colores; lo demás,
-                // su dibujo en puntos del color de la tecla.
-                LedIcon(glyph, color, Modifier.size(32.dp), glow = glow)
+        } else if (horizontal) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                LedIcon(glyph, color, Modifier.size(22.dp), glow = glow)
                 Text(
                     label,
                     maxLines = 1,
                     style = TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Vega.Ink),
                 )
-                LightStrip(color, glow, live)
+                if (live) Dot(color)
             }
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                // Las apps llevan su icono real (del .exe del PC) hecho de LED de colores; lo demás,
+                // su dibujo en puntos del color de la tecla.
+                LedIcon(glyph, color, Modifier.size(if (compact) 26.dp else 32.dp), glow = glow)
+                Text(
+                    label,
+                    maxLines = 1,
+                    style = TextStyle(fontFamily = Vega.Sans, fontWeight = FontWeight.Medium, fontSize = if (compact) 11.sp else 12.sp, color = Vega.Ink),
+                )
+                if (!compact) LightStrip(color, glow, live) else if (live) Dot(color)
+            }
+        }
+    }
+}
+
+/** Relieve de tecla: la cara de arriba capta luz, el borde de abajo cae en sombra, y un filo claro arriba. */
+private fun Modifier.keycap(shape: androidx.compose.ui.graphics.Shape): Modifier = drawWithCache {
+    val path = androidx.compose.ui.graphics.Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
+    val body = androidx.compose.ui.graphics.Brush.verticalGradient(
+        listOf(Color.White.copy(alpha = 0.075f), Color.Transparent, Color.Black.copy(alpha = 0.38f)),
+    )
+    onDrawBehind {
+        clipPath(path) {
+            drawRect(body)
+            val w = 1.dp.toPx()
+            drawLine(Color.White.copy(alpha = 0.16f), androidx.compose.ui.geometry.Offset(size.width * 0.1f, w), androidx.compose.ui.geometry.Offset(size.width * 0.9f, w), w)
+            drawLine(Color.Black.copy(alpha = 0.6f), androidx.compose.ui.geometry.Offset(0f, size.height - w), androidx.compose.ui.geometry.Offset(size.width, size.height - w), w * 2)
         }
     }
 }

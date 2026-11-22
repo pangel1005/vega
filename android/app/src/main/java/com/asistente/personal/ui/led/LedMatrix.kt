@@ -68,33 +68,43 @@ fun LedMatrix(
     /** Si no es null, los LED encendidos se pintan con este pincel (p. ej. el arcoíris) en vez de `color`. */
     brush: ((width: Float) -> Brush)? = null,
     off: Color = LedOff,
+    /** LED con lente (halo doble, centro casi blanco y reflejo en los apagados): el aspecto del rediseño. */
+    lens: Boolean = false,
 ) {
     // Capa propia: cuando la cara cambia solo se vuelve a grabar esta capa, no toda la pantalla
     // (medido en el teléfono: redibujar todo costaba ~11 ms por cuadro).
     Box(
         modifier.graphicsLayer().drawWithCache {
             val g = Grid(size, cols, rows)
-            val base = offBitmap(this, g, cols, rows, dot, off)
+            val base = offBitmap(this, g, cols, rows, dot, off, lens)
             val buckets = Array(LEVELS) { ArrayList<Offset>(cols * rows / 4) }
             val glow = ArrayList<Offset>(cols * rows / 4)
+            val core = ArrayList<Offset>(cols * rows / 4)
             onDrawBehind {
                 drawImage(base)
                 tick() // suscribe el dibujo a los cambios
                 buckets.forEach { it.clear() }
                 glow.clear()
+                core.clear()
                 for (y in 0 until rows) for (x in 0 until cols) {
                     val a = values[y * cols + x]
                     if (a < 0.04f) continue
                     val p = g.at(x, y)
                     buckets[min(LEVELS - 1, (a * LEVELS).toInt())].add(p)
                     if (a > 0.8f) glow.add(p)
+                    if (lens && a > 0.9f) core.add(p)
                 }
                 val paint = brush?.invoke(size.width)
                 if (glow.isNotEmpty()) {
+                    // Con lente, la luz se esparce en dos halos (ancho y suave, y más cerca e intenso), como un LED de verdad.
+                    if (lens) {
+                        if (paint != null) drawPoints(glow, PointMode.Points, paint, strokeWidth = g.pitch * 2.1f, cap = StrokeCap.Round, alpha = 0.07f)
+                        else drawPoints(glow, PointMode.Points, color.copy(alpha = 0.07f), strokeWidth = g.pitch * 2.1f, cap = StrokeCap.Round)
+                    }
                     if (paint != null) {
-                        drawPoints(glow, PointMode.Points, paint, strokeWidth = g.pitch * 0.9f, cap = StrokeCap.Round, alpha = 0.16f)
+                        drawPoints(glow, PointMode.Points, paint, strokeWidth = g.pitch * 0.9f, cap = StrokeCap.Round, alpha = if (lens) 0.22f else 0.16f)
                     } else {
-                        drawPoints(glow, PointMode.Points, color.copy(alpha = 0.16f), strokeWidth = g.pitch * 0.9f, cap = StrokeCap.Round)
+                        drawPoints(glow, PointMode.Points, color.copy(alpha = if (lens) 0.22f else 0.16f), strokeWidth = g.pitch * 0.9f, cap = StrokeCap.Round)
                     }
                 }
                 for (i in 0 until LEVELS) {
@@ -106,12 +116,16 @@ fun LedMatrix(
                         drawPoints(buckets[i], PointMode.Points, color.copy(alpha = alpha), strokeWidth = g.pitch * dot, cap = StrokeCap.Round)
                     }
                 }
+                // El centro de cada LED encendido, casi blanco: el punto de luz más brillante de la lente.
+                if (lens && core.isNotEmpty()) {
+                    drawPoints(core, PointMode.Points, Color.White.copy(alpha = 0.55f), strokeWidth = g.pitch * dot * 0.42f, cap = StrokeCap.Round)
+                }
             }
         },
     )
 }
 
-private fun offBitmap(scope: CacheDrawScope, g: Grid, cols: Int, rows: Int, dot: Float, off: Color): ImageBitmap {
+private fun offBitmap(scope: CacheDrawScope, g: Grid, cols: Int, rows: Int, dot: Float, off: Color, lens: Boolean): ImageBitmap {
     val w = scope.size.width.toInt().coerceAtLeast(1)
     val h = scope.size.height.toInt().coerceAtLeast(1)
     val bitmap = ImageBitmap(w, h)
@@ -119,6 +133,12 @@ private fun offBitmap(scope: CacheDrawScope, g: Grid, cols: Int, rows: Int, dot:
         val pts = ArrayList<Offset>(cols * rows)
         for (y in 0 until rows) for (x in 0 until cols) pts.add(g.at(x, y))
         drawPoints(pts, PointMode.Points, off, strokeWidth = g.pitch * dot, cap = StrokeCap.Round)
+        if (lens) {
+            // Cristal del LED apagado: un reflejo pequeño arriba a la izquierda de cada punto.
+            val shine = ArrayList<Offset>(cols * rows)
+            for (y in 0 until rows) for (x in 0 until cols) shine.add(g.at(x, y) + Offset(-g.pitch * 0.1f, -g.pitch * 0.12f))
+            drawPoints(shine, PointMode.Points, Color.White.copy(alpha = 0.09f), strokeWidth = g.pitch * dot * 0.38f, cap = StrokeCap.Round)
+        }
     }
     return bitmap
 }
@@ -144,9 +164,14 @@ fun LedFaceView(
     countdown: String? = null,
     /** Hacia dónde mirar un momento; cada mirada nueva lleva otro `seq`. */
     glance: Glance? = null,
+    /** Gestos que enseñan datos (sudor, párpados, visor); null = la cara de siempre. */
+    extras: FaceExtras? = null,
+    /** LED con lente (ver [LedMatrix]). */
+    lens: Boolean = false,
 ) {
     val animator = remember { LedFaceAnimator() }
     animator.countdown = countdown
+    animator.extras = extras
     LaunchedEffect(glance?.seq) { glance?.let { animator.glance(it.x, it.y) } }
     val currentRainbow by rememberUpdatedState(rainbow)
     val time = remember { floatArrayOf(0f) }
@@ -179,6 +204,7 @@ fun LedFaceView(
         animator.shown, FACE_COLS, FACE_ROWS, shade, { tick }, modifier,
         brush = if (rainbow) { width -> rainbowBrush(width, time[0]) } else null,
         off = ledOff,
+        lens = lens,
     )
 }
 

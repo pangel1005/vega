@@ -165,7 +165,7 @@ fun liveSession(game: GameInfo, receivedAt: Long, now: () -> Long, tickMs: Long 
 
 /** La carátula del juego, o (sin ella) su inicial grande sobre el color del juego. */
 @Composable
-private fun GameArt(art: ImageBitmap?, name: String, accent: Color, modifier: Modifier, radius: Dp, initialSize: androidx.compose.ui.unit.TextUnit = 44.sp) {
+internal fun GameArt(art: ImageBitmap?, name: String, accent: Color, modifier: Modifier, radius: Dp, initialSize: androidx.compose.ui.unit.TextUnit = 44.sp) {
     val shape = RoundedCornerShape(radius)
     if (art != null) {
         Image(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = modifier.clip(shape))
@@ -182,7 +182,7 @@ private fun GameArt(art: ImageBitmap?, name: String, accent: Color, modifier: Mo
 
 /** Un punto que late: «en vivo». */
 @Composable
-private fun LiveDot(color: Color, size: Dp = 7.dp) {
+internal fun LiveDot(color: Color, size: Dp = 7.dp) {
     val transition = rememberInfiniteTransition(label = "latido")
     val alpha by transition.animateFloat(0.3f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "alfa")
     Box(Modifier.size(size).graphicsLayer { this.alpha = alpha }.background(color, CircleShape))
@@ -193,7 +193,7 @@ private fun parseHex(hex: String?): Color? =
 
 /** El marcador con el color de cada equipo; al cambiar, los números dan un salto (gol, baja). */
 @Composable
-private fun ScoreBoard(score: String, colors: List<String>, accent: Color, size: TextUnit) {
+internal fun ScoreBoard(score: String, colors: List<String>, accent: Color, size: TextUnit) {
     val parts = score.split(" – ")
     val pulse = remember { Animatable(1f) }
     var last by remember { mutableStateOf(score) }
@@ -247,7 +247,7 @@ fun feedColor(text: String): Color = when {
 
 /** Un medidor de arco (como un cuentarrevoluciones) con su cifra dentro; la aguja se mueve suave. */
 @Composable
-private fun ArcGauge(fraction: Float, value: String, label: String, color: Color, modifier: Modifier = Modifier) {
+internal fun ArcGauge(fraction: Float, value: String, label: String, color: Color, modifier: Modifier = Modifier) {
     val sweep by animateFloatAsState(fraction.coerceIn(0f, 1f), tween(700), label = "aguja")
     Box(modifier.aspectRatio(1f), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize().padding(3.dp)) {
@@ -324,7 +324,7 @@ private fun Stat(value: String, label: String, color: Color, modifier: Modifier 
 
 /** Las cifras del PC mientras juegas: gráfica, temperatura, vídeo y procesador (lo que el PC ya manda). */
 @Composable
-private fun PcStats(t: Telemetry?, accent: Color, modifier: Modifier = Modifier) {
+internal fun PcStats(t: Telemetry?, accent: Color, modifier: Modifier = Modifier) {
     if (t == null) return
     Row(modifier, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
         t.gpuUtil?.let { Stat("$it", "GPU %", accent) }

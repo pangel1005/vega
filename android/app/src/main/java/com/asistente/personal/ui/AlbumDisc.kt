@@ -157,6 +157,7 @@ fun AlbumDisc(
     onDoubleTap: () -> Unit = {},
     level: () -> Float = { 0f },
     spectrum: () -> FloatArray = { FloatArray(0) },
+    scrubStyle: TextStyle? = null,
 ) {
     val isFlat by rememberUpdatedState(flat)
     val doubleTap by rememberUpdatedState(onDoubleTap)
@@ -272,7 +273,7 @@ fun AlbumDisc(
         }
         delta?.let {
             Box(Modifier.padding(bottom = 6.dp)) {
-                Text(scrubLabel(it), style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 26.sp, color = accent))
+                Text(scrubLabel(it), style = scrubStyle ?: TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 26.sp, color = accent))
             }
         }
     }
