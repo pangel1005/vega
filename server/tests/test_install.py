@@ -52,13 +52,13 @@ def test_existing_settings_are_never_touched(tmp_path: Path) -> None:
 
 
 def test_nvidia_vram_is_read_from_nvidia_smi(monkeypatch: Any) -> None:
-    monkeypatch.setattr(install.shutil, "which", lambda _: "nvidia-smi")
+    monkeypatch.setattr("shutil.which", lambda _: "nvidia-smi")
 
     def run(cmd: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(cmd, 0, "8188\n", "")
 
     assert install.nvidia_vram_mib(run) == 8188
-    monkeypatch.setattr(install.shutil, "which", lambda _: None)
+    monkeypatch.setattr("shutil.which", lambda _: None)
     assert install.nvidia_vram_mib(run) is None
 
 
