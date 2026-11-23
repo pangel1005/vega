@@ -26,8 +26,7 @@ def main(argv: list[str]) -> int:
     app = QApplication(argv)
     app.setApplicationName("Vega")
     app.setQuitOnLastWindowClosed(False)  # la bandeja la mantiene viva
-    theme.load_fonts()
-    app.setStyleSheet(theme.STYLE)
+    theme.apply(app)  # día o noche según la hora (o lo elegido), como el teléfono
     try:
         token = server_control.token()
     except OSError:

@@ -21,10 +21,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from desktop import config_edit, theme
+from desktop import config_edit
 from desktop.config_edit import ConfigError
 from desktop.context import Context
-from desktop.widgets import Card, pill
+from desktop.widgets import Card, pill, style
 
 BUILTINS = {
     "sleep": "Dormir / despertar a Vega",
@@ -67,7 +67,7 @@ class ItemDialog(QDialog):
         form.addRow("Qué es", self.kind)
         form.addRow("Qué hace", self.arg)
         self.error = QLabel()
-        self.error.setStyleSheet(f"color: {theme.RED};")
+        style(self.error, tone="red")
         self.error.setWordWrap(True)
         form.addRow("", self.error)
         buttons = QDialogButtonBox(
@@ -227,10 +227,8 @@ class CarPage(QWidget):
             tile.setAlignment(Qt.AlignmentFlag.AlignCenter)
             tile.setWordWrap(True)
             tile.setMinimumHeight(70)
-            tile.setStyleSheet(
-                f"background: {theme.CARD_HI}; border: 1px solid {theme.LINE}; "
-                "border-radius: 12px; font-weight: 700;"
-            )
+            tile.setObjectName("inner")
+            tile.setStyleSheet("font-weight: 700;")
             self.preview.addWidget(tile, i // 3, i % 3)
 
     def _actions(self) -> list[dict[str, Any]]:

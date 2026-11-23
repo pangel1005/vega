@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from desktop import config_edit, slots, theme
+from desktop import config_edit, slots
 from desktop.config_edit import ConfigError
 from desktop.context import Context
 from desktop.widgets import Card, pill, style
@@ -136,7 +136,7 @@ class ActionDialog(QDialog):
         self._form = form
         self._sync_kind(self.kind.currentText())
         self.error = QLabel()
-        self.error.setStyleSheet(f"color: {theme.RED};")
+        style(self.error, tone="red")
         self.error.setWordWrap(True)
         form.addRow("", self.error)
         buttons = QDialogButtonBox(
@@ -302,7 +302,7 @@ class ButtonsPage(QWidget):
         row.addWidget(more)
         card.body.addLayout(row)
         self.slot_warn = QLabel("")
-        self.slot_warn.setStyleSheet(f"color: {theme.AMBER};")
+        style(self.slot_warn, tone="sun")
         self.slot_warn.setWordWrap(True)
         card.body.addWidget(self.slot_warn)
         return card

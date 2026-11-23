@@ -37,6 +37,7 @@ class FakeClient(QObject):
 def app() -> QApplication:
     qapp = QApplication.instance() or QApplication([])
     theme.load_fonts()
+    theme.use(theme.DAY)  # con la app ya creada: la hoja de estilo lleva la marca de las casillas
     qapp.setStyleSheet(theme.STYLE)
     return qapp
 
@@ -440,3 +441,41 @@ def test_settings_weather_needs_a_chosen_city_and_saves_coordinates(
     # Una búsqueda sin resultados lo dice.
     page._cities_found([])  # type: ignore[attr-defined]
     assert "No encontré" in page.weather_state.text()  # type: ignore[attr-defined]
+
+
+def test_day_and_night_like_the_phone(app: QApplication, window: tuple[MainWindow, FakeClient]) -> None:
+    """De día papel y tinta; de noche, tinta y luz (los mismos colores que el teléfono)."""
+    win, client = window
+    feed(client, *LIVE)
+    win.show()
+    try:
+        for name, pal in (("9_dia", theme.DAY), ("9_noche", theme.NIGHT)):
+            theme.use(pal)
+            app.setStyleSheet(theme.STYLE)
+            theme.signals.changed.emit()
+            shot(app, win, name)
+            panel = win.pages.widget(0)
+            assert (
+                panel.face_tile._goal.name()
+                == (  # type: ignore[attr-defined]
+                    theme.NIGHT.tile if pal.night else theme.face_accent("idle")
+                ).lower()
+            )
+    finally:
+        theme.use(theme.DAY)
+        app.setStyleSheet(theme.STYLE)
+        win.hide()
+
+
+def test_theme_follows_the_hour_unless_chosen() -> None:
+    assert theme.pal_for(8) is theme.DAY and theme.pal_for(19) is theme.DAY
+    assert theme.pal_for(20) is theme.NIGHT and theme.pal_for(3) is theme.NIGHT
+    assert theme.pal_for(3, chosen=1) is theme.DAY and theme.pal_for(12, chosen=2) is theme.NIGHT
+
+
+def test_accent_text_is_readable_on_the_tiles() -> None:
+    for pal in (theme.DAY, theme.NIGHT):
+        theme.use(pal)
+        for accent in (pal.sun, pal.coral, pal.mint, pal.red, pal.sky):
+            assert theme.contrast(theme.readable(accent), pal.tile) >= 4.5
+    theme.use(theme.DAY)

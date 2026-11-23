@@ -8,8 +8,8 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QPlainTextEdit, QVBoxLayout, QWidget
 
-from desktop import theme
 from desktop.config_edit import ROOT
+from desktop.widgets import style
 
 LOGS = ROOT / "logs"
 TAIL_BYTES = 200_000
@@ -61,7 +61,7 @@ class LogsPage(QWidget):
         mono = QFont("Cascadia Mono", 9)
         mono.setStyleHint(QFont.StyleHint.Monospace)
         self.view.setFont(mono)
-        self.view.setStyleSheet(f"color: {theme.INK2};")
+        style(self.view, tone="soft")
         lay.addWidget(self.view, 1)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh)

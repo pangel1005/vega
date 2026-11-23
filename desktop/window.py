@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -27,7 +27,7 @@ from desktop.pages.maintenance import MaintenancePage
 from desktop.pages.panel import PanelPage
 from desktop.pages.phone import PhonePage
 from desktop.pages.settings import SettingsPage
-from desktop.widgets import Dot, style
+from desktop.widgets import Dot, icon, paint_face, style
 
 PAGES = (
     ("Panel", "panel"),
@@ -41,21 +41,35 @@ PAGES = (
 )
 
 
-def app_icon() -> QIcon:
-    """Los ojos de Vega, dibujados: no hace falta ningún archivo de imagen."""
-    pix = QPixmap(64, 64)
+_REST_FACE = {
+    "ew": 0.17, "eh": 0.29, "gap": 0.23, "ey": 0.27, "tiltL": 0.0, "tiltR": 0.0, "ehL": 1.0, "ehR": 1.0,
+    "smile": 0.35, "open": 0.0, "mw": 0.14, "arch": 0.0, "cross": 0.0,
+    "listen": 0.0, "think": 0.0, "sleep": 0.0,
+}  # fmt: skip
+
+
+def face_pixmap(size: int) -> QPixmap:
+    """La cara de Vega 2 en reposo sobre su mosaico de sol (el icono de la app)."""
+    pix = QPixmap(size * 2, size * 2)
+    pix.setDevicePixelRatio(2)
     pix.fill(Qt.GlobalColor.transparent)
     p = QPainter(pix)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(theme.CARD))
-    p.drawRoundedRect(2, 2, 60, 60, 16, 16)
-    p.setBrush(QColor(theme.LIGHT))
-    p.drawRoundedRect(14, 17, 13, 22, 6, 6)
-    p.drawRoundedRect(37, 17, 13, 22, 6, 6)
-    p.drawRoundedRect(25, 46, 14, 4, 2, 2)
+    p.setBrush(QColor(theme.DAY.sun))
+    p.drawRoundedRect(QRectF(0, 0, size, size), size * 0.28, size * 0.28)
+    pad = size * 0.12
+    paint_face(
+        p, QRectF(pad, pad * 1.4, size - 2 * pad, size - 2 * pad), _REST_FACE, [0.0, 0.0], 0.0, 0.0,
+        QColor(theme.DAY.ink), False,
+    )  # fmt: skip
     p.end()
-    return QIcon(pix)
+    return pix
+
+
+def app_icon() -> QIcon:
+    """La cara de Vega, dibujada: no hace falta ningún archivo de imagen."""
+    return QIcon(face_pixmap(64))
 
 
 class MainWindow(QMainWindow):
@@ -74,14 +88,22 @@ class MainWindow(QMainWindow):
         lay.setSpacing(0)
 
         side = QWidget()
-        side.setFixedWidth(210)
+        side.setObjectName("side")
+        side.setFixedWidth(214)
         sl = QVBoxLayout(side)
-        sl.setContentsMargins(14, 18, 14, 14)
+        sl.setContentsMargins(16, 20, 12, 16)
         sl.setSpacing(4)
-        logo = QLabel("VEGA")
-        logo.setFont(theme.dots(22))
-        logo.setStyleSheet(f"color: {theme.LIGHT}; letter-spacing: 3px; padding: 4px 8px 14px 8px;")
-        sl.addWidget(logo)
+        brand = QHBoxLayout()
+        brand.setContentsMargins(6, 0, 0, 16)
+        brand.setSpacing(10)
+        mark = QLabel()
+        mark.setPixmap(face_pixmap(36))
+        mark.setFixedSize(36, 36)
+        self.brand_name = QLabel(ctx.state.assistant)
+        self.brand_name.setStyleSheet("font-size: 20px; font-weight: 700;")
+        brand.addWidget(mark)
+        brand.addWidget(self.brand_name, 1)
+        sl.addLayout(brand)
         self.pages = QStackedWidget()
         self.nav: list[QPushButton] = []
         widgets: dict[str, QWidget] = {
@@ -103,7 +125,15 @@ class MainWindow(QMainWindow):
             sl.addWidget(b)
             self.pages.addWidget(widgets[key])
         sl.addStretch(1)
+        self.theme_btn = QPushButton()
+        self.theme_btn.setObjectName("nav")
+        self.theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.theme_btn.setIconSize(QSize(18, 18))
+        self.theme_btn.clicked.connect(self._cycle_theme)
+        sl.addWidget(self.theme_btn)
+        sl.addSpacing(6)
         foot = QHBoxLayout()
+        foot.setContentsMargins(8, 0, 0, 0)
         self.link_dot = Dot()
         self.link_text = QLabel()
         self.link_text.setObjectName("faint")
@@ -115,7 +145,10 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.pages, 1)
         self.show_page(0)
         ctx.changed.connect(self._refresh_link)
+        theme.signals.changed.connect(self._refresh_theme_button)
+        theme.signals.changed.connect(self._refresh_link)
         self._refresh_link()
+        self._refresh_theme_button()
         self._make_tray()
 
     def show_page(self, n: int) -> None:
@@ -123,8 +156,20 @@ class MainWindow(QMainWindow):
         for i, b in enumerate(self.nav):
             style(b, current=i == n)
 
+    def _cycle_theme(self) -> None:
+        theme.cycle_mode()
+        self._refresh_theme_button()
+
+    def _refresh_theme_button(self) -> None:
+        m = theme.mode()
+        name = ("auto", "sun", "moon")[m]
+        self.theme_btn.setText(f"  Tema: {theme.MODE_NAMES[m].lower()}")
+        self.theme_btn.setIcon(icon(name, theme.INK2, 18))
+        self.theme_btn.setToolTip("Automático: de día de 7 a 20 h, de noche el resto")
+
     def _refresh_link(self) -> None:
         s = self.ctx.state
+        self.brand_name.setText(s.assistant)
         self.link_dot.set_color(theme.MINT if s.connected else theme.RED)
         phone = "teléfono conectado" if s.phone.online else "sin teléfono"
         self.link_text.setText(f"Servidor en marcha · {phone}" if s.connected else "Servidor parado")

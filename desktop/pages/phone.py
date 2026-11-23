@@ -10,9 +10,8 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QVBoxLayout, QWidget
 
-from desktop import theme
 from desktop.config_edit import ROOT
-from desktop.widgets import Card, pill
+from desktop.widgets import Card, pill, style
 
 NO_WINDOW = 0x08000000  # CREATE_NO_WINDOW
 APP = "com.asistente.personal"
@@ -138,7 +137,7 @@ class PhonePage(QWidget):
         mono = QFont("Cascadia Mono", 9)
         mono.setStyleHint(QFont.StyleHint.Monospace)
         self.console.setFont(mono)
-        self.console.setStyleSheet(f"color: {theme.INK2};")
+        style(self.console, tone="soft")
         lay.addWidget(self.console, 1)
 
         self.refresh_btn.clicked.connect(self.check)

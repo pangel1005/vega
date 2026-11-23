@@ -14,9 +14,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from desktop import theme
 from desktop.context import Context
-from desktop.widgets import Card, DotBar, pill
+from desktop.widgets import Card, DotBar, pill, style
 
 
 def human(n: float) -> str:
@@ -75,7 +74,7 @@ class MaintenancePage(QWidget):
         self.refresh_btn = pill("Actualizar")
         self.ram_result = QLabel("")
         self.ram_result.setWordWrap(True)
-        self.ram_result.setStyleSheet(f"color: {theme.MINT};")
+        style(self.ram_result, tone="mint")
         row = QHBoxLayout()
         row.addWidget(self.free_btn)
         row.addWidget(self.refresh_btn)
@@ -98,7 +97,7 @@ class MaintenancePage(QWidget):
         self.clean_btn.setEnabled(False)
         self.disk_result = QLabel("")
         self.disk_result.setWordWrap(True)
-        self.disk_result.setStyleSheet(f"color: {theme.MINT};")
+        style(self.disk_result, tone="mint")
         drow = QHBoxLayout()
         drow.addWidget(self.scan_btn)
         drow.addWidget(self.clean_btn)
@@ -173,7 +172,7 @@ class MaintenancePage(QWidget):
             self._paint_ram(data)
         elif op == "free_ram":
             self.free_btn.setEnabled(self.ctx.state.connected)
-            self.ram_result.setStyleSheet(f"color: {theme.MINT if ok else theme.RED};")
+            style(self.ram_result, tone="mint" if ok else "red")
             self.ram_result.setText(message)
             self.refresh()
         elif op == "disk_scan":
@@ -183,7 +182,7 @@ class MaintenancePage(QWidget):
             else:
                 self.disk_help.setText(message)
         elif op == "disk_clean":
-            self.disk_result.setStyleSheet(f"color: {theme.MINT if ok else theme.RED};")
+            style(self.disk_result, tone="mint" if ok else "red")
             self.disk_result.setText(message)
             if ok:
                 self.scan()
