@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import secrets
 import time
@@ -135,6 +136,28 @@ def check_routines(actions: list[ActionDef]) -> None:
                     f"La rutina «{routine.label}» incluye «{target.label}», que pide confirmación: "
                     "la rutina también debe pedirla (confirm = true)."
                 )
+
+
+def installed(action: ActionDef, exists: Callable[[Path], bool] = Path.exists) -> bool:
+    """¿Está en este PC el programa que abre el botón? (Los demás botones siempre cuentan.)
+
+    Así el archivo de serie puede traer Discord, Spotify, Steam… y en cada PC solo salen los que hay."""
+    if action.kind != "launch" or not action.arg:
+        return True
+    path = Path(os.path.expandvars(action.arg))
+    if not path.is_absolute() or "%" in str(path):
+        return True  # «notepad.exe» (va por el PATH) o una variable que aquí no existe: lo dirá al pulsar
+    return exists(path)
+
+
+def only_installed(actions: list[ActionDef], exists: Callable[[Path], bool] = Path.exists) -> list[ActionDef]:
+    """Quita los botones de programas que no están; y las rutinas que los usaban."""
+    gone = {a.id for a in actions if not installed(a, exists)}
+    if not gone:
+        return actions
+    kept = [a for a in actions if a.id not in gone and not (a.kind == "routine" and gone & set(a.steps))]
+    log.info("Botones ocultos (su programa no está en este PC): %s", ", ".join(sorted(gone)))
+    return kept
 
 
 def load_actions(path: Path = ACTIONS_FILE) -> list[ActionDef]:

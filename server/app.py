@@ -149,7 +149,7 @@ def create_app(
         settings.llm.model,
         settings.llm.keep_alive,
         gpu_layers=settings.llm.gpu_layers,
-        threads=settings.llm.threads,
+        threads=settings.llm.cpu_threads,
         context=settings.llm.context,
         temperature=settings.llm.temperature,
     )

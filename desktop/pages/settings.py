@@ -106,7 +106,8 @@ class SettingsPage(QWidget):
             "1 = la que se usa ahora; -1 = todas."
         )
         self.threads = QSpinBox()
-        self.threads.setRange(1, 32)
+        self.threads.setRange(0, 32)
+        self.threads.setSpecialValueText("Automático")
         self.keep_alive = QLineEdit()
         self.stt_model = QComboBox()
         self.stt_model.addItems(STT_MODELS)
@@ -190,7 +191,7 @@ class SettingsPage(QWidget):
         self.name.setText(str(r("assistant", "name") or ""))
         self.model.setText(str(r("llm", "model") or ""))
         self.gpu_layers.setValue(int(r("llm", "gpu_layers") if r("llm", "gpu_layers") is not None else 1))
-        self.threads.setValue(int(r("llm", "threads") or 6))
+        self.threads.setValue(int(r("llm", "threads") or 0))
         self.keep_alive.setText(str(r("llm", "keep_alive") or "12h"))
         self.stt_model.setCurrentText(str(r("speech", "stt_model") or "base"))
         self.stt_device.setCurrentText(str(r("speech", "stt_device") or "cpu"))

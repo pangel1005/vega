@@ -21,7 +21,7 @@ from server.device.usb import UsbWatcher, find_adb
 from server.speech.base import SttUnavailable
 from server.speech.tts import KokoroTTS, PiperTTS, TtsUnavailable, VoiceRouter
 from server.speech.whisper import WhisperSTT
-from server.tools.actions import ACTIONS_FILE, ActionConfigError, ActionRunner, load_actions
+from server.tools.actions import ACTIONS_FILE, ActionConfigError, ActionRunner, load_actions, only_installed
 from server.tools.app_icons import AppIcons
 from server.tools.windows import WindowsExecutor
 
@@ -117,7 +117,7 @@ def main() -> int:
                 "Tampoco vale la copia: Vega arranca sin botones hasta que se arregle config/actions.toml"
             )
             loaded = []
-    actions = ActionRunner(loaded, WindowsExecutor(maintenance))
+    actions = ActionRunner(only_installed(loaded), WindowsExecutor(maintenance))
     log.info("Panel con %d botones", len(actions.actions))
     token = load_or_create_token()
     usb = build_usb_watcher(settings, token)

@@ -1,5 +1,8 @@
-# Configuración general del asistente.
-# El nombre se lee de aquí; el código nunca lo escribe fijo.
+# Configuración de Vega: los valores de serie.
+#
+# NO edites este archivo: la primera vez que arranca, Vega lo copia a config/assistant.toml (fuera de git) y ese es
+# el tuyo. Cámbialo a mano o desde la app de escritorio (Ajustes). scripts\instalar.ps1 lo ajusta a tu tarjeta
+# gráfica. El nombre se lee de aquí; el código nunca lo escribe fijo.
 
 [assistant]
 name = "Vega"
@@ -29,8 +32,9 @@ follow_game = true
 # solo ~0,5 GB libres con Discord y la cámara); 24 capas = 2,2 GB y 1,8 s; 16 capas = 1,7 GB y 2,5 s; 1 capa = 0,6 GB y 3,5 s.
 gpu_layers_free = 24
 gpu_free_mib = 4000
-# Hilos del procesador para el modelo. Se dejan núcleos libres para la voz (Kokoro, 4 hilos).
-threads = 6
+# Hilos del procesador para el modelo; 0 = automático (la mitad de los del PC, entre 2 y 8). Se dejan núcleos
+# libres para la voz (Kokoro, 4 hilos).
+threads = 0
 context = 2048
 # Más bajo = menos inventos. Medido con 20 preguntas: a 0,8 mezclaba francés, contaba mal y metía datos tuyos donde no tocaba.
 temperature = 0.5
@@ -53,6 +57,7 @@ No digas que has hecho algo que no has hecho.
 #   base en CPU: ~0,6 s y sin tarjeta gráfica (para no gastar nada de GPU: "base", "cpu", "int8")
 #   small en CPU: ~1,5 s, algo más preciso
 #   small en GPU ("cuda", "int8_float16"): ~0,2–0,3 s, pero ocupa ~1 GB de vídeo  ← activo
+# Sin tarjeta NVIDIA no pasa nada: si "cuda" no arranca, usa el procesador solo.
 stt_model = "small"
 stt_device = "cuda"
 stt_compute = "int8_float16"
@@ -120,7 +125,7 @@ forza_port = 5300
 # contesta a las cuentas de config/telegram.json, que se crea con `python -m server.tools.telegram_setup`
 # (ahí vive el token del bot; está fuera de git). De los botones del PC solo apaga, y siempre preguntando antes
 # con botones («/apagar», «apaga la PC» o tras «buenas noches»), con 60 s para cancelarlo.
-enabled = true
+enabled = false
 reminders = "away"   # away: solo si el teléfono no está conectado · always: siempre · never: nunca
 
 [moodle]
@@ -128,7 +133,7 @@ reminders = "away"   # away: solo si el teléfono no está conectado · always: 
 # que venza cada tarea, por el teléfono y, si no está conectado, por Telegram. El enlace de exportación se guarda con
 # `python -m server.tools.moodle_setup` en config/moodle.json (fuera de git). Di «ya entregué <tarea>» para
 # que no te avise de lo hecho, o «qué tareas tengo» para ver lo pendiente.
-enabled = true 
+enabled = false
 alerts = [60]          # minutos antes de la entrega en que avisa; [1440, 60] = un día antes y una hora antes
 refresh_minutes = 20   # cada cuánto relee el calendario
 only_deadlines = true  # solo lo que vence o cierra (no «se abre»)
@@ -141,12 +146,12 @@ only_deadlines = true  # solo lo que vence o cierra (no «se abre»)
 enabled = false
 
 [camera]
-# La cámara del Redmi como cámara de Windows (para Discord, el navegador…), con el icono de cámara de la app.
+# La cámara del teléfono como cámara de Windows (para Discord, el navegador…), con el icono de cámara de la app.
 # Usa scrcpy y OBS Studio (winget install Genymobile.scrcpy OBSProject.OBSStudio): scrcpy lleva la cámara por el
 # cable USB sin instalar nada en el teléfono y OBS la publica como «OBS Virtual Camera». Todo queda en segundo plano
 # (la ventana al fondo, OBS en la bandeja) y se apaga del todo al desactivarla. Medido: ~0,4 % de CPU, ~250 MB de
 # memoria y ~3 % de la gráfica mientras está encendida.
-enabled = true
+enabled = false
 facing = "front"   # front (frontal) o back (trasera)
 rotate = 180       # giro de la imagen en grados: con el teléfono tumbado sale al revés
 size = "1280x720"  # tamaño de la imagen que ven los programas

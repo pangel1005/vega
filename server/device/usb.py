@@ -26,9 +26,9 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-# La app que se abre en el teléfono al enlazarlo: «Vega 2» (el rediseño, com.asistente.personal.rediseno), la
-# definitiva. Para abrir otra basta con VEGA_APP_PACKAGE; la clase de la actividad es la misma.
-APP_PACKAGE = os.environ.get("VEGA_APP_PACKAGE", "com.asistente.personal.rediseno")
+# La app que se abre en el teléfono al enlazarlo. Para abrir otra basta con VEGA_APP_PACKAGE; la clase de la
+# actividad es la misma. (com.asistente.personal.rediseno fue el paquete de pruebas de Vega 2.)
+APP_PACKAGE = os.environ.get("VEGA_APP_PACKAGE", "com.asistente.personal")
 APP_ACTIVITY = f"{APP_PACKAGE}/com.asistente.personal.MainActivity"
 # Versiones de Vega que pueden estar instaladas a la vez. Solo debe estar abierta una: si no, se pelean
 # por el micrófono (Android se lo silencia a la de atrás, que reintenta) y se conectan dos veces al servidor.
@@ -41,6 +41,8 @@ def find_adb() -> str | None:
     home = Path.home()
     candidates = [
         Path(os.environ.get("ANDROID_HOME", "")) / "platform-tools" / "adb.exe",
+        # El SDK que instala Android Studio
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Android" / "Sdk" / "platform-tools" / "adb.exe",
         home / "Android" / "Sdk" / "platform-tools" / "adb.exe",
         *(Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Packages").glob(
             "Google.PlatformTools*/platform-tools/adb.exe"

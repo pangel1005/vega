@@ -29,7 +29,7 @@ from server.skills.router import SkillRouter
 from server.skills.semantic import SemanticIntents
 from server.speech.base import BYTES_PER_SAMPLE, SAMPLE_RATE, SpeechToText, SttUnavailable
 from server.speech.tts import TextToSpeech
-from server.tools.actions import ActionRunner, load_actions
+from server.tools.actions import ActionRunner, load_actions, only_installed
 from server.ws.protocol import (
     ActionConfirm,
     ActionRequest,
@@ -348,7 +348,7 @@ def register_ws(
                         await hub.control_phone(msg.command)
                     elif isinstance(msg, ReloadActions) and actions is not None and desktop:
                         try:
-                            actions.replace(load_actions())
+                            actions.replace(only_installed(load_actions()))
                         except Exception as exc:  # un actions.toml mal escrito no debe tirar nada
                             await emit(ErrorEvent(message=f"config/actions.toml no es válido: {exc}"))
                         else:

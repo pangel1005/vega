@@ -104,15 +104,24 @@ def write_actions(actions: list[dict[str, Any]], path: Path = ACTIONS_FILE) -> N
 # --- Ajustes ---
 
 
+def _settings_text(path: Path) -> str:
+    """Tus ajustes; la primera vez nacen de los de serie (config/assistant.example.toml)."""
+    from server.core.config import ensure_user_config
+
+    if path == SETTINGS_FILE:
+        ensure_user_config(path)
+    return path.read_text(encoding="utf-8-sig")
+
+
 def read_setting(section: str | None, key: str, path: Path = SETTINGS_FILE) -> Any:
-    doc = tomlkit.parse(path.read_text(encoding="utf-8"))
+    doc = tomlkit.parse(_settings_text(path))
     node: Any = doc if section is None else doc.get(section, {})
     return node.get(key)
 
 
 def write_settings(values: dict[tuple[str | None, str], Any], path: Path = SETTINGS_FILE) -> None:
     """Cambia ajustes sueltos: `{("llm", "model"): "qwen3.5:4b", ("assistant", "name"): "Vega"}`."""
-    doc = tomlkit.parse(path.read_text(encoding="utf-8"))
+    doc = tomlkit.parse(_settings_text(path))
     for (section, key), value in values.items():
         node: Any = doc
         if section is not None:

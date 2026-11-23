@@ -15,6 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = ROOT / "config" / "assistant.toml"
+# Lo que viene de serie (en git). Tu config/assistant.toml (fuera de git) nace como copia suya la primera vez.
+EXAMPLE_CONFIG = ROOT / "config" / "assistant.example.toml"
 CONFIG_ENV_VAR = "ASISTENTE_CONFIG"
 
 # El teléfono llega por `adb reverse`, así que el servidor nunca necesita escuchar en la red.
@@ -61,7 +63,15 @@ class LlmSettings(_Section):
     phone_chat: bool = True
     gpu_layers_free: int = Field(default=-1, ge=-1, le=200)
     gpu_free_mib: int = Field(default=4000, ge=0, le=100_000)
-    threads: int = Field(default=8, ge=1, le=64)  # hilos del procesador para lo que no va en la gráfica
+    # Hilos del procesador para lo que no va en la gráfica; 0 = automático (la mitad de los del PC, de 2 a 8).
+    threads: int = Field(default=0, ge=0, le=64)
+
+    @property
+    def cpu_threads(self) -> int:
+        if self.threads:
+            return self.threads
+        return max(2, min(8, (os.cpu_count() or 4) // 2))
+
     context: int = Field(default=2048, ge=512, le=32768)
     # Más bajo = respuestas más seguras (medido: con 0,8 mezclaba francés y se inventaba datos).
     temperature: float = Field(default=0.5, ge=0.0, le=2.0)
@@ -246,10 +256,20 @@ class Settings(_Section):
         return self.llm.system_prompt.strip().replace("{name}", self.assistant.name)
 
 
+def ensure_user_config(path: Path = DEFAULT_CONFIG, example: Path = EXAMPLE_CONFIG) -> bool:
+    """Primera vez en un PC: copia los ajustes de serie a config/assistant.toml. True si lo creó."""
+    if path.exists() or not example.is_file():
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(example.read_bytes())
+    return True
+
+
 def load_settings(path: Path | None = None) -> Settings:
     """Lee la configuración de `path`, de la variable ASISTENTE_CONFIG o del archivo por defecto."""
     if path is None:
         path = Path(os.environ.get(CONFIG_ENV_VAR, DEFAULT_CONFIG))
+        ensure_user_config(path)
     try:
         # utf-8-sig: algunos editores de Windows guardan el archivo con BOM y tomllib no lo acepta.
         data = tomllib.loads(path.read_text(encoding="utf-8-sig"))

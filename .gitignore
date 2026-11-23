@@ -39,3 +39,5 @@ android/app/src/main/jniLibs/
 
 # Clave personal de la Web API de Steam (cuenta conectada)
 config/steam_key.txt
+# Tus ajustes (nacen de config/assistant.example.toml la primera vez)
+config/assistant.toml
