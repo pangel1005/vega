@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator, Sequence
 
 import httpx
 
+from server.core.http import async_client
 from server.llm.base import ChatMessage, LlmUnavailable
 
 log = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ class OllamaChat:
     async def vram_mib(self) -> int | None:
         """Vídeo que ocupa el modelo ahora mismo (MiB), o None si no está cargado (o Ollama no responde)."""
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT, transport=self._transport) as client:
+            async with async_client(timeout=_TIMEOUT, transport=self._transport) as client:
                 resp = await client.get(f"{self._url}/api/ps")
             for item in resp.json().get("models", []):
                 if item.get("name") == self._model or item.get("model") == self._model:
@@ -96,7 +97,7 @@ class OllamaChat:
     async def preload(self) -> None:
         # Una petición sin texto solo carga el modelo en memoria (o renueva su keep_alive).
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT, transport=self._transport) as client:
+            async with async_client(timeout=_TIMEOUT, transport=self._transport) as client:
                 await client.post(
                     f"{self._url}/api/generate",
                     json={"model": self._model, "keep_alive": self._keep_alive, "options": self._options},
@@ -107,7 +108,7 @@ class OllamaChat:
     async def unload(self) -> None:
         # keep_alive 0: Ollama libera el modelo en cuanto termina esta petición.
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT, transport=self._transport) as client:
+            async with async_client(timeout=_TIMEOUT, transport=self._transport) as client:
                 await client.post(f"{self._url}/api/generate", json={"model": self._model, "keep_alive": 0})
         except httpx.HTTPError as exc:
             log.debug("No se pudo descargar el modelo de la memoria: %s", exc)
@@ -133,7 +134,7 @@ class OllamaChat:
         }
         try:
             async with (
-                httpx.AsyncClient(timeout=_TIMEOUT, transport=self._transport) as client,
+                async_client(timeout=_TIMEOUT, transport=self._transport) as client,
                 client.stream("POST", f"{self._url}/api/chat", json=payload) as resp,
             ):
                 if resp.status_code == 404:

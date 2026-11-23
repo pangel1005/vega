@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
+from server.core.http import async_client
 from server.core.text import normalize
 from server.memory.personal import PersonalMemory, naive_local
 from server.memory.store import ConversationStore
@@ -395,7 +396,7 @@ class MoodleError(Exception):
 
 async def fetch_calendar(url: str, transport: httpx.AsyncBaseTransport | None = None) -> str:
     try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True, transport=transport) as client:
+        async with async_client(timeout=30, follow_redirects=True, transport=transport) as client:
             response = await client.get(url)
     except httpx.HTTPError as exc:
         raise MoodleError(f"No pude conectar con Moodle ({type(exc).__name__}).") from None

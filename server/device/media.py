@@ -38,6 +38,18 @@ _APPS = {
 }
 
 
+def _thumbnail_jpeg(raw: bytes) -> bytes:
+    """La carátula, como JPEG de ART_SIZE como mucho."""
+    from PIL import Image
+
+    with Image.open(io.BytesIO(raw)) as original:
+        img = original.convert("RGB")
+    img.thumbnail((ART_SIZE, ART_SIZE))
+    out = io.BytesIO()
+    img.save(out, "JPEG", quality=88)
+    return out.getvalue()
+
+
 def app_name(app_id: str) -> str:
     """«Spotify.exe» → «Spotify»; «OperaSoftware.OperaGXWebBrowser.17…» → «Opera»."""
     low = app_id.lower()
@@ -155,7 +167,6 @@ class MediaWatcher:
         if thumbnail is None:
             return ""
         try:
-            from PIL import Image
             from winrt.windows.storage.streams import Buffer, InputStreamOptions
 
             stream = await thumbnail.open_read_async()
@@ -165,12 +176,9 @@ class MediaWatcher:
             buf = Buffer(size)
             await stream.read_async(buf, size, InputStreamOptions.READ_AHEAD)
             raw = bytes(memoryview(buf))[: buf.length]
-            with Image.open(io.BytesIO(raw)) as original:
-                img = original.convert("RGB")
-            img.thumbnail((ART_SIZE, ART_SIZE))
-            out = io.BytesIO()
-            img.save(out, "JPEG", quality=88)
-            data = out.getvalue()
+            # Decodificar y encoger la imagen (y la primera vez, cargar PIL) es trabajo de procesador: en otro
+            # hilo, para no congelar el servidor (el vigilante de cuelgues lo cazó aquí).
+            data = await asyncio.to_thread(_thumbnail_jpeg, raw)
             art_id = hashlib.sha1(data).hexdigest()[:12]
             self._art[art_id] = data
             while len(self._art) > 8:  # unas pocas: el teléfono pide la actual

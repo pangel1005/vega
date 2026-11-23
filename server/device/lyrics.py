@@ -19,6 +19,8 @@ from pathlib import Path
 
 import httpx
 
+from server.core.http import async_client
+
 log = logging.getLogger(__name__)
 
 API = "https://lrclib.net/api"
@@ -111,7 +113,7 @@ class LyricsFinder:
         if duration > 0:
             params["duration"] = round(duration)
         try:
-            async with httpx.AsyncClient(
+            async with async_client(
                 timeout=_TIMEOUT, transport=self._transport, headers={"User-Agent": USER_AGENT}
             ) as client:
                 resp = await client.get(f"{API}/get", params=params)

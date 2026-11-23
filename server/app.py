@@ -21,6 +21,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from server import __version__
 from server.core.car import CarConfig
 from server.core.config import ROOT, Settings
+from server.core.http import async_client
+from server.core.http import warm as warm_http
 from server.core.hub import Hub
 from server.core.maintenance import Maintenance
 from server.core.orchestrator import Orchestrator
@@ -103,7 +105,7 @@ def ollama_probe(url: str) -> LlmProbe:
 
     async def probe() -> LlmStatus:
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with async_client(timeout=2.0) as client:
                 resp = await client.get(f"{url}/api/version")
                 resp.raise_for_status()
                 return LlmStatus(True, f"Ollama {resp.json().get('version', '?')}")
@@ -320,6 +322,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        await warm_http()  # el contexto SSL compartido, fuera del bucle (si no, cada cliente lo crea dentro)
         hub.start()  # revisa los recordatorios cada segundo
         if media is not None:  # «buenas noches» pausa la música (las habilidades corren en otro hilo)
             skills.attach_music(blocking_pause(media, asyncio.get_running_loop()))

@@ -49,3 +49,20 @@ def test_the_real_buttons_file_loads() -> None:
     from server.tools.actions import load_actions
 
     assert any(a.id == "apagar" for a in load_actions())
+
+
+def test_http_clients_share_one_ssl_context() -> None:
+    import asyncio
+
+    from server.core import http
+
+    asyncio.run(http.warm())
+    first = http.ssl_context()
+    assert http.ssl_context() is first  # se crea una vez, no en cada cliente
+
+    async def make() -> None:
+        async with http.async_client(timeout=1) as client:
+            assert client is not None
+
+    asyncio.run(make())
+    assert http.ssl_context() is first

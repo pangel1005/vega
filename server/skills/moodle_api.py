@@ -16,6 +16,7 @@ from typing import Any
 
 import httpx
 
+from server.core.http import async_client
 from server.skills.moodle import MoodleError, Task, clean_title
 
 log = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ def _raise_for(data: Any) -> None:
 
 async def _post(url: str, data: dict[str, Any], transport: httpx.AsyncBaseTransport | None = None) -> Any:
     try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True, transport=transport) as client:
+        async with async_client(timeout=30, follow_redirects=True, transport=transport) as client:
             response = await client.post(url, data=data)
     except httpx.HTTPError as exc:  # el mensaje de httpx puede llevar la dirección: solo el tipo
         raise MoodleError(f"No pude conectar con Moodle ({type(exc).__name__}).") from None

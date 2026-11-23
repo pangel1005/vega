@@ -36,6 +36,7 @@ from typing import Any
 
 import httpx
 
+from server.core.http import async_client
 from server.core.text import normalize
 from server.memory.personal import PersonalMemory, Reminder
 
@@ -144,7 +145,7 @@ def _audit(event: str, detail: str = "") -> None:
 class TelegramApi:
     def __init__(self, token: str, client: httpx.AsyncClient | None = None) -> None:
         self._base = f"{API}/bot{token}"
-        self._client = client or httpx.AsyncClient()
+        self._client = client or async_client()
 
     async def call(self, method: str, payload: dict[str, Any], timeout: float = 15.0) -> Any:
         try:

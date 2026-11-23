@@ -21,6 +21,8 @@ from typing import Any
 
 import httpx
 
+from server.core.http import async_client
+
 log = logging.getLogger(__name__)
 
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
@@ -152,7 +154,7 @@ class WeatherService:
             "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
         }  # fmt: skip
         try:
-            async with httpx.AsyncClient(timeout=15, transport=self._transport) as client:
+            async with async_client(timeout=15, transport=self._transport) as client:
                 resp = await client.get(FORECAST_URL, params=params)
                 resp.raise_for_status()
                 forecast = parse_forecast(resp.json(), self._place, self._now())
@@ -183,7 +185,7 @@ async def find_places(
     if not name:
         return []
     try:
-        async with httpx.AsyncClient(timeout=10, transport=transport) as client:
+        async with async_client(timeout=10, transport=transport) as client:
             resp = await client.get(GEOCODE_URL, params={"name": name, "count": count, "language": "es"})
             resp.raise_for_status()
             found = resp.json().get("results") or []
