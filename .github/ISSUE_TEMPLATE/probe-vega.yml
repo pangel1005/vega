@@ -1,0 +1,45 @@
+name: "🙋 Probé Vega / I tried Vega"
+description: "Cuéntanos cómo te fue al instalarla y usarla (vale aunque no llegaras al final) · Tell us how it went"
+title: "[Probé Vega] "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ¡Gracias por probar Vega! Cualquier cosa ayuda, aunque solo llegaras a la mitad.
+        Thanks for trying Vega! Anything helps, even if you didn't finish (English is fine).
+  - type: dropdown
+    id: hasta
+    attributes:
+      label: "¿Hasta dónde llegaste? / How far did you get?"
+      options:
+        - "Lo instalé y lo uso / Installed and using it"
+        - "Funcionó en el PC, pero no en el teléfono / PC works, phone doesn't"
+        - "Me atasqué instalando / Got stuck installing"
+        - "Solo lo miré / Just looked around"
+    validations:
+      required: true
+  - type: input
+    id: pc
+    attributes:
+      label: "Tu PC / Your PC"
+      description: "Windows 10/11, procesador, RAM y tarjeta gráfica (o «sin gráfica»)"
+      placeholder: "Windows 11, Ryzen 5 3600, 16 GB, GTX 1660 6 GB"
+  - type: input
+    id: telefono
+    attributes:
+      label: "Tu teléfono / Your phone"
+      placeholder: "Samsung Galaxy A10, Android 11"
+  - type: textarea
+    id: bien
+    attributes:
+      label: "¿Qué te gustó? / What did you like?"
+  - type: textarea
+    id: mal
+    attributes:
+      label: "¿Qué falló o te costó? / What failed or was hard?"
+      description: "Si algo falló, pega las últimas líneas de logs/server.log (revisa que no haya datos tuyos)"
+  - type: textarea
+    id: ideas
+    attributes:
+      label: "¿Qué le pedirías a Vega? / What would you want Vega to do?"

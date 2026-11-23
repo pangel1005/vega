@@ -1,0 +1,26 @@
+name: "🐞 Algo falla / Bug"
+description: "Algo no funciona como debería · Something doesn't work"
+labels: ["bug"]
+body:
+  - type: textarea
+    id: que
+    attributes:
+      label: "¿Qué pasó y qué esperabas? / What happened and what did you expect?"
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: "Cómo repetirlo / Steps to reproduce"
+      placeholder: "1. Dije «Vega, …»  2. …"
+  - type: input
+    id: equipo
+    attributes:
+      label: "PC y teléfono / PC and phone"
+      placeholder: "Windows 11, RTX 3060 · Redmi 9A, Android 10"
+  - type: textarea
+    id: registro
+    attributes:
+      label: "Registro / Log"
+      description: "Últimas líneas de logs/server.log (revisa que no haya datos tuyos antes de pegarlas)"
+      render: text

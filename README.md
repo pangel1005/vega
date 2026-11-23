@@ -294,6 +294,16 @@ cd android; .\gradlew.bat testDebugUnitTest assembleRelease  # app (JAVA_HOME = 
 Cómo ha evolucionado el proyecto y por qué cambió de rumbo: [docs/evolucion.md](docs/evolucion.md).
 El plan original y las decisiones de partida están en `docs/plan-inicial.md`.
 
+## ¿Lo probaste? Cuéntame
+
+Vega es nueva y quiero saber cómo funciona en otros PC y teléfonos, sobre todo en los viejos. Si la pruebas,
+aunque te atasques a medio camino:
+
+- [🙋 Probé Vega](https://github.com/pangel1005/vega-asistente/issues/new?template=probe-vega.yml): cómo te fue, en qué PC y teléfono.
+- [🐞 Algo falla](https://github.com/pangel1005/vega-asistente/issues/new?template=fallo.yml) · [💡 Una idea](https://github.com/pangel1005/vega-asistente/issues/new?template=idea.yml)
+
+Y si te gusta, una ⭐ en GitHub ayuda a que más gente la encuentre.
+
 ## Licencia
 
 MIT: ver [LICENSE](LICENSE).

@@ -64,6 +64,16 @@ Your settings live in `config/assistant.toml` (created from `config/assistant.ex
 | Vega only writes, doesn't speak | Voices are missing: run `scripts\instalar.ps1` again |
 | Something else | Check `logs/server.log` |
 
+## Tried it? Tell me
+
+Vega is new and I want to know how it works on other PCs and phones, especially old ones. If you try it — even if
+you get stuck halfway:
+
+- [🙋 I tried Vega](https://github.com/pangel1005/vega-asistente/issues/new?template=probe-vega.yml): how it went, on which PC and phone.
+- [🐞 Bug](https://github.com/pangel1005/vega-asistente/issues/new?template=fallo.yml) · [💡 Idea](https://github.com/pangel1005/vega-asistente/issues/new?template=idea.yml)
+
+If you like it, a ⭐ on GitHub helps other people find it.
+
 ## License
 
 [MIT](LICENSE)
