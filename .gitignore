@@ -41,3 +41,5 @@ android/app/src/main/jniLibs/
 config/steam_key.txt
 # Tus ajustes (nacen de config/assistant.example.toml la primera vez)
 config/assistant.toml
+# Copias de seguridad automáticas de la app de escritorio
+config/*.bak
