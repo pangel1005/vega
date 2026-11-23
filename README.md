@@ -115,6 +115,8 @@ conversación. Tocar la cara tiene el mismo efecto.
 
 ## En evolución / pendiente
 
+Hacia dónde va el proyecto: [docs/hoja-de-ruta.md](docs/hoja-de-ruta.md).
+
 | Tema | Estado |
 |---|---|
 | Voz más humana | Kokoro con acento latino, pausas y horas bien leídas. Las voces neuronales grandes no caben hoy en 8 GB junto al modelo de lenguaje |
