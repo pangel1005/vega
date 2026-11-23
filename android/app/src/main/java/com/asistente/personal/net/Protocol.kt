@@ -32,6 +32,38 @@ data class DeckAction(
 
 data class Voice(val id: String, val label: String)
 
+/** Un programa del PC con sonido en la «Mesa»: `key` es lo que se manda de vuelta; `volume` va de 0 a 1. */
+data class DeskApp(val key: String, val label: String, val volume: Float, val muted: Boolean)
+
+/** La racha del gimnasio: días seguidos, si hoy ya ardió, cuánto puedes descansar y lo viva que está la llama (`heat`, 0–1). */
+data class StreakInfo(
+    val count: Int = 0,
+    val best: Int = 0,
+    val total: Int = 0,
+    val today: Boolean = false,
+    val rest: Int = 0,
+    val restLeft: Int = 0,
+    val alive: Boolean = false,
+    val heat: Float = 0f,
+    val week: Int = 0,
+    val days: List<String> = emptyList(),
+)
+
+/** Una entrega de Moodle: `uid` es lo que se manda para marcarla hecha; `due` son segundos desde 1970. */
+data class TaskItem(val uid: String, val title: String, val course: String, val due: Long)
+
+/** Un fondo de Wallpaper Engine que se ofrece en la «Mesa» (la miniatura se pide aparte por su `id`). */
+data class DeskChoice(val id: String, val title: String)
+
+/** Lo que enseña la «Mesa»: volumen por programa y fondo de pantalla del PC. */
+data class DeskInfo(
+    val apps: List<DeskApp> = emptyList(),
+    val wallpaperAvailable: Boolean = false,
+    val wallpaper: String = "",
+    val paused: Boolean = false,
+    val suggestions: List<DeskChoice> = emptyList(),
+)
+
 /** Lo que suena en el PC (Spotify, el navegador…). `art` = id de la carátula en el PC. */
 data class MediaInfo(
     val app: String,
@@ -171,6 +203,16 @@ sealed interface ServerEvent {
     data object Sleep : ServerEvent
     /** Respuesta del PC a una orden que entendió el teléfono (IA en el teléfono). */
     data class PhoneReply(val handled: Boolean, val text: String) : ServerEvent
+    /** La cámara del teléfono como cámara de Windows: si se puede (scrcpy y OBS instalados), si está encendida y cuál. */
+    data class CameraState(val available: Boolean, val on: Boolean, val facing: String) : ServerEvent
+    /** El estado de la «Mesa»: volumen por programa y fondos de pantalla. */
+    data class DeskState(val desk: DeskInfo) : ServerEvent
+    /** La racha del gimnasio (la llama). */
+    data class Streak(val streak: StreakInfo) : ServerEvent
+    /** Las entregas de Moodle del tablero: las pendientes y las vencidas hace poco sin marcar. */
+    data class Tasks(val items: List<TaskItem>) : ServerEvent
+    /** Respuesta del PC a una pregunta libre (`handled` falso: no puede ahora —juego abierto— y contesta el teléfono). */
+    data class PhoneChatReply(val handled: Boolean, val text: String) : ServerEvent
     /** Lo que el PC entendió de una frase que le mandó el teléfono (`ok` falso: que lo intente el teléfono). */
     data class Heard(val id: Int, val ok: Boolean, val text: String) : ServerEvent
 }
@@ -297,6 +339,43 @@ object Protocol {
             "sleep" -> ServerEvent.Sleep
             "phone_control" -> ServerEvent.PhoneControl(o.getString("command"))
             "phone_reply" -> ServerEvent.PhoneReply(o.getBoolean("handled"), o.optString("text"))
+            "camera_state" -> ServerEvent.CameraState(o.optBoolean("available"), o.optBoolean("on"), o.optString("facing", "front"))
+            "desk_state" -> {
+                val apps = o.optJSONArray("apps")
+                val w = o.optJSONObject("wallpaper")
+                val sug = w?.optJSONArray("suggestions")
+                ServerEvent.DeskState(
+                    DeskInfo(
+                        apps = List(apps?.length() ?: 0) { i ->
+                            apps!!.getJSONObject(i).let { DeskApp(it.getString("key"), it.optString("label"), it.optDouble("volume", 0.0).toFloat().coerceIn(0f, 1f), it.optBoolean("muted")) }
+                        },
+                        wallpaperAvailable = w?.optBoolean("available") ?: false,
+                        wallpaper = w?.optString("current").orEmpty(),
+                        paused = w?.optBoolean("paused") ?: false,
+                        suggestions = List(sug?.length() ?: 0) { i -> sug!!.getJSONObject(i).let { DeskChoice(it.getString("id"), it.optString("title")) } },
+                    ),
+                )
+            }
+            "streak" -> {
+                val days = o.optJSONArray("days")
+                ServerEvent.Streak(
+                    StreakInfo(
+                        count = o.optInt("count"), best = o.optInt("best"), total = o.optInt("total"), today = o.optBoolean("today"),
+                        rest = o.optInt("rest"), restLeft = o.optInt("rest_left"), alive = o.optBoolean("alive"),
+                        heat = o.optDouble("heat", 0.0).toFloat().coerceIn(0f, 1f), week = o.optInt("week"),
+                        days = List(days?.length() ?: 0) { days!!.getString(it) },
+                    ),
+                )
+            }
+            "tasks" -> {
+                val arr = o.optJSONArray("items")
+                ServerEvent.Tasks(
+                    List(arr?.length() ?: 0) { i ->
+                        arr!!.getJSONObject(i).let { TaskItem(it.getString("uid"), it.optString("title"), it.optString("course"), it.getDouble("due").toLong()) }
+                    },
+                )
+            }
+            "phone_chat_reply" -> ServerEvent.PhoneChatReply(o.getBoolean("handled"), o.optString("text"))
             "heard" -> ServerEvent.Heard(o.getInt("id"), o.optBoolean("ok", true), o.optString("text"))
             "telemetry" -> {
                 val arr = o.optJSONArray("upcoming")
@@ -340,6 +419,35 @@ object Protocol {
     fun hear(id: Int, pcm: ByteArray): String = JSONObject().put("type", "hear").put("id", id)
         .put("audio", android.util.Base64.encodeToString(pcm, android.util.Base64.NO_WRAP)).toString()
     fun phoneCommand(text: String): String = JSONObject().put("type", "phone_command").put("text", text).toString()
+    /** Enciende o apaga la cámara del teléfono en el PC; `facing` (front/back) es opcional. */
+    fun camera(on: Boolean, facing: String? = null): String = JSONObject().put("type", "camera").put("on", on)
+        .apply { if (facing != null) put("facing", facing) }.toString()
+    /** La llama del gimnasio: `action` es get, light u out; `day` (AAAA-MM-DD) es opcional (hoy si falta). */
+    fun streak(action: String, day: String? = null): String =
+        JSONObject().put("type", "streak").put("action", action).apply { if (day != null) put("day", day) }.toString()
+    /** El tablero de Moodle: `action` es get o done (esta con el `uid` de la entrega). */
+    fun tasks(action: String, uid: String? = null): String =
+        JSONObject().put("type", "tasks").put("action", action).apply { if (uid != null) put("uid", uid) }.toString()
+    /** Un gesto de la «Mesa»: `action` es get, volume, mute, wallpaper, random, more, pause o play. */
+    fun desk(action: String, app: String? = null, level: Float? = null, muted: Boolean? = null, id: String? = null): String =
+        JSONObject().put("type", "desk").put("action", action)
+            .apply {
+                if (app != null) put("app", app)
+                if (level != null) put("level", Math.round(level.coerceIn(0f, 1f) * 100) / 100.0)
+                if (muted != null) put("muted", muted)
+                if (id != null) put("id", id)
+            }.toString()
+    /** Una pregunta libre para el modelo grande del PC, con los últimos intercambios (el PC no guarda nada). */
+    fun phoneChat(text: String, history: List<Pair<String, String>>): String = JSONObject().put("type", "phone_chat").put("text", text)
+        .put(
+            "history",
+            org.json.JSONArray().apply {
+                history.forEach { (q, a) ->
+                    put(JSONObject().put("role", "user").put("content", q.take(500)))
+                    put(JSONObject().put("role", "assistant").put("content", a.take(500)))
+                }
+            },
+        ).toString()
     /** Quita una notificación del PC; con null, todas. */
     fun dismissNotification(id: Long?): String =
         JSONObject().put("type", "notification_dismiss").apply { if (id != null) put("id", id) }.toString()

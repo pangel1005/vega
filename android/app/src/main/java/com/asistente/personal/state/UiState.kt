@@ -29,7 +29,17 @@ data class PendingConfirm(val id: String, val nonce: String, val message: String
  */
 data class Notice(val seq: Int, val text: String, val ok: Boolean, val reminder: Boolean = false)
 
+/** La cámara del teléfono como cámara de Windows. `busy`: se pidió un cambio y el PC aún no ha contestado. */
+data class CameraInfo(val available: Boolean = false, val on: Boolean = false, val facing: String = "front", val busy: Boolean = false)
+
 data class UiState(
+    val camera: CameraInfo = CameraInfo(),
+    /** La «Mesa» del PC (null hasta la primera lectura, o sin enlace). */
+    val desk: com.asistente.personal.net.DeskInfo? = null,
+    /** Las entregas de Moodle (null hasta la primera lectura; se conservan sin enlace: las fechas siguen valiendo). */
+    val tasks: List<com.asistente.personal.net.TaskItem>? = null,
+    /** La racha del gimnasio (null hasta la primera lectura; se conserva sin enlace). */
+    val streak: com.asistente.personal.net.StreakInfo? = null,
     val actions: List<DeckAction> = emptyList(),
     val voices: List<Voice> = emptyList(),
     val voice: String = "",
@@ -73,6 +83,16 @@ data class UiState(
 sealed interface Action {
     data class Server(val event: ServerEvent) : Action
     data class Link(val status: LinkStatus, val retryInMs: Long? = null) : Action
+    /** Se pidió encender, apagar o cambiar la cámara y el PC aún no ha contestado. */
+    data object CameraBusy : Action
+    /** Gestos de la «Mesa»: se ven al instante y el PC los confirma con su siguiente lectura. */
+    data class DeskVolume(val key: String, val level: Float) : Action
+    data class DeskMute(val key: String, val muted: Boolean) : Action
+    data class DeskPaused(val paused: Boolean) : Action
+    /** Se marcó una entrega como hecha: desaparece del tablero al instante. */
+    data class TaskDone(val uid: String) : Action
+    /** Se encendió o apagó un día de la llama: se ve al instante y el PC manda la cuenta buena enseguida. */
+    data class StreakDay(val day: String, val on: Boolean, val isToday: Boolean) : Action
     data class Sent(val text: String) : Action
     data class LocalError(val text: String) : Action
     data class ConfirmExpired(val nonce: String) : Action
@@ -102,6 +122,19 @@ private fun UiState.lastStreaming(): Message? = messages.lastOrNull()?.takeIf { 
 private fun UiState.replaceLast(m: Message) = copy(messages = messages.dropLast(1) + m)
 
 fun reduce(s: UiState, action: Action): UiState = when (action) {
+    is Action.CameraBusy -> s.copy(camera = s.camera.copy(busy = true))
+    is Action.DeskVolume -> s.copy(desk = s.desk?.let { d -> d.copy(apps = d.apps.map { if (it.key == action.key) it.copy(volume = action.level, muted = if (action.level > 0f) false else it.muted) else it }) })
+    is Action.DeskMute -> s.copy(desk = s.desk?.let { d -> d.copy(apps = d.apps.map { if (it.key == action.key) it.copy(muted = action.muted) else it }) })
+    is Action.DeskPaused -> s.copy(desk = s.desk?.let { it.copy(paused = action.paused) })
+    is Action.TaskDone -> s.copy(tasks = s.tasks?.filter { it.uid != action.uid })
+    is Action.StreakDay -> s.copy(
+        streak = (s.streak ?: com.asistente.personal.net.StreakInfo()).let { st ->
+            val days = if (action.on) (st.days + action.day).distinct().sorted() else st.days - action.day
+            if (!action.isToday) st.copy(days = days)
+            else if (action.on) st.copy(days = days, today = true, alive = true, heat = 1f, count = if (st.today) st.count else st.count + 1)
+            else st.copy(days = days, today = false, count = maxOf(0, st.count - (if (st.today) 1 else 0)))
+        },
+    )
     is Action.Link -> {
         // Sin enlace, la lectura del PC deja de ser verdad: se quita en vez de mostrarla congelada.
         val next = s.copy(
@@ -179,7 +212,12 @@ fun reduce(s: UiState, action: Action): UiState = when (action) {
         }
         // La contesta el puente con el PC de la IA del teléfono; la pantalla no cambia.
         is ServerEvent.PhoneReply -> s
+        is ServerEvent.PhoneChatReply -> s
+        is ServerEvent.CameraState -> s.copy(camera = CameraInfo(e.available, e.on, e.facing))
         is ServerEvent.Heard -> s
+        is ServerEvent.DeskState -> s.copy(desk = e.desk)
+        is ServerEvent.Tasks -> s.copy(tasks = e.items)
+        is ServerEvent.Streak -> s.copy(streak = e.streak)
         // La atiende AssistantController (pasa a dormir); la pantalla no cambia por sí sola.
         is ServerEvent.Sleep -> s
         // La pantalla del coche la guarda AssistantController (la usa el servicio de Android Auto).

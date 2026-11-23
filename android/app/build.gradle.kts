@@ -8,7 +8,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.asistente.personal"
+        applicationId = "com.asistente.personal.rediseno"
         minSdk = 26
         targetSdk = 36
         // Minutos desde 2026-01-01: cada compilación es «más nueva» y la app puede actualizarse sola.

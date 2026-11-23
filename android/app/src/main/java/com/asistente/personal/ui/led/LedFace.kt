@@ -63,6 +63,9 @@ class Frame(val cols: Int = FACE_COLS, val rows: Int = FACE_ROWS) {
     fun lit(): Int = v.count { it > 0.5f }
 }
 
+/** Lo que la cara enseña de los datos del PC y del teléfono estando en reposo (nada de esto cambia sus demás estados). */
+data class FaceExtras(val hot: Boolean = false, val low: Boolean = false, val game: Boolean = false)
+
 /** Dibuja las expresiones. Todas las medidas están en puntos de la matriz. */
 object LedFace {
     private const val EYE_W = 8
@@ -80,6 +83,7 @@ object LedFace {
         blinkL: Float = 0f, blinkR: Float = 0f,
         level: Float = 0f,
         countdown: String? = null,
+        extras: FaceExtras? = null,
     ) {
         f.clear()
         val dx = (lookX * 3).roundToInt()
@@ -88,10 +92,25 @@ object LedFace {
             Mood.IDLE -> {
                 // Respira: el brillo sube y baja muy despacio.
                 val a = 0.86f + 0.14f * sin(t * 1.3f)
+                if (extras?.game == true) {
+                    gameVisor(f, t, a, countdown)
+                    return
+                }
                 eyes(f, dx, dy, h = 10, top = 3, blinkL = blinkL, blinkR = blinkR, a = a)
-                // Con un temporizador en marcha, la boca es la cuenta atrás («4:59»).
-                if (countdown != null) LedFont.draw(f, countdown, (f.cols - LedFont.width(countdown)) / 2, 14)
-                else smile(f, 20 + dx / 2, 15, 8, depth = 1, a = a * 0.9f)
+                // Los datos se ven en la cara: con poca batería, los párpados se caen y la boca es una pila que parpadea;
+                // con la gráfica caliente, un párpado a medias y una gota de sudor que resbala.
+                if (extras?.low == true) {
+                    lids(f, 2)
+                    battery(f, t)
+                } else {
+                    if (extras?.hot == true) {
+                        lids(f, 1)
+                        sweat(f, t)
+                    }
+                    // Con un temporizador en marcha, la boca es la cuenta atrás («4:59»).
+                    if (countdown != null) LedFont.draw(f, countdown, (f.cols - LedFont.width(countdown)) / 2, 14)
+                    else smile(f, 20 + dx / 2, 15, 8, depth = 1, a = a * 0.9f)
+                }
             }
             Mood.LISTEN -> {
                 eyes(f, dx / 2, 0, h = 12, top = 2, blinkL = blinkL * 0.5f, blinkR = blinkR * 0.5f, w = EYE_W + 1)
@@ -235,6 +254,44 @@ object LedFace {
         }
     }
 
+    /** Párpados: apaga las `rows` filas de arriba de cada ojo. */
+    private fun lids(f: Frame, rows: Int) {
+        for (x0 in listOf(LEFT_X, RIGHT_X)) for (r in 0 until rows) for (i in 0 until EYE_W) clear(f, x0 + i, 3 + r)
+    }
+
+    /** Una gota de sudor que resbala por el lado del ojo derecho. */
+    private fun sweat(f: Frame, t: Float) {
+        val y = 4 + (t * 4f) % 9f
+        val x = RIGHT_X + EYE_W + 2
+        f.rect(x, y.roundToInt(), 2, 2, 0.95f)
+        f.set(x, y.roundToInt() - 1, 0.8f)
+        f.set(x + 1, y.roundToInt() + 2, 0.5f)
+    }
+
+    /** Una pila vacía que parpadea en lugar de la boca. */
+    private fun battery(f: Frame, t: Float) {
+        val on = (t * 1.5f).toInt() % 2 == 0
+        for (i in 0 until 9) {
+            f.set(19 + i, 15, 0.9f)
+            f.set(19 + i, 18, 0.9f)
+        }
+        f.set(19, 16, 0.9f); f.set(19, 17, 0.9f)
+        f.set(27, 16, 0.9f); f.set(27, 17, 0.9f)
+        f.rect(28, 16, 1, 2, 0.9f)
+        if (on) f.rect(20, 16, 2, 2, 1f)
+    }
+
+    /** Jugando: un visor con una pupila que va de lado a lado y, de boca, el tiempo que falta o una raya. */
+    private fun gameVisor(f: Frame, t: Float, a: Float, countdown: String?) {
+        f.rect(6, 6, 36, 6, 0.14f)
+        f.rect(LEFT_X, 8, EYE_W, 3, a)
+        f.rect(RIGHT_X, 8, EYE_W, 3, a)
+        val px = 6 + ((sin(t * 1.8f) * 0.5f + 0.5f) * 34f).roundToInt()
+        f.rect(px, 7, 2, 5, 1f)
+        if (countdown != null) LedFont.draw(f, countdown, (f.cols - LedFont.width(countdown)) / 2, 14)
+        else f.rect(21, 15, 6, 1, 0.7f)
+    }
+
     private fun zeta(f: Frame, x: Int, y: Int, a: Float) {
         f.rect(x, y, 3, 1, a)
         f.set(x + 1, y + 1, a)
@@ -357,6 +414,9 @@ class LedFaceAnimator(private val random: Random = Random.Default) {
     /** Cuenta atrás del temporizador («4:59»), o null si no hay ninguno en marcha. */
     var countdown: String? = null
 
+    /** Los datos que se ven en el gesto de la cara (sudor, párpados, visor); null = la cara de siempre. */
+    var extras: FaceExtras? = null
+
     /** Avanza `dt` segundos. Devuelve true si algún punto cambió lo bastante como para redibujar. */
     fun step(dt: Float, t: Float, mood: Mood, level: Float): Boolean {
         val msg = text
@@ -368,7 +428,7 @@ class LedFaceAnimator(private val random: Random = Random.Default) {
         } else {
             val shownMood = idleQuirk(dt, mood)
             moveEyes(dt, shownMood)
-            LedFace.draw(target, shownMood, t, lookX, lookY, blinkL, blinkR, level, countdown)
+            LedFace.draw(target, shownMood, t, lookX, lookY, blinkL, blinkR, level, countdown, extras)
         }
         val fall = if (msg != null) 22f else 7f // el texto no deja estela (se leería borroso)
         var changed = false

@@ -38,8 +38,10 @@ fun DrawScope.drawDeckIcon(name: String, c: Color) {
             poly(0.62f, 0.05f, 0.92f, 0.22f, 0.62f, 0.38f)
         }
         "sleep" -> {
-            drawCircle(c, w * 0.36f, mid)
-            drawCircle(Color.Black.copy(alpha = 0.85f), w * 0.3f, Offset(w * 0.66f, w * 0.38f))
+            // Una luna creciente: un círculo al que se le quita otro desplazado (no se pinta de negro encima: en LED el negro también cuenta).
+            val full = Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(w * 0.14f, w * 0.14f), Size(w * 0.72f, w * 0.72f))) }
+            val bite = Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(w * 0.36f, w * 0.0f), Size(w * 0.66f, w * 0.66f))) }
+            drawPath(Path.combine(androidx.compose.ui.graphics.PathOperation.Difference, full, bite), c)
         }
         "lock" -> {
             drawArc(c, 180f, 180f, false, Offset(w * 0.28f, w * 0.1f), Size(w * 0.44f, w * 0.5f), style = s)

@@ -110,7 +110,7 @@ internal fun Progress(position: Double, duration: Double, color: Color, modifier
 
 /** Botón redondo de reproducción (anterior, pausa/play, siguiente). Salta al tocar. */
 @Composable
-private fun TransportButton(
+internal fun TransportButton(
     kind: String,
     size: Dp,
     color: Color,

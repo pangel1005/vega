@@ -41,6 +41,9 @@ const val MAX_GAME_SAMPLES = 3_600
 
 /** Cuánto espera el teléfono a que el PC transcriba una frase antes de oírla él mismo (el PC tarda ~0,5 s). */
 const val HEAR_PC_MS = 2_500L
+
+/** Cuánto espera el teléfono la charla libre del modelo grande del PC antes de contestar él con el suyo (ms). */
+const val CHAT_PC_MS = 6_000L
 private const val KEY_GLASS = "estilo_cristal"
 private const val KEY_TERMINAL = "estilo_terminal"
 private const val KEY_ORB = "estilo_orbe"
@@ -199,6 +202,92 @@ class AssistantController(context: Context) {
         else -> "IA: teléfono"
     }
 
+    /** Enciende o apaga la cámara del teléfono en el PC; el estado real lo confirma el PC (tarda unos segundos). */
+    fun toggleCamera() {
+        val cam = ui.camera
+        if (!cam.available || cam.busy || ui.link != LinkStatus.OPEN) return
+        dispatch(Action.CameraBusy)
+        if (!socket.send(Protocol.camera(!cam.on))) dispatch(Action.Server(ServerEvent.CameraState(cam.available, cam.on, cam.facing)))
+    }
+
+    /** Elige la cámara (frontal o trasera); si ya está encendida, cambia en caliente. */
+    fun cameraFacing(facing: String) {
+        val cam = ui.camera
+        if (!cam.available || cam.busy || cam.facing == facing || ui.link != LinkStatus.OPEN) return
+        if (cam.on) dispatch(Action.CameraBusy)
+        socket.send(Protocol.camera(cam.on, facing))
+        if (!cam.on) dispatch(Action.Server(ServerEvent.CameraState(cam.available, false, facing)))
+    }
+
+    // --- La «Mesa»: volumen por programa y fondo de pantalla del PC ---
+
+    /** Miniaturas de los fondos que ofrece la Mesa, por id. */
+    val wallpaperThumbs = androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>()
+    private var deskSentAt = 0L
+
+    private fun loadWallpaperThumbs(desk: com.asistente.personal.net.DeskInfo) {
+        for (id in desk.suggestions.map { it.id }.filter { it !in wallpaperThumbs }) {
+            scope.launch { updater.wallpaperThumb(id)?.let { wallpaperThumbs[id] = it } }
+        }
+    }
+
+    /** Pide al PC lo que enseña la Mesa (mientras está abierta, cada pocos segundos). */
+    fun deskRefresh() {
+        if (ui.link == LinkStatus.OPEN) socket.send(Protocol.desk("get"))
+    }
+
+    /** Mueve el volumen de un programa. Mientras el dedo arrastra se manda como mucho cada 80 ms; al soltar (`final`), siempre. */
+    fun deskVolume(key: String, level: Float, final: Boolean) {
+        dispatch(Action.DeskVolume(key, level))
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (final || now - deskSentAt >= 80) {
+            deskSentAt = now
+            if (ui.link == LinkStatus.OPEN) socket.send(Protocol.desk("volume", app = key, level = level))
+        }
+    }
+
+    fun deskMute(key: String, muted: Boolean) {
+        dispatch(Action.DeskMute(key, muted))
+        if (ui.link == LinkStatus.OPEN) socket.send(Protocol.desk("mute", app = key, muted = muted))
+    }
+
+    fun deskWallpaper(id: String) {
+        if (ui.link == LinkStatus.OPEN) socket.send(Protocol.desk("wallpaper", id = id))
+    }
+
+    fun deskRandom() {
+        if (ui.link == LinkStatus.OPEN) socket.send(Protocol.desk("random"))
+    }
+
+    /** Otros fondos para elegir. */
+    fun deskMore() {
+        if (ui.link == LinkStatus.OPEN) socket.send(Protocol.desk("more"))
+    }
+
+    /** Enciende la llama del gimnasio de un día (hoy si `day` es null). */
+    fun streakLight(day: String?) = streakSet(day, true)
+
+    /** Apaga la llama de un día (por si se encendió sin querer). */
+    fun streakOut(day: String?) = streakSet(day, false)
+
+    private fun streakSet(day: String?, on: Boolean) {
+        val today = java.time.LocalDate.now().toString()
+        val d = day ?: today
+        dispatch(Action.StreakDay(d, on, d == today))
+        if (ui.link == LinkStatus.OPEN) socket.send(Protocol.streak(if (on) "light" else "out", day))
+    }
+
+    /** Marca una entrega de Moodle como hecha: desaparece del tablero y el PC anula sus avisos. */
+    fun taskDone(uid: String) {
+        dispatch(Action.TaskDone(uid))
+        if (ui.link == LinkStatus.OPEN) socket.send(Protocol.tasks("done", uid))
+    }
+
+    fun deskPause(paused: Boolean) {
+        dispatch(Action.DeskPaused(paused))
+        if (ui.link == LinkStatus.OPEN) socket.send(Protocol.desk(if (paused) "pause" else "play"))
+    }
+
     /** Cambia entre pensar en el PC y en el teléfono. */
     fun toggleBrain() {
         if (sleeping) return
@@ -265,7 +354,12 @@ class AssistantController(context: Context) {
                         pcVoice = ::speakWithPc,
                         log = { android.util.Log.i("Vega", it) },
                         // Charla sin PC: el modelo se carga al primer uso (~4 s) y se suelta tras 3 min sin usarlo.
-                        talker = models.llm.takeIf { it.isFile }?.let { com.asistente.personal.local.PhoneLlm(it, log = { m -> android.util.Log.i("Vega", m) }) },
+                        // Charla mixta: primero el modelo grande del PC (si está libre) y, si no, este.
+                        talker = com.asistente.personal.local.PcTalker(
+                            ::askPcChat,
+                            models.llm.takeIf { it.isFile }?.let { com.asistente.personal.local.PhoneLlm(it, log = { m -> android.util.Log.i("Vega", m) }) },
+                            log = { android.util.Log.i("Vega", it) },
+                        ),
                         gate = wakeGate,
                     )
                     loading = created
@@ -339,6 +433,7 @@ class AssistantController(context: Context) {
         private set
 
     @Volatile private var pcAnswer: java.util.concurrent.CompletableFuture<ServerEvent.PhoneReply>? = null
+    @Volatile private var pcChat: java.util.concurrent.CompletableFuture<ServerEvent.PhoneChatReply>? = null
     @Volatile private var pcHeard: java.util.concurrent.CompletableFuture<ServerEvent.Heard>? = null
     @Volatile private var pcHeardId = 0
     private val hearIds = java.util.concurrent.atomic.AtomicInteger()
@@ -381,6 +476,25 @@ class AssistantController(context: Context) {
             return null
         } finally {
             pcAnswer = null
+        }
+    }
+
+    /**
+     * Le hace una pregunta libre al modelo grande del PC (solo contesta si está libre, sin juego). Espera como
+     * mucho [CHAT_PC_MS]; si no hay enlace, el PC no puede o tarda, devuelve null y contesta el teléfono.
+     */
+    private fun askPcChat(text: String, history: List<Pair<String, String>>): String? {
+        if (ui.link != LinkStatus.OPEN) return null
+        val answer = java.util.concurrent.CompletableFuture<ServerEvent.PhoneChatReply>()
+        pcChat = answer
+        try {
+            if (!socket.send(Protocol.phoneChat(text, history))) return null
+            val reply = answer.get(CHAT_PC_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            return if (reply.handled) reply.text.ifBlank { null } else null
+        } catch (_: Exception) {
+            return null
+        } finally {
+            pcChat = null
         }
     }
 
@@ -553,6 +667,7 @@ class AssistantController(context: Context) {
             }
             if (event is ServerEvent.PhoneControl) mainThread.post { obey(event.command) }
             if (event is ServerEvent.PhoneReply) pcAnswer?.complete(event)
+            if (event is ServerEvent.PhoneChatReply) pcChat?.complete(event)
             if (event is ServerEvent.Heard && event.id == pcHeardId) pcHeard?.complete(event)
             if (event is ServerEvent.Audio) pcVoiceStarted?.complete(true)
             if (event is ServerEvent.AudioEnd) {
@@ -560,6 +675,7 @@ class AssistantController(context: Context) {
                 dropPcAudio = false
             }
             if (event is ServerEvent.Notifications) loadNoteIcons(event.items)
+            if (event is ServerEvent.DeskState) loadWallpaperThumbs(event.desk)
             if (event is ServerEvent.Reminder) {
                 vibrate()
                 // Con la IA en el teléfono, el PC no habla: el aviso lo dice el teléfono.
@@ -826,10 +942,16 @@ class AssistantController(context: Context) {
     var charging by mutableStateOf(false)
         private set
 
+    /** ¿Enchufado por USB? (con el cable del PC; el cargador de pared no cuenta). */
+    var usbPlugged by mutableStateOf(true)
+        private set
+
     private fun readBattery() {
         val bm = batteryManager ?: return
         battery = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 } ?: -1
         charging = bm.isCharging
+        val sticky = appContext.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+        usbPlugged = ((sticky?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0) and android.os.BatteryManager.BATTERY_PLUGGED_USB) != 0
     }
 
     /** Un toque muy corto: ha llegado una notificación del PC. */

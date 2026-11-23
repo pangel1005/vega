@@ -193,7 +193,7 @@ private fun parseHex(hex: String?): Color? =
 
 /** El marcador con el color de cada equipo; al cambiar, los números dan un salto (gol, baja). */
 @Composable
-private fun ScoreBoard(score: String, colors: List<String>, accent: Color, size: TextUnit) {
+internal fun ScoreBoard(score: String, colors: List<String>, accent: Color, size: TextUnit) {
     val parts = score.split(" – ")
     val pulse = remember { Animatable(1f) }
     var last by remember { mutableStateOf(score) }
@@ -247,7 +247,7 @@ fun feedColor(text: String): Color = when {
 
 /** Un medidor de arco (como un cuentarrevoluciones) con su cifra dentro; la aguja se mueve suave. */
 @Composable
-private fun ArcGauge(fraction: Float, value: String, label: String, color: Color, modifier: Modifier = Modifier) {
+internal fun ArcGauge(fraction: Float, value: String, label: String, color: Color, modifier: Modifier = Modifier) {
     val sweep by animateFloatAsState(fraction.coerceIn(0f, 1f), tween(700), label = "aguja")
     Box(modifier.aspectRatio(1f), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize().padding(3.dp)) {

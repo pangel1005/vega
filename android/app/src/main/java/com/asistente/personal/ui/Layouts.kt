@@ -1,8 +1,17 @@
 package com.asistente.personal.ui
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -59,13 +68,21 @@ internal class LayoutArgs(
     val onOpenMusic: () -> Unit,
     val onOpenGame: () -> Unit,
     val confirmFraction: Float?,
+    /** Abre la «Mesa» (volumen por programa y fondo de pantalla del PC). */
+    val onMesa: () -> Unit = {},
+    /** Abre el tablero de Moodle (entregas por columnas). */
+    val onTablero: () -> Unit = {},
+    /** Abre la racha del gimnasio (la llama). */
+    val onRacha: () -> Unit = {},
+    /** Abre todos los avisos del PC (agrupados por app). */
+    val onOpenNotes: () -> Unit = {},
 )
 
-private fun doto(size: TextUnit, color: Color) =
+internal fun doto(size: TextUnit, color: Color) =
     TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = size, lineHeight = size, color = color)
 
-private val label10 get() = Vega.label.copy(fontSize = 10.sp)
-private val es = java.util.Locale("es", "ES")
+internal val label10 get() = Vega.label.copy(fontSize = 10.sp)
+internal val es = java.util.Locale("es", "ES")
 
 /** Línea de puntos: el separador de Vega (como las barras, hecho de LED apagados). */
 @Composable
@@ -133,7 +150,7 @@ private fun MiniStat(name: String, value: String, fraction: Float?, modifier: Mo
     }
 }
 
-private fun linkText(m: ScreenModel): Pair<String, Color> = when (m.ui.link) {
+internal fun linkText(m: ScreenModel): Pair<String, Color> = when (m.ui.link) {
     LinkStatus.OPEN -> "En línea" to Vega.Mint
     LinkStatus.CONNECTING -> "Conectando…" to Vega.Amber
     LinkStatus.RECONNECTING -> "Reconectando…" to Vega.Amber
@@ -165,12 +182,15 @@ private fun ColumnScope.MainKeys(x: LayoutArgs) {
 }
 
 @Composable
-private fun Modifier.attention(x: LayoutArgs): Modifier =
-    clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { x.a.attention() }
+internal fun Modifier.attention(x: LayoutArgs): Modifier =
+    clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+        // Sin enlace con el PC (y la IA no está en el teléfono), un toque en la cara reintenta ya.
+        if (x.m.ui.link != com.asistente.personal.net.LinkStatus.OPEN && !x.m.brainOnPhone) x.a.retryNow() else x.a.attention()
+    }
 
 /** Lo siguiente que va a avisar: el del PC, el del teléfono o nada. */
 @Composable
-private fun AgendaText(x: LayoutArgs, bigSize: TextUnit, textSize: TextUnit, lines: Int = 1) {
+internal fun AgendaText(x: LayoutArgs, bigSize: TextUnit, textSize: TextUnit, lines: Int = 1) {
     val m = x.m
     val next = m.ui.telemetry?.upcoming?.firstOrNull()
     val local = timerLeft(m)
@@ -469,9 +489,57 @@ internal fun ColumnScope.GridLayout(x: LayoutArgs) {
             belowFace = { DataStrip(x) },
         )
         Column(Modifier.width(232.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ClockCard(m, x.a, Modifier.fillMaxWidth(), x.aura)
+            ClockModule(x, Modifier.fillMaxWidth())
             KeyGrid(x, Modifier.weight(1f).fillMaxWidth())
         }
+    }
+}
+
+/** La hora, la fecha y el estado a la izquierda; el micrófono y dormir como dos botones redondos de LED a la derecha. */
+@Composable
+private fun ClockModule(x: LayoutArgs, modifier: Modifier) {
+    val m = x.m
+    val (link, linkColor) = linkText(m)
+    val micOn = m.listening && m.micOn
+    Row(
+        modifier.card(x.aura).padding(start = 14.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(m.clock, maxLines = 1, style = doto(34.sp, Vega.Ink))
+            Spacer(Modifier.height(3.dp))
+            Text(m.date, maxLines = 1, style = label10)
+            when {
+                m.updateAvailable -> Text("Actualizar disponible", maxLines = 1, style = label10.copy(color = Vega.Amber))
+                lowBattery(m.battery, m.charging) -> Text("Batería ${m.battery} %", maxLines = 1, style = label10.copy(color = Vega.Red))
+                else -> Text(link, maxLines = 1, style = label10.copy(color = linkColor))
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            RoundKey("mic", if (micOn) Vega.Coral else Vega.Ink2, x.a.toggleMic, filled = micOn)
+            RoundKey("sleep", Vega.Ink2, x.a.sleep)
+        }
+    }
+}
+
+/** Un botón redondo con un icono de LED (apagado en reposo; encendido con el color si está activo). */
+@Composable
+internal fun RoundKey(icon: String, color: Color, onClick: () -> Unit, filled: Boolean = false, size: androidx.compose.ui.unit.Dp = 32.dp, modifier: Modifier = Modifier) {
+    val pressed = remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (pressed.value) 0.9f else 1f, spring(dampingRatio = 0.5f, stiffness = 1500f), label = "pulsar")
+    val glyph = remember(icon) { deckGlyph(icon) }
+    Box(
+        modifier.size(size)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .background(if (filled) color.copy(alpha = 0.18f) else Vega.CardHi, CircleShape)
+            .border(1.dp, if (filled) color.copy(alpha = 0.75f) else Vega.Line, CircleShape)
+            .instantPress(enabled = true, pressed = pressed, onPress = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        LedIcon(glyph, color, Modifier.size(20.dp), glow = if (filled) 0.7f else 0f)
     }
 }
 

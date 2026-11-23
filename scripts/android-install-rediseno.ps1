@@ -1,0 +1,42 @@
+﻿# Compila el rediseño («Vega 2») y lo instala en el teléfono como una app APARTE de la de siempre
+# (com.asistente.personal.rediseno), para poder compararlas sin pisar nada.
+#
+#   powershell -ExecutionPolicy Bypass -File scripts\android-install-rediseno.ps1 [-DebugBuild]
+#
+# El token se lee de la carpeta principal (..\asistente-personal\config\token.txt): el servidor es el mismo.
+
+param([switch]$DebugBuild)
+$ErrorActionPreference = 'Stop'
+
+$root = Split-Path -Parent $PSScriptRoot
+$jdk = Get-ChildItem "$env:USERPROFILE\.jdks" -Directory -Filter 'jdk-21*' | Select-Object -First 1
+if (-not $jdk) { throw "No encuentro el JDK 21 en $env:USERPROFILE\.jdks" }
+$env:JAVA_HOME = $jdk.FullName
+$env:ANDROID_HOME = "$env:USERPROFILE\Android\Sdk"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+$adb = "$env:ANDROID_HOME\platform-tools\adb.exe"
+if (-not (Test-Path $adb)) { $adb = (Get-Command adb -ErrorAction SilentlyContinue).Source }
+if (-not $adb) { throw 'No encuentro adb.' }
+
+$tokenFile = Join-Path (Split-Path -Parent $root) 'asistente-personal\config\token.txt'
+if (-not (Test-Path $tokenFile)) { throw "Falta ${tokenFile}: arranca el servidor una vez para crearlo." }
+$token = (Get-Content $tokenFile -Raw).Trim()
+
+$variant = if ($DebugBuild) { 'Debug' } else { 'Release' }
+Write-Host "Compilando el rediseño ($variant)..."
+Push-Location (Join-Path $root 'android')
+try {
+    & .\gradlew.bat "assemble$variant" --console=plain -q
+    if ($LASTEXITCODE -ne 0) { throw 'La compilación falló.' }
+} finally { Pop-Location }
+
+$apk = Get-ChildItem (Join-Path $root "android\app\build\outputs\apk\$($variant.ToLower())") -Filter '*.apk' | Select-Object -First 1
+Write-Host "Instalando $($apk.Name) ($([math]::Round($apk.Length / 1MB, 1)) MB)..."
+& $adb install -r $apk.FullName
+if ($LASTEXITCODE -ne 0) {
+    throw 'El teléfono rechazó la instalación. En Xiaomi: Opciones de desarrollador → activa «Instalar vía USB».'
+}
+
+& $adb reverse tcp:8000 tcp:8000 | Out-Null
+& $adb shell am start -n com.asistente.personal.rediseno/com.asistente.personal.MainActivity --es token $token | Out-Null
+Write-Host 'Listo: Vega 2 está abierta en el teléfono (la de siempre sigue instalada).'
