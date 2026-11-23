@@ -40,9 +40,14 @@ function Test-Ollama {
 }
 if (-not (Test-Ollama)) {
     $ollama = "$env:LOCALAPPDATA\Programs\Ollama\ollama app.exe"
-    if (-not (Test-Path $ollama)) { throw "No encuentro Ollama en $ollama. Instálalo (README.md)." }
     Say 'Arrancando Ollama...'
-    Start-Process -FilePath $ollama -WindowStyle Hidden
+    if (Test-Path $ollama) {
+        Start-Process -FilePath $ollama -WindowStyle Hidden
+    } elseif (Get-Command ollama -ErrorAction SilentlyContinue) {
+        Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden
+    } else {
+        throw 'No encuentro Ollama. Instálalo con scripts\instalar.ps1 (o winget install Ollama.Ollama).'
+    }
     # Al encender el PC el disco va cargado y Ollama puede tardar más de un minuto.
     $ok = $false
     for ($i = 0; $i -lt 120 -and -not $ok; $i++) { Start-Sleep 1; $ok = Test-Ollama }

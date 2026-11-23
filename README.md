@@ -7,9 +7,14 @@ Vega es un asistente al que le hablas («Vega, …») y que a la vez es una **bo
   de IA que corren en tu propio equipo: sin servicios de pago, sin nube y sin internet (salvo, si quieres, las letras de canciones).
 - **El cuerpo es un teléfono Android** conectado por **cable USB**. Pone la cara de LED,
   el micrófono, el altavoz y las teclas.
+- **La idea: revivir aparatos viejos.** Ese teléfono que tienes en un cajón y un PC normal bastan: no hay que
+  comprar un altavoz inteligente ni nada nuevo.
+
+**Instalar:** `powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1` (ver [Instalación](#instalación-windows)).
+· *English:* [README.en.md](README.en.md)
 
 > **Prototipo personal en evolución.** Funciona y se usa a diario, pero espera fallos.
-> El nombre «Vega» se cambia en `config/assistant.toml`.
+> El nombre «Vega» se cambia en `config/assistant.toml` (o en la app de escritorio).
 
 ![Pantalla de Vega](docs/capturas/pantalla.png)
 
@@ -187,7 +192,7 @@ el cable puede tardar hasta unos 30 s.
 
 | Archivo | Qué se cambia |
 |---|---|
-| `config/assistant.toml` | Nombre, modelo, instrucciones, voz, acento y velocidad, Whisper, USB |
+| `config/assistant.toml` | Nombre, modelo, instrucciones, voz, acento y velocidad, Whisper, USB. Es tuyo (fuera de git): nace de `config/assistant.example.toml` |
 | `config/car.toml` | Casillas de la pantalla de Vega en Android Auto (máximo 6) |
 | `config/actions.toml` | Botones: qué hacen, cuáles van en la fila principal (`quick`), frases de voz (`say`) y cuáles piden confirmación |
 
@@ -208,23 +213,68 @@ el cable puede tardar hasta unos 30 s.
 
 ## Instalación (Windows)
 
-1. Herramientas (gratuitas):
-   `winget install astral-sh.uv Ollama.Ollama Google.PlatformTools OpenJS.NodeJS.LTS Git.Git`
-2. Modelo de lenguaje: `ollama pull qwen3.5:4b`
-3. Python y dependencias: `uv sync`. Instala Whisper con CUDA, Kokoro y Piper.
-4. Voces, que no van en git:
-   - Kokoro → `models/kokoro/`: `kokoro-v1.0.onnx` y `voices-v1.0.bin`, de
-     [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0).
-   - Piper (opcional) → `models/piper/`: archivos `.onnx` y `.onnx.json`.
-   - Whisper se descarga solo la primera vez.
-5. Arranca una vez (`scripts\start.ps1`) para crear `config/token.txt`.
-6. App del teléfono: activa la depuración USB y ejecuta `scripts\android-install.ps1`.
-   Necesita JDK 21 y el Android SDK.
-   - En Xiaomi sin SIM no se puede instalar por cable: copia el APK de
-     `android\app\build\outputs\apk\release\` e instálalo desde el gestor de archivos.
-   - Las versiones siguientes se instalan con **Actualizar**.
-   - Opcional: `scripts\android-debloat.ps1` quita publicidad de HyperOS (reversible
-     con `-Restore`).
+**Qué necesitas**
+- Windows 10 u 11, unos 6 GB libres y 8 GB de RAM (mejor 16).
+- Una tarjeta gráfica NVIDIA ayuda, pero **no hace falta**: sin ella todo va en el procesador, más despacio.
+- Un **teléfono Android viejo** (Android 8 o más nuevo, de 64 bits) y su cable USB. Es la idea de Vega: darle
+  una segunda vida a un teléfono que ya no usas.
+
+**1. Descarga Vega**
+
+```powershell
+git clone https://github.com/pangel1005/vega-asistente.git
+cd vega-asistente
+```
+
+(o *Code → Download ZIP* en GitHub y descomprímelo).
+
+**2. Ejecuta el instalador**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1
+```
+
+Instala lo que falte con winget (uv, Ollama y adb) y las dependencias de Python. Crea tus ajustes según tu tarjeta
+gráfica, baja el modelo de lenguaje (~3 GB) y las voces (~350 MB), y te pregunta si Vega arranca sola con Windows.
+Se puede repetir cuando quieras: lo que ya está hecho se salta.
+
+**3. Instala la app en el teléfono**
+
+1. En el teléfono, activa las *Opciones de desarrollador* (toca 7 veces «Número de compilación») y dentro la
+   **Depuración USB**. En Xiaomi activa también **Instalar vía USB**.
+2. Conéctalo por USB y acepta el aviso de su pantalla.
+3. Ejecuta `scripts\android-install.ps1` (el instalador también te lo ofrece). Compila la app e instálala. Hace
+   falta Java 17+ y el SDK de Android: lo más fácil es instalar Android Studio (`winget install
+   Google.AndroidStudio`) y abrirlo una vez. El script los encuentra solo.
+   - Aún no hay un APK ya hecho para descargar: está en el plan.
+   - En algunos Xiaomi sin SIM no se puede instalar por cable: ejecuta el script con `-BuildOnly`, copia el APK de
+     `android\app\build\outputs\apk\release\` al teléfono e instálalo desde el gestor de archivos.
+
+**4. Úsala**
+
+Arranca Vega (`scripts\start.ps1`, o sola si lo elegiste) y conecta el teléfono: el servidor lo enlaza y abre la
+app solo. Di «Vega, ¿qué hora es?».
+
+**Opcional**
+- App de escritorio (ajustes, botones y estado): `scripts\escritorio.ps1`.
+- Telegram: `uv run python -m server.tools.telegram_setup` · Moodle: `uv run python -m server.tools.moodle_setup`.
+- Cámara del teléfono como webcam: `winget install Genymobile.scrcpy OBSProject.OBSStudio` y `[camera] enabled =
+  true`.
+- `scripts\android-debloat.ps1` quita publicidad de HyperOS (reversible con `-Restore`).
+
+**Si algo falla**
+
+| Problema | Solución |
+|---|---|
+| «No encuentro Java» / «No encuentro el SDK de Android» | Instala Android Studio, ábrelo una vez y repite `scripts\android-install.ps1` |
+| El teléfono no aparece | Cable de datos (no solo de carga), Depuración USB activada y acepta el aviso de la pantalla |
+| «El teléfono rechazó la instalación» | Xiaomi: activa «Instalar vía USB». Si Vega ya estaba instalada desde otro PC, desinstálala antes |
+| Vega no habla, solo escribe | Faltan las voces: repite `scripts\instalar.ps1` |
+| Responde muy lento | Sin tarjeta NVIDIA es normal (2–5 s más). Cierra programas pesados o prueba un modelo más pequeño en `config/assistant.toml` |
+| Algo raro | Mira `logs/server.log` |
+
+Tus ajustes viven en `config/assistant.toml`, que nace de `config/assistant.example.toml` la primera vez y no se
+sube a git. Los botones de programas que no tienes instalados (Steam, Opera…) no aparecen.
 
 ## Desarrollo
 
