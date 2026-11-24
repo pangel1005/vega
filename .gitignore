@@ -43,3 +43,7 @@ config/steam_key.txt
 config/assistant.toml
 # Copias de seguridad automáticas de la app de escritorio
 config/*.bak
+
+# Investigaciones (notas de trabajo; el informe final se copia a docs/)
+research_notes/
+reports/
