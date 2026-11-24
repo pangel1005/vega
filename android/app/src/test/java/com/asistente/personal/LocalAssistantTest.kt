@@ -47,6 +47,7 @@ class LocalAssistantTest {
         val jobs = ArrayDeque<Runnable>()
         val logs = mutableListOf<String>()
         var slept = 0
+        var chimes = 0
         val pcSaid = mutableListOf<String>()
         val heardSizes = mutableListOf<Int>()
         val askedPc = mutableListOf<String>()
@@ -63,7 +64,7 @@ class LocalAssistantTest {
             onSleep = { slept++ },
             mouth = { text, onAudio -> said += text; onAudio(ByteArray(4), 22_050) },
             events = { events += it },
-            audio = { _, _ -> },
+            audio = { pcm, rate -> if (rate == com.asistente.personal.local.CHIME_RATE && pcm.size < 20_000) chimes++ },
             clock = { clock },
             now = { now },
             // sin hilo: la prueba ve el resultado al momento (o, con `queued`, cuando ella lo decide)
@@ -122,15 +123,16 @@ class LocalAssistantTest {
     @Test fun siguesSinRepetirSuNombre() {
         val rig = Rig(listOf("Vega", "apunta pan", "apunta leche"))
         rig.phrase()
-        assertEquals(listOf("¿Sí?"), rig.said)
-        rig.vega.playbackDone()
+        assertTrue(rig.said.isEmpty()) // solo el nombre: un tilín, no un «¿Sí?» hablado
+        assertEquals(1, rig.chimes)
+        assertEquals(ServerEvent.State(AssistantState.LISTENING), rig.events.last())
         rig.clock = 3_000
         rig.phrase()
         assertEquals("Apuntado: pan.", rig.said.last())
         rig.vega.playbackDone()
         rig.clock = 3_000 + 9_000 // pasaron más de 8 s: vuelve a hacer falta el nombre
         rig.phrase()
-        assertEquals(2, rig.said.size)
+        assertEquals(listOf("Apuntado: pan."), rig.said)
     }
 
     @Test fun loQueNoSabeLoDice() {
@@ -265,9 +267,9 @@ class LocalAssistantTest {
         // «Vega» … «¿Sí?» … «¿qué es un volcán?»: la pregunta va sin nombre, pero es para ella.
         val rig = Rig(listOf("Vega.", "¿qué es un volcán?"), talker = fakeTalker("Una montaña que echa lava."))
         rig.phrase()
-        rig.vega.playbackDone()
         rig.phrase()
-        assertEquals(listOf("¿Sí?", "Una montaña que echa lava."), rig.said)
+        assertEquals(listOf("Una montaña que echa lava."), rig.said)
+        assertEquals(1, rig.chimes)
     }
 
     @Test fun duermete() {

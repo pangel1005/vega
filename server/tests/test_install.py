@@ -100,8 +100,8 @@ def test_voices_are_downloaded_once(tmp_path: Path) -> None:
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     assert install.download_voices(tmp_path, client) == "Voces listas."
-    assert sorted(asked) == ["kokoro-v1.0.onnx", "voices-v1.0.bin"]
-    assert (tmp_path / "kokoro-v1.0.onnx").read_bytes() == b"datos"
+    assert sorted(asked) == ["kokoro-v1.0.int8.onnx", "voices-v1.0.bin"]
+    assert (tmp_path / "kokoro-v1.0.int8.onnx").read_bytes() == b"datos"
     assert not list(tmp_path.glob("*.part"))
     assert install.download_voices(tmp_path, client) == "Las voces ya están."
     assert len(asked) == 2

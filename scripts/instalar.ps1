@@ -10,7 +10,7 @@
 # Qué hace:
 #   1. Instala con winget lo que falte: uv (Python), Ollama (la IA) y las herramientas de Android (adb).
 #   2. Instala las dependencias de Python (uv sync).
-#   3. Crea tus ajustes según tu tarjeta gráfica, baja el modelo de lenguaje (~3 GB) y las voces (~350 MB).
+#   3. Crea tus ajustes según tu tarjeta gráfica, baja el modelo de lenguaje (~3 GB) y las voces (~120 MB).
 #   4. Te pregunta si Vega arranca sola con Windows y si instalamos la app en tu teléfono.
 
 param([switch]$SinEscritorio, [switch]$SinArranque, [switch]$SinTelefono)

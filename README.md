@@ -148,7 +148,7 @@ powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1
 ```
 
 It installs whatever is missing with winget (uv, Ollama and adb) plus the Python dependencies, creates your
-settings based on your graphics card, downloads the language model (~3 GB) and the voices (~350 MB), and asks
+settings based on your graphics card, downloads the language model (~3 GB) and the voices (~120 MB), and asks
 whether Vega should start with Windows. It's safe to run again: finished steps are skipped.
 
 **3. Install the phone app**

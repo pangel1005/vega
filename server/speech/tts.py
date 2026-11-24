@@ -14,6 +14,7 @@ import json
 import logging
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -83,6 +84,8 @@ KOKORO_MIXES = {
 }
 KOKORO_PREFIX = "kokoro:"
 KOKORO_THREADS = 4
+CACHE_MAX_CHARS = 40  # solo las frases cortas (las que se repiten) se guardan ya hechas
+CACHE_ITEMS = 64
 SENTENCE_PAUSE = 0.32  # s de silencio tras «.», «?», «!»: sin él las frases se pisaban
 CLAUSE_PAUSE = 0.14  # tras «,», «;», «:» (la primera frase se corta en una coma)
 
@@ -102,10 +105,15 @@ class KokoroTTS:
     def __init__(self, model_dir: Path, speed: float = 1.0, accent: str = "es-419") -> None:
         self._speed = speed
         self._accent = accent  # "es-419": latinoamericano («sena»); "es": España («θena»)
-        self._model = model_dir / "kokoro-v1.0.onnx"
+        # La versión ligera (int8) si está: medido en el PC del autor, «Son las once y cuarto» en 0,45 s en
+        # vez de 0,63 s (un 30–40 % menos en cada frase) y suena igual en frases cortas.
+        light = model_dir / "kokoro-v1.0.int8.onnx"
+        self._model = light if light.exists() else model_dir / "kokoro-v1.0.onnx"
         self._voices_file = model_dir / "voices-v1.0.bin"
         self._engine: Any = None
         self._lock = threading.Lock()
+        # Frases cortas que se repiten («Hecho.», «Vale.», «Cancelado.»…): se generan una vez.
+        self._cache: OrderedDict[tuple[str, str, float], tuple[bytes, int]] = OrderedDict()
 
     @property
     def available(self) -> bool:
@@ -141,6 +149,18 @@ class KokoroTTS:
         return sum(weight * engine.get_voice_style(voice) for voice, weight in mix.items())
 
     def synthesize(self, text: str, voice_id: str) -> tuple[bytes, int]:
+        key = (text, voice_id, self._speed)
+        if len(text) <= CACHE_MAX_CHARS and key in self._cache:
+            self._cache.move_to_end(key)
+            return self._cache[key]
+        pcm, rate = self._create(text, voice_id)
+        if len(text) <= CACHE_MAX_CHARS:
+            self._cache[key] = (pcm, rate)
+            while len(self._cache) > CACHE_ITEMS:
+                self._cache.popitem(last=False)
+        return pcm, rate
+
+    def _create(self, text: str, voice_id: str) -> tuple[bytes, int]:
         with self._lock:
             engine = self._load()
             style = self._style(engine, voice_id.removeprefix(KOKORO_PREFIX))

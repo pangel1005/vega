@@ -8,7 +8,7 @@ miedo: lo que ya está hecho se salta.
 1. Tus ajustes: si config/assistant.toml no existe, nace de config/assistant.example.toml y se ajusta a tu
    tarjeta gráfica (sin NVIDIA: voz a texto en el procesador con un modelo más ligero y la IA sin gráfica).
 2. El modelo de lenguaje de tus ajustes, con Ollama (unos 3 GB la primera vez).
-3. Las voces de Kokoro (unos 350 MB) en models/kokoro.
+3. Las voces de Kokoro (unos 120 MB) en models/kokoro.
 4. El token que enlaza la app del teléfono con el servidor (config/token.txt).
 """
 
@@ -32,8 +32,9 @@ from server.core.token import load_or_create_token
 ROOT = Path(__file__).resolve().parents[2]
 KOKORO_DIR = ROOT / "models" / "kokoro"
 KOKORO_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
-# Nombre en disco → nombre en la descarga (el modelo completo: el que se ha medido y suena en uso diario).
-KOKORO_FILES = {"kokoro-v1.0.onnx": "kokoro-v1.0.onnx", "voices-v1.0.bin": "voices-v1.0.bin"}
+# Nombre en disco → nombre en la descarga. La versión ligera (int8): 88 MB en vez de 310 MB y un 30–40 %
+# más rápida en el procesador; el servidor la prefiere si está.
+KOKORO_FILES = {"kokoro-v1.0.int8.onnx": "kokoro-v1.0.int8.onnx", "voices-v1.0.bin": "voices-v1.0.bin"}
 _NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 

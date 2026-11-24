@@ -235,9 +235,13 @@ class LocalAssistant(
         if (command.isEmpty()) {
             // Solo «Vega»: contesta y espera la orden sin pedir otra vez el nombre. Lo siguiente
             // que digas es una orden seguro (como tocar la cara): si no es una habilidad, charla.
+            // Un tilín al momento (no un «¿Sí?» hablado, que tardaba ~2 s y se te montaba encima: casi siempre
+            // sigues con la orden sin esperar) y la cara escuchando, como al tocarla.
             events(ServerEvent.Transcript(text, seconds, elapsed))
-            reply("¿Sí?")
+            audio(chimePcm(), CHIME_RATE)
+            log("solo el nombre: tilín y a la espera de la orden")
             attentive = true
+            openFollowUp()
             return
         }
         if (isSleepCommand(command)) {

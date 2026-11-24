@@ -66,3 +66,60 @@ def test_http_clients_share_one_ssl_context() -> None:
 
     asyncio.run(make())
     assert http.ssl_context() is first
+
+
+def test_phone_voice_starts_with_the_first_sentence() -> None:
+    """La voz para el teléfono se genera frase a frase: la primera suena mientras se hace la siguiente."""
+    import asyncio
+    from typing import Any
+
+    from server.core.orchestrator import Orchestrator
+    from server.memory.store import ConversationStore
+    from server.tests.fakes import FakeChat
+
+    said: list[str] = []
+
+    class Voice:
+        sample_rate = 16000
+        voice = "x"
+
+        def synthesize(self, text: str) -> bytes:
+            said.append(text)
+            return b"\0\0" * 160
+
+        def voices(self) -> list[Any]:
+            return []
+
+    async def emit(_: Any) -> None: ...
+
+    async def emit_audio(*_: Any) -> None: ...
+
+    orch = Orchestrator(
+        FakeChat(pieces=["x"]),
+        "Eres Vega.",
+        ConversationStore(":memory:"),
+        emit,
+        tts=Voice(),  # type: ignore[arg-type]
+        emit_audio=emit_audio,
+    )
+    text = "El PC va bien: procesador al 21 %. La gráfica está a 62 grados y con 7 de 8 GB ocupados."
+    asyncio.run(orch.say_for_phone(text))
+    assert len(said) >= 2 and " ".join(said).replace("  ", " ").startswith("El PC va bien")
+
+
+def test_short_kokoro_phrases_are_made_once(tmp_path: Path) -> None:
+    from server.speech import tts
+
+    k = tts.KokoroTTS(tmp_path)
+    made: list[str] = []
+
+    def create(text: str, voice: str) -> tuple[bytes, int]:
+        made.append(text)
+        return b"\0\0", 24000
+
+    k._create = create  # type: ignore[method-assign,assignment]
+    for _ in range(3):
+        k.synthesize("Hecho.", "kokoro:ef_dora")
+    k.synthesize("Una frase bastante más larga que no se guarda en la caché.", "kokoro:ef_dora")
+    k.synthesize("Una frase bastante más larga que no se guarda en la caché.", "kokoro:ef_dora")
+    assert made.count("Hecho.") == 1 and len(made) == 3

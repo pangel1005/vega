@@ -146,7 +146,7 @@ powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1
 ```
 
 Instala lo que falte con winget (uv, Ollama y adb) y las dependencias de Python. Crea tus ajustes según tu tarjeta
-gráfica, baja el modelo de lenguaje (~3 GB) y las voces (~350 MB), y te pregunta si Vega arranca sola con Windows.
+gráfica, baja el modelo de lenguaje (~3 GB) y las voces (~120 MB), y te pregunta si Vega arranca sola con Windows.
 Se puede repetir cuando quieras: lo que ya está hecho se salta.
 
 **3. Instala la app en el teléfono**

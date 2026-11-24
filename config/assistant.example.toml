@@ -166,7 +166,7 @@ keep_obs = true
 # y después no usa internet). Si duda, pregunta «¿quieres…?» antes de actuar. false = solo las frases exactas.
 semantic = true
 # act = parecido desde el que lo ejecuta · ask = desde el que pregunta antes · margin = ventaja sobre la 2.ª opción
-act = 0.62
+act = 0.80  # antes 0.62: «Grabar» se ejecutó solo con una frase que no lo pedía (parecido 0,72); por debajo, pregunta
 ask = 0.50
 margin = 0.04
 

@@ -701,7 +701,11 @@ class Orchestrator:
         speaker = self._speaker()
         if speaker is None:
             return
-        speaker.say(clean_for_speech(text))
+        # Frase a frase: la primera empieza a sonar mientras se genera la siguiente (con todo el texto de
+        # una vez, «El PC va bien: …» tardaba 1,6 s en empezar).
+        splitter = SentenceSplitter(eager_first=True)
+        for sentence in [*splitter.feed(clean_for_speech(text) + " "), *splitter.flush()]:
+            speaker.say(sentence)
         await speaker.finish()
 
     async def say_for_phone(self, text: str) -> None:
