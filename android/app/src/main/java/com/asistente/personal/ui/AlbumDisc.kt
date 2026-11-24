@@ -273,7 +273,7 @@ fun AlbumDisc(
         }
         delta?.let {
             Box(Modifier.padding(bottom = 6.dp)) {
-                Text(scrubLabel(it), style = scrubStyle ?: TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 26.sp, color = accent))
+                Text(scrubLabel(it), style = scrubStyle ?: TextStyle(fontWeight = FontWeight.Black, fontSize = 26.sp, color = accent))
             }
         }
     }

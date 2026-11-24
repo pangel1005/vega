@@ -50,7 +50,7 @@ class Touch2Test {
 
     private fun model(ui: UiState, actions: ScreenActions = ScreenActions()) = ScreenModel(
         ui = ui, clock = "14:05", date = "jueves 22 oct", state = AssistantState.IDLE, listening = true, micOn = true,
-        battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f, nowMs = 1_000, appVersion = 430000, layout = 10,
+        battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f, nowMs = 1_000, appVersion = 430000,
     ).copy(clockMs = { 1_000 }) to actions
 
     private fun open(ui: UiState, actions: ScreenActions = ScreenActions()) {

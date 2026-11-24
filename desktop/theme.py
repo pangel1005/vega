@@ -60,7 +60,6 @@ P: Pal = DAY
 BG = TILE = CARD = TILE2 = CARD_HI = LINE = INK = INK2 = INK3 = ""
 LIGHT = SUN = AMBER = CORAL = LILAC = VIOLET = MINT = SKY = RED = PINK = ""
 MOOD_COLORS: dict[str, str] = {}
-FACE_COLORS: dict[str, str] = {}
 STYLE = ""
 
 SANS = "Segoe UI Variable Text"
@@ -151,7 +150,7 @@ def face_accent(mood: str, base: str | None = None) -> str:
 def use(pal: Pal) -> None:
     """Hace de `pal` la paleta en uso: los nombres del módulo y la hoja de estilo."""
     global P, BG, TILE, CARD, TILE2, CARD_HI, LINE, INK, INK2, INK3, LIGHT, SUN, AMBER, CORAL, LILAC, VIOLET
-    global MINT, SKY, RED, PINK, MOOD_COLORS, FACE_COLORS, STYLE
+    global MINT, SKY, RED, PINK, MOOD_COLORS, STYLE
     P = pal
     BG, TILE, TILE2 = pal.bg, pal.tile, pal.tile2
     CARD, CARD_HI = TILE, TILE2
@@ -165,7 +164,6 @@ def use(pal: Pal) -> None:
     MOOD_COLORS = {
         m: face_accent(m) for m in ("idle", "listen", "think", "talk", "alert", "error", "sleep", "offline")
     }
-    FACE_COLORS = {"WARM": SUN, "CORAL": CORAL, "SKY": SKY, "MINT": MINT, "VIOLET": LILAC, "PINK": PINK}
     STYLE = _style(pal)
 
 

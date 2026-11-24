@@ -47,7 +47,7 @@ class TransitionsTest {
         ui = UiState(link = LinkStatus.OPEN, assistant = "Vega", state = AssistantState.IDLE, media = media, streak = streak),
         clock = "19:30", date = "jueves 12 nov", state = AssistantState.IDLE, listening = true, micOn = true,
         battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f,
-        nowMs = 1_000, appVersion = 430000, layout = 10,
+        nowMs = 1_000, appVersion = 430000,
     ).copy(clockMs = { 1_000 })
 
     @Test fun theGymOpensAsACircleFromTheFlameAndClosesBackIntoIt() {

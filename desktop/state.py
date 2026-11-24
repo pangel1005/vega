@@ -20,9 +20,7 @@ class Phone:
     mic: bool = False
     battery: int = -1
     charging: bool = False
-    glass: bool = False
     touch: str = "soft"
-    face: str = ""
     version: int = 0
 
 
@@ -152,9 +150,7 @@ class DesktopState:
             mic=e.get("mic", False),
             battery=e.get("battery", -1),
             charging=e.get("charging", False),
-            glass=e.get("glass", False),
             touch=e.get("touch", "soft"),
-            face=e.get("face", ""),
             version=e.get("version", 0),
         )
 

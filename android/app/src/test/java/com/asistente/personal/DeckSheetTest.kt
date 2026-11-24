@@ -67,7 +67,7 @@ class DeckSheetTest {
             ui = UiState(actions = actions, link = LinkStatus.OPEN, assistant = "Vega", state = AssistantState.IDLE),
             clock = "14:05", date = "martes 3 nov", state = AssistantState.IDLE, listening = true, micOn = true,
             battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f,
-            nowMs = 1_000, appVersion = 430000, layout = 10, brainOnPhone = brainOnPhone,
+            nowMs = 1_000, appVersion = 430000, brainOnPhone = brainOnPhone,
             brainLabel = if (brainOnPhone) "IA: teléfono" else "IA: PC",
         )
         compose.setContent { Box(Modifier.fillMaxSize()) { DeckSheet2(model, ScreenActions(toggleBrain = toggled), DayPal, 0, true) {} } }

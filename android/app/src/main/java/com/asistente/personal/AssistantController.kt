@@ -27,14 +27,9 @@ const val SERVER_WS = "ws://127.0.0.1:8000/ws"
 private const val PREFS = "asistente"
 private const val KEY_TOKEN = "token"
 private const val KEY_LISTEN = "escucha_continua"
-private const val KEY_FACE_COLOR = "color_cara"
 private const val KEY_BRAIN = "cerebro_telefono"
 private const val KEY_TOUCH = "vibracion_toque"
-private const val KEY_WAVE = "estilo_onda"
 private const val KEY_FLAT = "musica_portada_plana"
-
-/** Cuánto tiempo sin recibir volumen antes de dar la señal por perdida (el servidor manda ~20 por segundo). */
-const val MUSIC_SIGNAL_MS = 1_500L
 
 /** Cuántas lecturas del PC se guardan para la gráfica de la sesión (a una cada ~2 s son ~2 horas). */
 const val MAX_GAME_SAMPLES = 3_600
@@ -44,9 +39,12 @@ const val HEAR_PC_MS = 2_500L
 
 /** Cuánto espera el teléfono la charla libre del modelo grande del PC antes de contestar él con el suyo (ms). */
 const val CHAT_PC_MS = 6_000L
-private const val KEY_GLASS = "estilo_cristal"
-private const val KEY_TERMINAL = "estilo_terminal"
-private const val KEY_ORB = "estilo_orbe"
+
+/**
+ * Ajustes de diseños y estilos que ya no existen («Cristal», «Nostromo», «Orbe», la onda de la música y el
+ * color de la cara de LED): se borran al arrancar para que nadie se quede con uno guardado.
+ */
+private val OLD_KEYS = listOf("estilo_cristal", "estilo_terminal", "estilo_orbe", "estilo_onda", "color_cara")
 private const val ECHO_GUARD_MS = 500L
 
 /**
@@ -58,7 +56,9 @@ private const val ECHO_GUARD_MS = 500L
  */
 class AssistantController(context: Context) {
     private val appContext = context.applicationContext
-    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).also { p ->
+        if (OLD_KEYS.any(p::contains)) p.edit().apply { OLD_KEYS.forEach(::remove) }.apply()
+    }
 
     var ui by mutableStateOf(UiState())
         private set
@@ -85,49 +85,11 @@ class AssistantController(context: Context) {
     var updateAvailable by mutableStateOf(false)
         private set
 
-    /** Color de la cara elegido en «Más» (se recuerda entre reinicios). */
-    var faceColor by mutableStateOf(com.asistente.personal.ui.FaceColor.from(prefs.getString(KEY_FACE_COLOR, null)))
-        private set
-
     /** Vibración al tocar (fuerte, suave o ninguna); se recuerda entre reinicios. */
     var touchFeel by mutableStateOf(
         com.asistente.personal.ui.TouchFeel.from(prefs.getString(KEY_TOUCH, null)).also { com.asistente.personal.ui.TouchFeel.current = it },
     )
         private set
-
-    /** Estilo «Cristal» (prototipo) o «Noche»; se recuerda entre reinicios. */
-    var glass by mutableStateOf(prefs.getBoolean(KEY_GLASS, false))
-        private set
-
-    /** Estilo «Nostromo» (terminal de fósforo ámbar): excluyente con «Cristal». */
-    var terminal by mutableStateOf(prefs.getBoolean(KEY_TERMINAL, false))
-        private set
-
-    /** Estilo «Orbe» (una esfera de luz que respira): excluyente con los demás. */
-    var orb by mutableStateOf(prefs.getBoolean(KEY_ORB, false))
-        private set
-
-    /** Lo que oyó hoy (cifras), para la terminal. */
-    fun earsStats(): com.asistente.personal.local.EarsSnapshot = local?.stats?.snapshot() ?: com.asistente.personal.local.EarsSnapshot()
-
-    /** Noche → Cristal → Nostromo → Orbe → Noche. */
-    fun nextStyle() = setStyle((styleIndex(glass, terminal, orb) + 1) % STYLE_COUNT)
-
-    private fun setStyle(index: Int) {
-        glass = index == 1
-        terminal = index == 2
-        orb = index == 3
-        prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).putBoolean(KEY_ORB, orb).apply()
-    }
-
-    fun toggleGlass() {
-        glass = !glass
-        if (glass) {
-            terminal = false
-            orb = false
-        }
-        prefs.edit().putBoolean(KEY_GLASS, glass).putBoolean(KEY_TERMINAL, terminal).putBoolean(KEY_ORB, orb).apply()
-    }
 
     /** La pantalla de música enseña la portada plana (true) o la portada hecha disco giratorio (false, de serie). */
     var musicFlat by mutableStateOf(prefs.getBoolean(KEY_FLAT, false))
@@ -138,24 +100,10 @@ class AssistantController(context: Context) {
         prefs.edit().putBoolean(KEY_FLAT, musicFlat).apply()
     }
 
-    /** Cómo se dibuja la onda de la música de Spotify (se recuerda entre reinicios). */
-    var waveStyle by mutableStateOf(com.asistente.personal.ui.WaveStyle.from(prefs.getString(KEY_WAVE, null)))
-        private set
-
-    fun nextWaveStyle() {
-        waveStyle = waveStyle.next()
-        prefs.edit().putString(KEY_WAVE, waveStyle.name).apply()
-    }
-
     fun nextTouchFeel() {
         touchFeel = touchFeel.next()
         com.asistente.personal.ui.TouchFeel.current = touchFeel
         prefs.edit().putString(KEY_TOUCH, touchFeel.name).apply()
-    }
-
-    fun nextFaceColor() {
-        faceColor = faceColor.next()
-        prefs.edit().putString(KEY_FACE_COLOR, faceColor.name).apply()
     }
 
     private var micAllowed = false
@@ -425,9 +373,6 @@ class AssistantController(context: Context) {
     /** Las bandas de frecuencia de Spotify ahora (de graves a agudos, 0 a 1); vacío si hace más de medio segundo que no llegan. */
     fun musicSpectrum(): FloatArray = if (android.os.SystemClock.elapsedRealtime() - spectrumAt > 600) FloatArray(0) else spectrumRaw
 
-    /** ¿Está llegando el volumen (o el espectro) del PC? Sin señal (Spotify no suena en el PC o se desconectó) no hay onda que dibujar. */
-    fun musicSignal(): Boolean = android.os.SystemClock.elapsedRealtime() - maxOf(musicLevelAt, spectrumAt) <= MUSIC_SIGNAL_MS
-
     /** Próxima alarma o recordatorio del teléfono (hora real), para las pantallas de lejos y de dormida. */
     var localNext by mutableStateOf<com.asistente.personal.ui.NextAlert?>(null)
         private set
@@ -592,13 +537,6 @@ class AssistantController(context: Context) {
             "wake" -> wake()
             "brain_phone" -> if (!brainOnPhone) toggleBrain()
             "brain_pc" -> if (brainOnPhone) toggleBrain()
-            "glass_on" -> if (!glass) toggleGlass()
-            "terminal_on" -> setStyle(2)
-            "terminal_off" -> if (terminal) setStyle(0)
-            "orb_on" -> setStyle(3)
-            "orb_off" -> if (orb) setStyle(0)
-            "wave_next" -> nextWaveStyle()
-            "glass_off" -> if (glass) toggleGlass()
             "mic_on" -> if (!listenEnabled) toggleListening()
             "mic_off" -> if (listenEnabled) toggleListening()
         }
@@ -613,7 +551,7 @@ class AssistantController(context: Context) {
             return
         }
         val now = Protocol.phoneState(
-            brainOnPhone, sleeping, micOn, battery, charging, glass, touchFeel.name, faceColor.name, BuildConfig.VERSION_CODE,
+            brainOnPhone, sleeping, micOn, battery, charging, touchFeel.name, BuildConfig.VERSION_CODE,
         )
         if (now != lastPublished && socket.send(now)) lastPublished = now
     }
@@ -1059,16 +997,4 @@ class AssistantController(context: Context) {
     fun send(text: String) {
         if (socket.send(Protocol.chat(text))) dispatch(Action.Sent(text))
     }
-}
-
-const val STYLE_COUNT = 4
-
-/** 0 = Noche, 1 = Cristal, 2 = Nostromo, 3 = Orbe. */
-fun styleIndex(glass: Boolean, terminal: Boolean, orb: Boolean = false): Int = if (orb) 3 else if (terminal) 2 else if (glass) 1 else 0
-
-fun styleName(index: Int): String = when (index) {
-    1 -> "Cristal"
-    2 -> "Nostromo"
-    3 -> "Orbe"
-    else -> "Noche"
 }

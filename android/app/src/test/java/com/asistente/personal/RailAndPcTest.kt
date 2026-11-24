@@ -49,7 +49,7 @@ class RailAndPcTest {
         val model = ScreenModel(
             ui = ui, clock = "14:05", date = "miércoles 4 nov", state = AssistantState.IDLE, listening = true, micOn = micOn,
             battery = battery, charging = charging, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f,
-            nowMs = 1_000, appVersion = 430000, layout = 10,
+            nowMs = 1_000, appVersion = 430000,
         ).copy(clockMs = { 1_000 })
         compose.mainClock.autoAdvance = false
         compose.setContent {
@@ -146,7 +146,7 @@ class RailAndPcTest {
         val model = ScreenModel(
             ui = ui, clock = clock, date = "miércoles 4 nov", state = AssistantState.IDLE, listening = true, micOn = true,
             battery = battery, charging = charging, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f,
-            nowMs = 1_000, appVersion = 430000, layout = 10,
+            nowMs = 1_000, appVersion = 430000,
         ).copy(clockMs = { 1_000 })
         compose.mainClock.autoAdvance = false
         compose.setContent { CompositionLocalProvider(LocalRailInset provides 47.dp) { VegaScreen(model, ScreenActions()) } }

@@ -79,7 +79,7 @@ class DesignRulesTest {
         val model = ScreenModel(
             ui = ui, clock = "14:05", date = "martes 3 nov", state = AssistantState.IDLE, listening = true, micOn = true,
             battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f,
-            nowMs = 1_000, appVersion = 430000, layout = 10, usbPlugged = usb,
+            nowMs = 1_000, appVersion = 430000, usbPlugged = usb,
         ).copy(clockMs = { 1_000 })
         compose.mainClock.autoAdvance = false
         compose.setContent { VegaScreen(model, actions) }

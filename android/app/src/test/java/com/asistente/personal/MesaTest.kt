@@ -74,7 +74,7 @@ class MesaTest {
         ui = UiState(link = link, assistant = "Vega", state = AssistantState.IDLE, desk = desk, camera = camera),
         clock = "14:05", date = "miércoles 4 nov", state = AssistantState.IDLE, listening = true, micOn = true,
         battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f,
-        nowMs = 1_000, appVersion = 430000, layout = 10, wallpaperThumbs = thumbs,
+        nowMs = 1_000, appVersion = 430000, wallpaperThumbs = thumbs,
     ).copy(clockMs = { 1_000 })
 
     private fun open(m: ScreenModel, a: ScreenActions = ScreenActions(), p: Pal = DayPal, onClose: () -> Unit = {}) {

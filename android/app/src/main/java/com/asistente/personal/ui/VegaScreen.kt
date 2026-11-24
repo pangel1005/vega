@@ -1,84 +1,63 @@
 package com.asistente.personal.ui
 
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.AnimatedVisibility
-import kotlin.math.abs
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.asistente.personal.net.AssistantState
-import com.asistente.personal.styleIndex
-import com.asistente.personal.styleName
 import com.asistente.personal.net.LinkStatus
-import com.asistente.personal.net.Telemetry
-import com.asistente.personal.net.Upcoming
 import com.asistente.personal.state.Message
 import com.asistente.personal.state.Notice
 import com.asistente.personal.state.PendingConfirm
 import com.asistente.personal.state.Role
 import com.asistente.personal.state.UiState
-import com.asistente.personal.ui.led.LedFaceView
-import com.asistente.personal.ui.led.LedFont
-import com.asistente.personal.ui.led.countdownText
 import com.asistente.personal.ui.led.Glance
-import com.asistente.personal.ui.led.LedOff
 import com.asistente.personal.ui.led.Mood
+import com.asistente.personal.ui2.AvisosSheet2
+import com.asistente.personal.ui2.ChatOverlay2
+import com.asistente.personal.ui2.DeckSheet2
+import com.asistente.personal.ui2.Expand
+import com.asistente.personal.ui2.GameScreen2
+import com.asistente.personal.ui2.Grow
+import com.asistente.personal.ui2.GymScreen2
 import com.asistente.personal.ui2.HomeLayout2
+import com.asistente.personal.ui2.LocalRailInset
+import com.asistente.personal.ui2.MesaSheet2
+import com.asistente.personal.ui2.MusicScreen2
+import com.asistente.personal.ui2.Origins
+import com.asistente.personal.ui2.RailHost
+import com.asistente.personal.ui2.SleepScreen2
+import com.asistente.personal.ui2.TableroSheet2
+import com.asistente.personal.ui2.palFor
 import kotlinx.coroutines.delay
 
 /**
@@ -105,7 +84,6 @@ data class ScreenModel(
     val appVersion: Int = 0,
     /** Iconos reales de las apps del panel, por id de botón. */
     val icons: Map<String, ImageBitmap> = emptyMap(),
-    val faceColor: FaceColor = FaceColor.WARM,
     /** Carátula de lo que suena y su color; reloj del teléfono para avanzar la canción. */
     val mediaArt: ImageBitmap? = null,
     val mediaAccent: Color = Vega.Coral,
@@ -124,30 +102,14 @@ data class ScreenModel(
     val usbPlugged: Boolean = true,
     /** Miniaturas de los fondos de la «Mesa», por id. */
     val wallpaperThumbs: Map<String, ImageBitmap> = emptyMap(),
-    /** Estilo «Cristal» (aurora y cristal) en vez de «Noche» (PROTOTIPO). */
-    val glass: Boolean = false,
-    /** Estilo «Nostromo»: terminal de fósforo ámbar en vez de la cara de LED. */
-    val terminal: Boolean = false,
-    /** Estilo «Orbe»: una esfera de luz que respira, en vez de la cara de LED. */
-    val orb: Boolean = false,
-    /** Contadores del oído de hoy (los lee la terminal cada pocos segundos). */
-    val ears: () -> com.asistente.personal.local.EarsSnapshot = { com.asistente.personal.local.EarsSnapshot() },
     /** La pantalla de música enseña la portada plana y cuadrada (true) o la portada hecha disco giratorio (false). */
     val musicFlat: Boolean = false,
-    /** Cómo se dibuja la onda de la música de Spotify. */
-    val waveStyle: WaveStyle = WaveStyle.SPECTRUM,
-    /** Volumen real de lo que suena en el PC (0 a 1): con él, la cara se hace onda mientras suena música. */
+    /** Volumen real de lo que suena en el PC (0 a 1): hace latir la portada. */
     val musicLevel: () -> Float = { 0f },
-    /** ¿Llega el volumen del PC? Si no, no hay onda que dibujar y se queda la cara. */
-    val musicSignal: () -> Boolean = { true },
-    /** Las bandas de frecuencia de Spotify (graves a agudos); vacío si no hay. Para el analizador de espectro. */
+    /** Las bandas de frecuencia de Spotify (graves a agudos); vacío si no hay. Para las barras alrededor de la portada. */
     val musicSpectrum: () -> FloatArray = { FloatArray(0) },
     /** El próximo aviso del propio teléfono (alarma o recordatorio), para cuando el PC no lo cuenta. */
     val localNext: NextAlert? = null,
-    /** Memoria usada del teléfono (0 a 1), para la tarjeta «Cuerpo». */
-    val phoneRam: () -> Float? = { null },
-    /** Temperatura del teléfono en °C, para la tarjeta «Cuerpo». */
-    val phoneTemp: () -> Float? = { null },
     /** Iconos de las apps que mandan notificaciones en el PC, por id de icono. */
     val noteIcons: Map<String, ImageBitmap> = emptyMap(),
     /** Hora real (ms desde 1970) para «hace 5 min» en las notificaciones. */
@@ -157,8 +119,6 @@ data class ScreenModel(
     val touchFeel: TouchFeel = TouchFeel.SOFT,
     /** Dormida a mano (botón o «duérmete»): pantalla de noche hasta que se toca. */
     val sleeping: Boolean = false,
-    /** Distribución de la pantalla principal: 0 = la de siempre; 1, 2 y 3 son las propuestas nuevas (ver Layouts.kt). */
-    val layout: Int = 0,
 )
 
 class ScreenActions(
@@ -170,7 +130,6 @@ class ScreenActions(
     val nextVoice: () -> Unit = {},
     val confirmExpired: (String) -> Unit = {},
     val noticeExpired: (Int) -> Unit = {},
-    val nextFaceColor: () -> Unit = {},
     /** Vega se duerme o se despierta: la actividad baja o devuelve el brillo de la pantalla. */
     val sleepChanged: (Boolean) -> Unit = {},
     val mediaControl: (String) -> Unit = {},
@@ -180,11 +139,8 @@ class ScreenActions(
     /** Quita una notificación del PC (null = todas). */
     val dismissNote: (Long?) -> Unit = {},
     val nextTouchFeel: () -> Unit = {},
-    val nextWaveStyle: () -> Unit = {},
     /** Doble toque en la pantalla de música: cambia entre el disco y la portada plana. */
     val toggleMusicFlat: () -> Unit = {},
-    val toggleGlass: () -> Unit = {},
-    val nextStyle: () -> Unit = {},
     /** Vuelve a cargar la IA del teléfono si falló. */
     val retryBrain: () -> Unit = {},
     val sleep: () -> Unit = {},
@@ -232,20 +188,6 @@ fun moodFor(
     else -> Mood.IDLE
 }
 
-/** Color de la luz de la cara: el elegido en reposo y al hablar; coral cuando te atiende. */
-fun moodColor(mood: Mood, base: Color = Vega.Light): Color = when (mood) {
-    Mood.LISTEN -> Vega.Coral
-    Mood.THINK -> Vega.Amber
-    Mood.HAPPY -> Vega.Mint
-    Mood.ERROR, Mood.ALERT -> Vega.Red
-    Mood.SLEEP -> Color(0xFF6E6760)
-    Mood.OFFLINE -> Color(0xFF4A4642)
-    else -> base
-}
-
-/** El arcoíris solo se ve en reposo y al hablar: los demás estados mantienen su color de aviso. */
-fun showsRainbow(mood: Mood, faceColor: FaceColor) = faceColor == FaceColor.RAINBOW && (mood == Mood.IDLE || mood == Mood.TALK)
-
 fun moodLabel(mood: Mood, assistant: String): String = when (mood) {
     Mood.IDLE -> "Di «${assistant.ifEmpty { "Vega" }}»"
     Mood.LISTEN -> "Te escucho"
@@ -259,19 +201,21 @@ fun moodLabel(mood: Mood, assistant: String): String = when (mood) {
 }
 
 /**
- * Pantalla de Vega (horizontal, 800×360 dp), estilo «Vega · noche»:
- *
- *  ┌──────────── cara de LED ─────────────┐ ┌── hora ──────────┐
- *  │ ● estado                             │ │ 14:32  jueves 22 │
- *  │            (48 × 20 puntos)          │ ├── estado ────────┤
- *  │ lo último que dijo                   │ │ PC · gráfica ·   │
- *  └──────────────────────────────────────┘ │ batería · aviso  │
- *  [tecla] [tecla] [tecla] [tecla] [tecla] [tecla] [más]
+ * Cuánto se queda a la vista un recordatorio: lo que se tarda en leerlo (unos 0,27 s por letra) y un poco
+ * más, nunca menos de 6 s.
+ */
+internal fun reminderMs(text: String): Long = maxOf(6_000L, 3_000L + text.length * 267L)
+
+/**
+ * Pantalla de Vega (horizontal, 800×360 dp), diseño Vega 2 (`ui2`): el mosaico de la portada
+ * y, encima, las hojas y pantallas que se abren desde él (Más, Mesa, avisos, racha, tablero,
+ * música y juego), la pantalla de dormir y el marco rojo de las confirmaciones.
  */
 @Composable
 fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) {
     val ui = m.ui
     val canAct = ui.link == LinkStatus.OPEN
+    val pal = palFor(m.clock)
     var showMore by remember { mutableStateOf(false) }
     var showMesa by remember { mutableStateOf(false) }
     var showTablero by remember { mutableStateOf(false) }
@@ -302,9 +246,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     }
     LaunchedEffect(ui.notice?.seq) {
         val n = ui.notice ?: return@LaunchedEffect
-        // Un recordatorio dura lo que tarda en pasar por la cara (y un poco más).
-        val reminderMs = (LedFont.crossSeconds(n.text) * 1000).toLong() + 1500
-        delay(if (n.reminder) maxOf(6000L, reminderMs) else if (n.ok) 2500 else 6000)
+        delay(if (n.reminder) reminderMs(n.text) else if (n.ok) 2500 else 6000)
         a.noticeExpired(n.seq)
     }
     // Al pulsar un botón desde «Más», la hoja se cierra cuando llega el resultado.
@@ -356,24 +298,13 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
     val mood = if (waking && ui.link == LinkStatus.OPEN) Mood.HAPPY
     else moodFor(m.state, if (m.brainOnPhone) LinkStatus.OPEN else ui.link, ui.pending, ui.notice, m.listening && m.micOn, m.hasToken)
 
-    // Barra de notificaciones: se abre al tocarla, y sola unos segundos cuando llega una nueva.
-    var notesOpen by remember { mutableStateOf(false) }
-    var notesPeek by remember { mutableStateOf(false) }
-    val newestFresh = ui.pcNotes.firstOrNull { it.id in ui.freshNotes }?.id
-    LaunchedEffect(newestFresh) {
-        if (newestFresh == null) return@LaunchedEffect
-        notesPeek = true
-        delay(NOTE_PEEK_MS)
-        notesPeek = false
-    }
-    if (ui.pcNotes.isEmpty() && notesOpen) notesOpen = false
-
     // Vega mira lo que pasa: las teclas al pulsar, los avisos (a la izquierda) cuando llega uno,
     // la música (a la derecha) cuando cambia la canción.
     var glance by remember { mutableStateOf<Glance?>(null) }
     fun look(x: Float, y: Float) {
         glance = Glance((glance?.seq ?: 0) + 1, x, y)
     }
+    val newestFresh = ui.pcNotes.firstOrNull { it.id in ui.freshNotes }?.id
     LaunchedEffect(newestFresh) { if (newestFresh != null) look(-1f, -0.2f) }
     val song = ui.media?.let { it.title + it.artist }
     LaunchedEffect(song) { if (song != null) look(1f, -0.3f) }
@@ -382,29 +313,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
         a.press(id)
     }
 
-    val color = moodColor(mood, m.faceColor.color)
-    // Su ánimo tiñe los bordes de la pantalla mientras escucha, piensa o habla.
-    val aura by animateColorAsState(
-        when (mood) {
-            Mood.LISTEN, Mood.THINK, Mood.TALK -> color.copy(alpha = 0.38f)
-            // En reposo con música, los bordes toman el color de la carátula.
-            else -> if (mood == Mood.IDLE && ui.media?.playing == true) m.mediaAccent.copy(alpha = 0.3f) else Vega.Line
-        },
-        tween(450),
-        label = "aura",
-    )
-    // Estilo «Cristal»: la aurora toma el color de su ánimo, el de la música y un violeta de fondo.
-    val aurora = remember { Aurora() }
-    // Sin animar el cambio de color: cada color nuevo obliga a repintar los cristales (medido:
-    // repintarlos varias veces por segundo daba ~3 tirones por segundo en el Redmi).
-    val auroraMusic = if (ui.media != null) m.mediaAccent else Color(0xFFB79BFF)
-    androidx.compose.runtime.SideEffect {
-        val next = listOf(color, auroraMusic, Vega.Sky)
-        if (next != aurora.colors) aurora.colors = next
-    }
-    Box(modifier.fillMaxSize().background(if (m.layout == 10) com.asistente.personal.ui2.palFor(m.clock).bg else Vega.Bg)) {
-        if (m.glass) AuroraBackground(aurora)
-        androidx.compose.runtime.CompositionLocalProvider(LocalAurora provides if (m.glass) aurora else null) {
+    Box(modifier.fillMaxSize().background(pal.bg)) {
         if (sleepFade < 1f) Box(
             Modifier.fillMaxSize().graphicsLayer {
                 alpha = 1f - sleepFade
@@ -412,157 +321,34 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 scaleY = 1f - 0.05f * sleepFade
             },
         ) {
-            // El riel de estado vive en la franja que deja el hueco de la cámara (solo en el diseño nuevo).
-            if (m.layout == 10 && !m.orb && !m.terminal) com.asistente.personal.ui2.RailHost(m)
-            if (m.orb) OrbScreen(
-                m, secondsLeft, canAct, onPress = press, onMore = { showMore = true }, onAttention = a.attention,
-            ) else if (m.terminal) NostromoScreen(
-                m, secondsLeft, canAct, onPress = press, onMore = { showMore = true }, onAttention = a.attention,
-            ) else Column(
+            // El riel de estado vive en la franja que deja el hueco de la cámara.
+            RailHost(m)
+            Column(
                 Modifier.fillMaxSize().safeDrawingPadding()
-                    .then(com.asistente.personal.ui2.LocalRailInset.current?.let { Modifier.padding(end = it) } ?: Modifier)
+                    .then(LocalRailInset.current?.let { Modifier.padding(end = it) } ?: Modifier)
                     .padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-              if (m.layout in 1..8 || m.layout == 10) {
-                val x = LayoutArgs(
-                    m, a, mood, color, glance, aura, elapsed, secondsLeft, canAct, press,
-                    onMore = {
-                        look(0.6f, 1f)
-                        showMore = true
-                    },
-                    onChat = { if (recentChat(ui.messages).isNotEmpty()) showChat = true },
-                    onOpenMusic = { showMusic = true },
-                    onOpenGame = { showGame = true },
-                    onMesa = { showMesa = true },
-                    onTablero = { showTablero = true },
-                    onRacha = { showRacha = true },
-                    onOpenNotes = { showAvisos = true },
-                    confirmFraction = ui.pending?.let { if (it.expiresIn > 0) secondsLeft.toFloat() / it.expiresIn else 0f },
-                )
-                when (m.layout) {
-                    1 -> PanelLayout(x)
-                    2 -> FlankLayout(x)
-                    4 -> PulseLayout(x)
-                    5 -> SceneLayout(x)
-                    6 -> MatrixLayout(x)
-                    7 -> TrackLayout(x)
-                    8 -> ScenesLayout(x)
-                    10 -> HomeLayout2(x)
-                    else -> GridLayout(x)
-                }
-              } else {
-                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (ui.pcNotes.isNotEmpty()) {
-                        NotesRail(
-                            notes = ui.pcNotes,
-                            fresh = ui.freshNotes,
-                            icons = m.noteIcons,
-                            nowMs = m.wallMs,
-                            open = notesOpen || notesPeek,
-                            onToggle = {
-                                notesOpen = !(notesOpen || notesPeek)
-                                notesPeek = false
-                            },
-                            onDismiss = a.dismissNote,
-                        )
-                    }
-                    FaceCard(
-                        mood, color, m, glance, aura,
+                HomeLayout2(
+                    LayoutArgs(
+                        m, a, mood, glance, elapsed, secondsLeft, canAct, press,
+                        onMore = {
+                            look(0.6f, 1f)
+                            showMore = true
+                        },
                         onChat = { if (recentChat(ui.messages).isNotEmpty()) showChat = true },
+                        onOpenMusic = { showMusic = true },
+                        onOpenGame = { showGame = true },
+                        onMesa = { showMesa = true },
+                        onTablero = { showTablero = true },
+                        onRacha = { showRacha = true },
+                        onOpenNotes = { showAvisos = true },
                         confirmFraction = ui.pending?.let { if (it.expiresIn > 0) secondsLeft.toFloat() / it.expiresIn else 0f },
-                        onRetry = a.retryBrain,
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { a.attention() },
-                    )
-                    // Lo que casi no cambia se guarda como imagen (Offscreen): mientras la cara se anima,
-                    // estas tarjetas no se vuelven a dibujar.
-                    Column(Modifier.width(250.dp).fillMaxHeight().cached(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ClockCard(m, a, Modifier.fillMaxWidth(), aura)
-                        // Hay hasta tres páginas: estado del PC, reproductor (mientras suena algo) y juego (mientras hay
-                        // uno abierto). Se cambia deslizando el dedo o con el selector; al empezar algo pasa solo a ello.
-                        val media = ui.media
-                        val game = ui.game
-                        val pages = sidePages(media != null)
-                        var chosen by remember { mutableStateOf(firstSidePage(media != null, game != null)) }
-                        LaunchedEffect(media != null) {
-                            if (media != null) chosen = SidePage.MUSIC else if (chosen == SidePage.MUSIC) chosen = SidePage.BODY
-                        }
-                        LaunchedEffect(game?.key) {
-                            if (game != null) chosen = SidePage.GAME else if (chosen == SidePage.GAME) chosen = SidePage.BODY
-                        }
-                        val page = if (chosen in pages) chosen else SidePage.BODY
-                        if (pages.size > 1) {
-                            val labels = pages.map { it.label(m.brainOnPhone) }
-                            PageSwitch(labels, pages.indexOf(page)) { chosen = pages[it] }
-                        }
-                        Box(
-                            Modifier.fillMaxWidth().weight(1f).pointerInput(pages) {
-                                if (pages.size < 2) return@pointerInput
-                                var dx = 0f
-                                detectHorizontalDragGestures(
-                                    onDragStart = { dx = 0f },
-                                    onDragEnd = { if (abs(dx) > 40.dp.toPx()) chosen = nextSidePage(pages, chosen, forward = dx < 0) },
-                                ) { change, amount ->
-                                    change.consume()
-                                    dx += amount
-                                }
-                            },
-                        ) {
-                            AnimatedContent(
-                                targetState = page,
-                                transitionSpec = {
-                                    // La página nueva entra por el lado hacia el que se avanza en el selector.
-                                    val dir = if (pages.indexOf(targetState) > pages.indexOf(initialState)) 1 else -1
-                                    (slideInHorizontally(tween(260)) { it * dir } + fadeIn(tween(200))) togetherWith
-                                        (slideOutHorizontally(tween(260)) { -it * dir } + fadeOut(tween(160)))
-                                },
-                                label = "páginas",
-                            ) { shown ->
-                                val playing = ui.media
-                                val playingGame = ui.game
-                                if (shown == SidePage.MUSIC && playing != null) {
-                                    NowPlayingCard(
-                                        playing, livePosition(playing, ui.mediaAt, m.clockMs), m.mediaArt, m.mediaAccent,
-                                        onControl = a.mediaControl, onOpen = { showMusic = true },
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                } else if (shown == SidePage.GAME) {
-                                    if (playingGame != null) {
-                                        GameCard(
-                                            playingGame, liveSession(playingGame, ui.gameAt, m.clockMs, tickMs = 15_000),
-                                            m.gameArt, m.gameAccent, ui.telemetry, onOpen = { showGame = true },
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                    } else {
-                                        GameIdleCard(ui.recentGames, m.recentArts, System.currentTimeMillis() / 1000, Modifier.fillMaxSize())
-                                    }
-                                } else {
-                                    if (m.brainOnPhone) BodyCard(m, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxSize(), aura)
-                                    else StatusCard(ui.telemetry, m.battery, m.charging, ui.telemetry?.upcoming.orEmpty(), elapsed, Modifier.fillMaxSize(), aura)
-                                }
-                            }
-                        }
-                    }
-                }
-                KeyRow(
-                    favorites = ui.actions.filter { it.quick },
-                    pending = ui.pending,
-                    secondsLeft = secondsLeft,
-                    enabled = canAct,
-                    onPress = press,
-                    onMore = {
-                        look(0.6f, 1f)
-                        showMore = true
-                    },
-                    modifier = Modifier.fillMaxWidth().height(66.dp).cached(),
-                    icons = m.icons,
-                    media = ui.media,
+                    ),
                 )
-              }
             }
             AnimatedVisibility(
-                visible = showMesa && m.layout == 10,
+                visible = showMesa,
                 enter = fadeIn(tween(120)) + slideInVertically(spring(dampingRatio = 0.85f, stiffness = 900f)) { it / 4 },
                 exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 },
                 modifier = Modifier.fillMaxSize(),
@@ -577,8 +363,8 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         }
                         .safeDrawingPadding().padding(10.dp),
                 ) {
-                    com.asistente.personal.ui2.MesaSheet2(
-                        m, a, com.asistente.personal.ui2.palFor(m.clock), onClose = { showMesa = false },
+                    MesaSheet2(
+                        m, a, pal, onClose = { showMesa = false },
                         modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                             awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
                         },
@@ -586,25 +372,18 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 }
             }
             // Todos los avisos del PC: crecen desde su tarjeta del mosaico.
-            com.asistente.personal.ui2.Expand(
-                visible = showAvisos && m.layout == 10,
-                origin = com.asistente.personal.ui2.Origins.nowTile,
-            ) {
+            Expand(visible = showAvisos, origin = Origins.nowTile) {
                 Box(Modifier.fillMaxSize().safeDrawingPadding().padding(10.dp)) {
-                    com.asistente.personal.ui2.AvisosSheet2(
-                        m, a, com.asistente.personal.ui2.palFor(m.clock), onClose = { showAvisos = false },
+                    AvisosSheet2(
+                        m, a, pal, onClose = { showAvisos = false },
                         modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                             awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
                         },
                     )
                 }
             }
-            com.asistente.personal.ui2.Expand(
-                visible = showRacha && m.layout == 10,
-                origin = com.asistente.personal.ui2.Origins.flame,
-                grow = com.asistente.personal.ui2.Grow.CIRCLE,
-            ) {
-                com.asistente.personal.ui2.GymScreen2(
+            Expand(visible = showRacha, origin = Origins.flame, grow = Grow.CIRCLE) {
+                GymScreen2(
                     m, a, onClose = { showRacha = false },
                     modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                         awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
@@ -612,7 +391,7 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                 )
             }
             AnimatedVisibility(
-                visible = showTablero && m.layout == 10,
+                visible = showTablero,
                 enter = fadeIn(tween(120)) + slideInVertically(spring(dampingRatio = 0.85f, stiffness = 900f)) { it / 4 },
                 exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 },
                 modifier = Modifier.fillMaxSize(),
@@ -627,8 +406,8 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         }
                         .safeDrawingPadding().padding(10.dp),
                 ) {
-                    com.asistente.personal.ui2.TableroSheet2(
-                        m, a, com.asistente.personal.ui2.palFor(m.clock), onClose = { showTablero = false },
+                    TableroSheet2(
+                        m, a, pal, onClose = { showTablero = false },
                         modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                             awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
                         },
@@ -653,242 +432,43 @@ fun VegaScreen(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier) 
                         }
                         .safeDrawingPadding().padding(10.dp),
                 ) {
-                    if (m.layout == 10) com.asistente.personal.ui2.DeckSheet2(
-                        m, a, com.asistente.personal.ui2.palFor(m.clock), secondsLeft, canAct, onClose = { showMore = false },
-                    ) else Deck(
-                        actions = ui.actions,
-                        pending = ui.pending,
-                        secondsLeft = secondsLeft,
-                        enabled = canAct,
-                        onPress = a.press,
-                        onClose = { showMore = false },
-                        voiceLabel = ui.voices.firstOrNull { it.id == ui.voice }?.label,
-                        onNextVoice = a.nextVoice,
-                        faceColor = m.faceColor,
-                        onNextFaceColor = a.nextFaceColor,
-                        brainLabel = m.brainLabel,
-                        brainOnPhone = m.brainOnPhone,
-                        onToggleBrain = a.toggleBrain,
-                        touchLabel = m.touchFeel.label,
-                        onNextTouch = a.nextTouchFeel,
-                        waveLabel = m.waveStyle.label,
-                        onNextWave = a.nextWaveStyle,
-                        styleName = styleName(styleIndex(m.glass, m.terminal, m.orb)),
-                        onNextStyle = a.nextStyle,
-                        onOpenAndroid = a.openAndroid,
-                        // Tocar dentro de la hoja (pero fuera de un botón) no la cierra.
-                        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
-                            awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
-                        },
-                        icons = m.icons,
-                    )
+                    DeckSheet2(m, a, pal, secondsLeft, canAct, onClose = { showMore = false })
                 }
             }
         }
-        }
         if (sleepFade > 0f) {
-            val sleepModifier = Modifier.graphicsLayer { alpha = sleepFade }
-                // Se traga los toques (las teclas de debajo no deben pulsarse); si está dormida a
-                // mano, tocar la despierta.
-                .pointerInput(m.sleeping) {
-                    awaitEachGesture {
-                        awaitFirstDown().consume()
-                        if (m.sleeping) a.wake()
-                    }
-                }
-            if (m.layout == 10) com.asistente.personal.ui2.SleepScreen2(m, sleepModifier) else SleepScreen(m, sleepModifier)
+            SleepScreen2(
+                m,
+                Modifier.graphicsLayer { alpha = sleepFade }
+                    // Se traga los toques (las teclas de debajo no deben pulsarse); si está dormida a
+                    // mano, tocar la despierta.
+                    .pointerInput(m.sleeping) {
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            if (m.sleeping) a.wake()
+                        }
+                    },
+            )
         }
         if (ui.pending != null && sleepFade == 0f) AlertFrame()
         AnimatedVisibility(visible = showChat && sleepFade == 0f, enter = fadeIn(tween(160)), exit = fadeOut(tween(160))) {
-            if (m.layout == 10) com.asistente.personal.ui2.ChatOverlay2(m, com.asistente.personal.ui2.palFor(m.clock), onClose = { showChat = false })
-            else ConversationOverlay(ui.messages, ui.assistant, onClose = { showChat = false })
+            ChatOverlay2(m, pal, onClose = { showChat = false })
         }
-        // Pantalla «Juego» (se abre tocando la tarjeta del juego).
+        // La pantalla del juego crece desde su tarjeta del mosaico y vuelve a ella al cerrar.
         val playingGame = ui.game
-        if (m.layout == 10) {
-            // Vega 2: la pantalla del juego crece desde su tarjeta del mosaico y vuelve a ella al cerrar.
-            com.asistente.personal.ui2.Expand(
-                visible = showGame && playingGame != null && sleepFade == 0f,
-                origin = com.asistente.personal.ui2.Origins.nowTile,
-            ) {
-                if (playingGame != null) com.asistente.personal.ui2.GameScreen2(
-                    m, a, com.asistente.personal.ui2.palFor(m.clock), onClose = { showGame = false }, samples = m.gameSamples, canAct = canAct,
-                )
-            }
-        } else AnimatedVisibility(
-            visible = showGame && playingGame != null && sleepFade == 0f,
-            enter = fadeIn(tween(220)) + androidx.compose.animation.scaleIn(tween(260), initialScale = 0.96f),
-            exit = fadeOut(tween(180)) + androidx.compose.animation.scaleOut(tween(180), targetScale = 0.96f),
-        ) {
-            if (playingGame != null) {
-                GameScreen(
-                    playingGame, ui.gameAt, m.clockMs, m.gameArt, m.gameAccent, m.clock, ui.telemetry,
-                    onClose = { showGame = false },
-                    samples = m.gameSamples, actions = ui.actions, onPress = { if (canAct) a.press(it) }, account = ui.steamAccount,
-                )
-            }
+        Expand(visible = showGame && playingGame != null && sleepFade == 0f, origin = Origins.nowTile) {
+            if (playingGame != null) GameScreen2(m, a, pal, onClose = { showGame = false }, samples = m.gameSamples, canAct = canAct)
         }
-        // Pantalla «Sonando» (se abre tocando el mini reproductor).
+        // La de la música, igual.
         val playing = ui.media
-        if (m.layout == 10) {
-            // Vega 2: la pantalla de la música crece desde su tarjeta del mosaico y vuelve a ella al cerrar.
-            com.asistente.personal.ui2.Expand(
-                visible = showMusic && playing != null && sleepFade == 0f,
-                origin = com.asistente.personal.ui2.Origins.nowTile,
-            ) {
-                if (playing != null) com.asistente.personal.ui2.MusicScreen2(m, a, com.asistente.personal.ui2.palFor(m.clock), onClose = { showMusic = false })
-            }
-        } else AnimatedVisibility(
-            visible = showMusic && playing != null && sleepFade == 0f,
-            enter = fadeIn(tween(220)) + androidx.compose.animation.scaleIn(tween(260), initialScale = 0.96f),
-            exit = fadeOut(tween(180)) + androidx.compose.animation.scaleOut(tween(180), targetScale = 0.96f),
-        ) {
-            if (playing != null) {
-                MusicScreen(
-                    playing, ui.mediaAt, m.clockMs, m.mediaArt, m.mediaAccent, m.clock, m.lyrics,
-                    onControl = a.mediaControl, onClose = { showMusic = false }, onSeek = a.mediaSeek,
-                    flat = m.musicFlat, onToggleFlat = a.toggleMusicFlat, level = m.musicLevel, spectrum = m.musicSpectrum,
-                )
-            }
+        Expand(visible = showMusic && playing != null && sleepFade == 0f, origin = Origins.nowTile) {
+            if (playing != null) MusicScreen2(m, a, pal, onClose = { showMusic = false })
         }
     }
 }
 
 /** Capa en caché: se dibuja una vez y se reutiliza hasta que su contenido cambia. */
 internal fun Modifier.cached(): Modifier = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-
-/** La cara de LED con su estado arriba y lo último que dijo abajo. */
-@Composable
-internal fun FaceCard(
-    mood: Mood, color: Color, m: ScreenModel, glance: Glance?, aura: Color, onChat: () -> Unit = {},
-    confirmFraction: Float? = null, onRetry: () -> Unit = {}, modifier: Modifier = Modifier,
-    /** Sin tarjeta propia: la cara vive dentro de otra tarjeta más grande. */
-    bare: Boolean = false,
-    /** Sustituye lo que va a la derecha de la cabecera (nombre y cerebro). */
-    headerRight: (@Composable RowScope.() -> Unit)? = null,
-    /** Una franja de datos entre la cara y lo que dice. */
-    belowFace: (@Composable ColumnScope.() -> Unit)? = null,
-    /** Sin la línea de arriba (estado y nombre): la pone otra pieza de la pantalla. */
-    showHeader: Boolean = true,
-    /** Respuesta en dos líneas pequeñas y sin «Tú: …»: deja más sitio a la cara. */
-    compactReply: Boolean = false,
-    /** Sin la respuesta debajo: la dice otra pieza (un globo, por ejemplo). */
-    showReply: Boolean = true,
-) {
-    val border by animateColorAsState(
-        if (mood == Mood.ALERT || mood == Mood.ERROR) Vega.Red.copy(alpha = 0.7f) else aura,
-        tween(250),
-        label = "borde",
-    )
-    val notice = m.ui.notice?.takeIf { it.reminder }
-    // Un halo muy suave del color de Vega detrás de la cara: da profundidad y cambia con su
-    // estado (escuchando, pensando, avisando…). Solo se redibuja cuando cambia el color.
-    val music = mood == Mood.IDLE && m.ui.media?.playing == true
-    val glow by animateColorAsState(if (notice != null) Vega.Amber else if (music) m.mediaAccent else color, tween(700), label = "halo")
-    Column(
-        (if (bare) modifier else modifier.card(border).cornerTicks()).drawBehind {
-            drawRect(
-                Brush.radialGradient(
-                    listOf(glow.copy(alpha = 0.16f), glow.copy(alpha = 0.05f), Color.Transparent),
-                    center = Offset(size.width / 2, size.height * 0.47f),
-                    radius = size.minDimension * 0.78f,
-                ),
-            )
-        }.padding(horizontal = if (bare) 10.dp else 16.dp, vertical = if (bare) 10.dp else 12.dp),
-    ) {
-        if (showHeader) Row(verticalAlignment = Alignment.CenterVertically) {
-            Dot(color)
-            Spacer(Modifier.width(7.dp))
-            Text(moodLabel(mood, m.ui.assistant), maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = color))
-            Spacer(Modifier.weight(1f))
-            if (headerRight != null) headerRight()
-            else {
-                // Con la IA en el teléfono (o mientras se prepara) se ve aquí, junto al nombre.
-                if (m.brainOnPhone) {
-                    Text(m.brainLabel, maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Mint))
-                    Spacer(Modifier.width(10.dp))
-                }
-                Text(
-                    m.ui.assistant.uppercase().ifEmpty { "VEGA" },
-                    style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 2.sp, color = Vega.Ink3),
-                )
-            }
-        }
-        // Con música sonando y Vega en reposo, la cara se hace onda (el volumen real del PC); en cuanto pasa algo
-        // (le hablas, piensa, contesta, avisa…) vuelve la cara, y la onda regresa a los segundos de quedarse quieta.
-        val musicPlaying = m.ui.media?.let { it.playing && isSpotify(it.app) } == true && m.ui.link == LinkStatus.OPEN
-        val resting = mood == Mood.IDLE && notice == null
-        var faceHeld by remember { mutableStateOf(false) }
-        LaunchedEffect(resting) {
-            if (resting) {
-                delay(WAVE_RETURN_MS)
-                faceHeld = false
-            } else {
-                faceHeld = true
-            }
-        }
-        // Sin señal real del PC (Spotify no suena aquí) no se pinta una línea plana: se queda la cara.
-        val signal by androidx.compose.runtime.produceState(m.musicSignal(), m.musicSignal, musicPlaying) {
-            while (true) {
-                value = m.musicSignal()
-                delay(400)
-            }
-        }
-        val waveOn = musicPlaying && resting && !faceHeld && signal
-        Box(Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp)) {
-            androidx.compose.animation.Crossfade(targetState = waveOn, animationSpec = tween(350), label = "cara u onda") { wave ->
-                if (wave) {
-                    MusicWave(m.musicLevel, m.musicSpectrum, m.mediaAccent, m.waveStyle, Modifier.fillMaxSize())
-                } else {
-                    LedFaceView(
-                        mood = mood,
-                        pulse = m.pulse,
-                        pulseAmount = m.pulseAmount,
-                        color = if (notice != null) Vega.Amber else color, // un recordatorio pasa en ámbar
-                        notice = notice?.text,
-                        noticeKey = notice?.seq ?: 0,
-                        rainbow = notice == null && showsRainbow(mood, m.faceColor),
-                        countdown = timerLeft(m)?.let(::countdownText),
-                        glance = glance,
-                        modifier = Modifier.fillMaxSize(),
-                        // Los datos se ven en su gesto: suda con la gráfica caliente, cae los párpados con poca batería, lleva visor jugando.
-                        extras = com.asistente.personal.ui.led.FaceExtras(
-                            hot = (m.ui.telemetry?.gpuTemp ?: 0) >= 78,
-                            low = lowBattery(m.battery, m.charging),
-                            game = m.ui.game != null,
-                        ),
-                        lens = true,
-                    )
-                }
-            }
-            // Bajo la cara, según lo que pase: la cuenta atrás de una confirmación (roja), la carga de la IA
-            // (verde, o un botón para reintentar si falló) o, mientras te escucha, la onda de tu voz.
-            val load = if (m.brainOnPhone) brainLoad(m.brainLabel) else BrainLoad.None
-            val bottom = Modifier.align(Alignment.BottomCenter).fillMaxWidth(0.55f)
-            when {
-                confirmFraction != null -> LedBar(confirmFraction, Vega.Red, bottom.height(10.dp))
-                load.busy -> LedBar(load.fraction, Vega.Mint, bottom.height(10.dp))
-                load.failed -> Row(
-                    bottom.height(18.dp).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onRetry),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    LedBar(1f, Vega.Red, Modifier.weight(1f).height(10.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Reintentar", maxLines = 1, style = Vega.label.copy(color = Vega.Red))
-                }
-                mood == Mood.LISTEN -> VoiceScope(m.pulse, m.pulseAmount, color, bottom.height(20.dp))
-            }
-        }
-        belowFace?.invoke(this)
-        // Tocar la respuesta abre la conversación reciente en letra grande.
-        if (showReply) Subtitle(
-            m,
-            Modifier.fillMaxWidth().height(if (compactReply) 36.dp else 56.dp).cached() // 42 dp cortaba la segunda línea
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onChat),
-            compact = compactReply,
-        )
-    }
-}
 
 /**
  * Segundos que le quedan al temporizador más próximo, contados cada segundo: el del PC (llega
@@ -914,307 +494,7 @@ internal fun timerLeft(m: ScreenModel): Long? {
 private const val SLEEP_AFTER_MS = 20_000L
 private const val SLEEP_FADE_MS = 1200
 
-/**
- * Vega dormida (PC apagado): cara dormida, reloj grande del teléfono (sirve de reloj de
- * noche) y qué pasa. Se despierta sola cuando el PC vuelve a contestar.
- */
-@Composable
-private fun SleepScreen(m: ScreenModel, modifier: Modifier = Modifier) {
-    val message = if (m.sleeping) "Dormida · toca la pantalla para despertarme" else when (m.ui.pcOff) {
-        "restart" -> "El PC se está reiniciando · vuelvo enseguida"
-        "sleep" -> "El PC está en suspensión · me despierto cuando lo despiertes"
-        else -> "El PC está apagado · me despierto cuando lo enciendas"
-    }
-    Row(
-        modifier.fillMaxSize().background(Vega.Bg).safeDrawingPadding().padding(horizontal = 28.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        LedFaceView(
-            mood = Mood.SLEEP, pulse = 0, pulseAmount = 0f, color = Color(0xFF6E6760),
-            notice = null, noticeKey = 0, modifier = Modifier.weight(1f).fillMaxHeight(0.7f),
-        )
-        Spacer(Modifier.width(28.dp))
-        Column(Modifier.width(250.dp)) {
-            Text(m.clock, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 64.sp, lineHeight = 64.sp, color = Color(0xFF8A847C)))
-            Text(m.date, style = Vega.label.copy(fontSize = 13.sp, color = Vega.Ink3))
-            Spacer(Modifier.height(18.dp))
-            Text(message, style = Vega.body.copy(fontSize = 15.sp, lineHeight = 19.sp, color = Vega.Ink2))
-            nextAlert(m.ui.telemetry?.upcoming.orEmpty(), m.ui.telemetryAt, m.nowMs, m.wallMs, m.localNext)?.let {
-                Spacer(Modifier.height(10.dp))
-                Text(nextAlertLabel(it, m.wallMs), style = Vega.label.copy(fontSize = 13.sp, color = Vega.Amber))
-            }
-            if (m.battery >= 0) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Teléfono ${m.battery} %" + if (m.charging) " · cargando" else "",
-                    style = Vega.label.copy(color = if (m.battery <= 15 && !m.charging) Vega.Red else Vega.Ink3),
-                )
-            }
-        }
-    }
-}
-
-/** Las páginas de la columna derecha: estado del PC (o del cuerpo), reproductor y juego. */
-enum class SidePage {
-    BODY, MUSIC, GAME;
-
-    fun label(brainOnPhone: Boolean): String = when (this) {
-        BODY -> if (brainOnPhone) "Cuerpo" else "PC"
-        MUSIC -> "Música"
-        GAME -> "Juego"
-    }
-}
-
-/** Las páginas, en orden: el estado y «Juego» siempre (sin juego abierto dice «Sin juegos ahora mismo»), y música solo mientras suena algo. */
-fun sidePages(music: Boolean): List<SidePage> = buildList {
-    add(SidePage.BODY)
-    if (music) add(SidePage.MUSIC)
-    add(SidePage.GAME)
-}
-
-/** La página con la que se empieza: el juego si hay uno abierto (es lo que se hace ahora), si no la música, si no el estado. */
-fun firstSidePage(music: Boolean, game: Boolean): SidePage = when {
-    game -> SidePage.GAME
-    music -> SidePage.MUSIC
-    else -> SidePage.BODY
-}
-
-/** La página siguiente (o anterior) al deslizar el dedo; en los extremos se queda donde está. */
-fun nextSidePage(pages: List<SidePage>, current: SidePage, forward: Boolean): SidePage {
-    val i = pages.indexOf(current).takeIf { it >= 0 } ?: return pages.first()
-    return pages[(if (forward) i + 1 else i - 1).coerceIn(0, pages.lastIndex)]
-}
-
-/** Selector de páginas («PC | Música | Juego»), solo si hay más de una. Salta al tocar. */
-@Composable
-private fun PageSwitch(labels: List<String>, selectedIndex: Int, onChange: (Int) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().height(24.dp).background(Vega.Card, RoundedCornerShape(50)).padding(2.dp),
-    ) {
-        labels.forEachIndexed { index, label ->
-            val pressed = remember { mutableStateOf(false) }
-            val selected = index == selectedIndex
-            Box(
-                Modifier.weight(1f).fillMaxHeight()
-                    .background(if (selected) Vega.CardHi else Color.Transparent, RoundedCornerShape(50))
-                    .instantPress(enabled = true, pressed = pressed) { onChange(index) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(label, style = Vega.label.copy(color = if (selected) Vega.Ink else Vega.Ink3))
-            }
-        }
-    }
-}
-
-/** Hora en grande (tipografía de puntos), fecha y los botones del sistema. */
-@Composable
-internal fun ClockCard(m: ScreenModel, a: ScreenActions, modifier: Modifier = Modifier, border: Color = Vega.Line) {
-    val ui = m.ui
-    Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            // La hora cambia con un deslizamiento corto: el minuto nuevo entra desde abajo.
-            AnimatedContent(
-                targetState = m.clock,
-                transitionSpec = { (slideInVertically(tween(260)) { it / 3 } + fadeIn(tween(220))) togetherWith (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(140))) },
-                label = "hora",
-            ) { time ->
-                Text(time, style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 36.sp, lineHeight = 36.sp, color = Vega.Ink))
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.padding(bottom = 4.dp)) {
-                Text(m.date, maxLines = 1, style = Vega.label)
-                val (link, linkColor) = when (ui.link) {
-                    LinkStatus.OPEN -> "En línea" to Vega.Mint
-                    LinkStatus.CONNECTING -> "Conectando…" to Vega.Amber
-                    LinkStatus.RECONNECTING -> "Reconectando…" to Vega.Amber
-                    LinkStatus.DENIED -> "Acceso denegado" to Vega.Red
-                }
-                if (lowBattery(m.battery, m.charging)) Text("Batería ${m.battery} %", maxLines = 1, style = Vega.label.copy(color = Vega.Red))
-                else Text(link, maxLines = 1, style = Vega.label.copy(color = linkColor))
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            val micOn = m.listening && m.micOn
-            Pill(if (micOn) "Oyendo" else "Micro apagado", if (micOn) Vega.Coral else Vega.Ink2, a.toggleMic, filled = micOn)
-            if (m.updateAvailable) Pill("Actualizar", Vega.Amber, a.update, filled = true)
-            Pill("Dormir", Vega.Ink2, a.sleep)
-        }
-    }
-}
-
-/** PC, gráfica y batería en barras de puntos, y el próximo aviso con cuenta atrás. */
-@Composable
-private fun StatusCard(
-    t: Telemetry?, battery: Int, charging: Boolean, upcoming: List<Upcoming>, elapsed: Long, modifier: Modifier = Modifier,
-    border: Color = Vega.Line,
-) {
-    Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        val vram = if (t?.vramUsed != null && t.vramTotal != null && t.vramTotal > 0) (t.vramUsed / t.vramTotal).toFloat() else null
-        StatRow("Procesador", t?.cpu?.let { "$it %" }, t?.cpu?.div(100f))
-        // Temperatura de 30 °C (vacía) a 90 °C (llena).
-        StatRow("Gráfica", t?.gpuTemp?.let { "$it °C" }, t?.gpuTemp?.let { (it - 30) / 60f })
-        StatRow("Memoria gráfica", t?.vramUsed?.let { "${gb(it)} GB" }, vram)
-        StatRow("Batería", if (battery >= 0) "$battery %" else null, if (battery >= 0) battery / 100f else null, invert = true, charging = charging)
-        Spacer(Modifier.weight(1f))
-        if (upcoming.isEmpty()) Text("Sin recordatorios pendientes", maxLines = 1, style = Vega.label.copy(color = Vega.Ink3))
-        else UpcomingList(upcoming, elapsed, extra = 2)
-    }
-}
-
-/** El próximo aviso en grande con su cuenta atrás y, debajo, hasta `extra` más en una línea cada uno (con `extra` = 0, solo «+n»). */
-@Composable
-private fun UpcomingList(upcoming: List<Upcoming>, elapsed: Long, extra: Int) {
-    val next = upcoming.first()
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(countdown(next.dueIn - elapsed), style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Vega.Amber))
-        Spacer(Modifier.width(8.dp))
-        Text(
-            next.text + if (extra == 0 && upcoming.size > 1) "  +${upcoming.size - 1}" else "",
-            maxLines = 2,
-            style = Vega.label.copy(fontSize = 12.sp, lineHeight = 14.sp, color = Vega.Ink),
-        )
-    }
-    upcoming.drop(1).take(extra).forEach { u ->
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(countdown(u.dueIn - elapsed), style = Vega.label.copy(fontSize = 12.sp, color = Vega.Amber.copy(alpha = 0.8f)), modifier = Modifier.width(52.dp))
-            Text(u.text, maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Ink2))
-        }
-    }
-}
-
-/** Con la IA en el teléfono: cómo está el propio teléfono (cerebro, oído, PC, memoria, batería) y el próximo aviso. */
-@Composable
-private fun BodyCard(m: ScreenModel, upcoming: List<Upcoming>, elapsed: Long, modifier: Modifier = Modifier, border: Color = Vega.Line) {
-    val ears by produceState(com.asistente.personal.local.EarsSnapshot(), m.ears) {
-        while (true) {
-            value = m.ears()
-            delay(2_000)
-        }
-    }
-    val ram by produceState<Float?>(null, m.phoneRam) {
-        while (true) {
-            value = m.phoneRam()
-            delay(5_000)
-        }
-    }
-    val temp by produceState<Float?>(null, m.phoneTemp) {
-        while (true) {
-            value = m.phoneTemp()
-            delay(10_000)
-        }
-    }
-    val t = m.ui.telemetry.takeIf { m.ui.link == LinkStatus.OPEN }
-    Column(modifier.card(border).padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        brainLoad(m.brainLabel).let { TextRow("Cerebro", m.brainLabel.removePrefix("IA: "), if (it.failed) Vega.Red else if (it.busy) Vega.Amber else Vega.Mint) }
-        TextRow("Oído hoy", if (m.micOn) earsText(ears.heard, ears.calls) else "micro apagado", if (m.micOn) Vega.Ink else Vega.Amber)
-        TextRow("PC", t?.let { "CPU ${it.cpu} %" + (it.gpuTemp?.let { g -> " · $g °C" } ?: "") } ?: "sin enlace", if (t != null) Vega.Ink else Vega.Ink3)
-        StatRow("Memoria", ram?.let { "${(it * 100).toInt()} %" }, ram)
-        StatRow("Temperatura", temp?.let { "${it.toInt()} °C" }, temp?.let(::tempFraction))
-        StatRow("Batería", if (m.battery >= 0) "${m.battery} %" else null, if (m.battery >= 0) m.battery / 100f else null, invert = true, charging = m.charging)
-        Spacer(Modifier.weight(1f))
-        val next = upcoming.firstOrNull()
-        val local = timerLeft(m)
-        when {
-            next != null -> Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(countdown(next.dueIn - elapsed), style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Vega.Amber))
-                Spacer(Modifier.width(8.dp))
-                Text(next.text + if (upcoming.size > 1) "  +${upcoming.size - 1}" else "", maxLines = 2, style = Vega.label.copy(fontSize = 12.sp, lineHeight = 14.sp, color = Vega.Ink))
-            }
-            local != null -> Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(countdownText(local), style = TextStyle(fontFamily = Vega.Dots, fontWeight = FontWeight.Black, fontSize = 22.sp, color = Vega.Amber))
-                Spacer(Modifier.width(8.dp))
-                Text("temporizador", maxLines = 1, style = Vega.label.copy(fontSize = 12.sp, color = Vega.Ink))
-            }
-            else -> Text("Sin recordatorios pendientes", maxLines = 1, style = Vega.label.copy(color = Vega.Ink3))
-        }
-    }
-}
-
-/** Nombre a la izquierda y valor (de color) a la derecha, sin barra. */
-@Composable
-private fun TextRow(name: String, value: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(name, maxLines = 1, style = Vega.label)
-        Text(value, maxLines = 1, style = Vega.label.copy(color = color, textAlign = androidx.compose.ui.text.style.TextAlign.End), modifier = Modifier.weight(1f).padding(start = 8.dp))
-    }
-}
-
-/**
- * Una línea de estado: nombre, valor y 10 puntos que se encienden. Los últimos puntos
- * pasan a ámbar y rojo (o al revés con `invert`, para la batería: poca = mal).
- */
-@Composable
-private fun StatRow(name: String, value: String?, fraction: Float?, invert: Boolean = false, charging: Boolean = false) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(name, maxLines = 1, style = Vega.label, modifier = Modifier.weight(1f))
-        DotBar(fraction, invert, charging, Modifier.width(62.dp).height(7.dp))
-        Text(value ?: "—", maxLines = 1, style = Vega.label.copy(color = Vega.Ink), modifier = Modifier.width(50.dp).padding(start = 8.dp))
-    }
-}
-
-@Composable
-internal fun DotBar(fraction: Float?, invert: Boolean, charging: Boolean, modifier: Modifier = Modifier) {
-    val off = com.asistente.personal.ui.led.ledOff
-    // Los puntos se encienden (o apagan) de uno en uno hasta el valor nuevo, en vez de saltar.
-    val target = if (fraction == null) 0 else (fraction.coerceIn(0f, 1f) * 10 + 0.5f).toInt()
-    val lit by androidx.compose.animation.core.animateIntAsState(target, tween(380), label = "puntos")
-    Canvas(modifier) {
-        val n = 10
-        val step = size.width / n
-        val r = minOf(step, size.height) * 0.42f
-        val f = fraction ?: 0f
-        val color = when {
-            fraction == null -> off
-            charging -> Vega.Mint // cargando: en verde
-            !invert && f >= 0.9f || invert && f <= 0.15f -> Vega.Red
-            !invert && f >= 0.75f || invert && f <= 0.3f -> Vega.Amber
-            else -> Vega.Light
-        }
-        for (i in 0 until n) drawCircle(if (i < lit) color else off, r, Offset(step * (i + 0.5f), size.height / 2))
-    }
-}
-
-/**
- * Lo último que dijo Vega (o tu orden mientras piensa). Si no hay enlace, hay que confirmar
- * algo o llega un aviso, dice eso.
- */
-@Composable
-internal fun Subtitle(m: ScreenModel, modifier: Modifier = Modifier, compact: Boolean = false) {
-    val ui = m.ui
-    val pending = ui.pending
-    val notice = ui.notice
-    val line = when {
-        ui.link == LinkStatus.DENIED || !m.hasToken ->
-            Line("Error", "Sin token válido: ábrela desde el PC con scripts/android-install.ps1", Vega.Red)
-        ui.link != LinkStatus.OPEN && !m.brainOnPhone -> Line(
-            "Conexión",
-            "No llego al PC" + (ui.retryInMs?.let { " · reintento en ${(it + 999) / 1000} s" } ?: "") + ". Revisa el cable USB.",
-            Vega.Amber,
-        )
-        pending != null -> Line("Confirma", "${pending.message} Toca la tecla otra vez o di «sí».", Vega.Red)
-        notice != null -> Line(if (notice.ok) "Aviso" else "Error", notice.text, if (notice.ok) Vega.Amber else Vega.Red)
-        else -> lastLine(ui.messages, ui.assistant)
-    }
-    // Su respuesta se escribe letra a letra (rápido: ~110 por segundo), como si la dijera.
-    val typing = line.typeKey
-    var shown by remember(typing) { mutableIntStateOf(if (typing == null) Int.MAX_VALUE else 0) }
-    LaunchedEffect(typing, line.text.length) {
-        while (shown < line.text.length) {
-            delay(18)
-            shown += 2
-        }
-    }
-    Column(modifier, verticalArrangement = Arrangement.Bottom) {
-        if (line.who.isNotEmpty() && !compact) Text(line.who, maxLines = 1, style = Vega.label.copy(fontSize = 10.sp, color = line.color))
-        Text(
-            line.text.take(shown), maxLines = 2,
-            style = if (compact) Vega.body.copy(fontSize = 13.sp, lineHeight = 16.sp) else Vega.body.copy(fontSize = 15.sp, lineHeight = 18.sp),
-        )
-    }
-}
-
-/** Lo que muestra el subtítulo; `typeKey` (el mensaje) hace que se escriba letra a letra. */
+/** Lo último que se dijo; `typeKey` (el mensaje) hace que se escriba letra a letra. */
 internal data class Line(val who: String, val text: String, val color: Color, val typeKey: Int? = null)
 
 internal fun lastLine(messages: List<Message>, assistant: String): Line {

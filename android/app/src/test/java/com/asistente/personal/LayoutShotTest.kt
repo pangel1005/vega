@@ -30,7 +30,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Las distribuciones de la pantalla principal, dibujadas con el tamaño y la densidad reales del Redmi 15C
+ * La pantalla principal (Vega 2), dibujada con el tamaño y la densidad reales del Redmi 15C
  * (800 × 360 dp a 320 ppp = 1600 × 720 píxeles). Guarda las imágenes en app/build/capturas/.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -77,10 +77,10 @@ class LayoutShotTest {
         android.graphics.Canvas(bmp).drawRect(0f, 0f, 300f, 300f, paint)
     }.asImageBitmap()
 
-    private fun model(ui: UiState, layout: Int) = ScreenModel(
+    private fun model(ui: UiState) = ScreenModel(
         ui = ui, clock = "21:48", date = "jueves 22 oct", state = AssistantState.IDLE, listening = true, micOn = true,
         battery = 91, charging = false, updateAvailable = false, hasToken = true,
-        pulse = 0, pulseAmount = 0.9f, nowMs = 1_000, appVersion = 430000, layout = layout,
+        pulse = 0, pulseAmount = 0.9f, nowMs = 1_000, appVersion = 430000,
     )
 
     private fun shot(name: String, m: ScreenModel, afterMs: Long = 900) {
@@ -90,96 +90,46 @@ class LayoutShotTest {
         compose.onRoot().captureRoboImage("build/capturas/$name.png")
     }
 
-    private fun music(layout: Int): ScreenModel {
+    private fun music(): ScreenModel {
         val musicArt = art(0xFF6A3DE8.toInt(), 0xFF2EC5FF.toInt())
-        return model(base.copy(media = song, mediaAt = 1_000), layout)
+        return model(base.copy(media = song, mediaAt = 1_000))
             .copy(mediaArt = musicArt, mediaAccent = accentOf(musicArt), clockMs = { 1_000 })
     }
 
-    private fun playingGame(layout: Int): ScreenModel {
+    private fun playingGame(): ScreenModel {
         val gameArt = art(0xFFE0455B.toInt(), 0xFF3A0F2A.toInt())
-        return model(base.copy(telemetry = playing, game = game, gameAt = 1_000), layout)
+        return model(base.copy(telemetry = playing, game = game, gameAt = 1_000))
             .copy(gameArt = gameArt, gameAccent = androidx.compose.ui.graphics.Color(0xFFE0455B), clockMs = { 91_000 })
     }
-
-    @Test fun l0_reposo() = shot("L0_reposo", model(base, 0))
-    @Test fun l0_musica() = shot("L0_musica", music(0))
-    @Test fun l0_juego() = shot("L0_juego", playingGame(0))
-
-    @Test fun l1_reposo() = shot("L1_reposo", model(base, 1))
-    @Test fun l1_musica() = shot("L1_musica", music(1))
-    @Test fun l1_juego() = shot("L1_juego", playingGame(1))
-
-    @Test fun l2_reposo() = shot("L2_reposo", model(base, 2))
-    @Test fun l2_musica() = shot("L2_musica", music(2))
-    @Test fun l2_juego() = shot("L2_juego", playingGame(2))
-
-    @Test fun l3_reposo() = shot("L3_reposo", model(base, 3))
-    @Test fun l3_musica() = shot("L3_musica", music(3))
-    @Test fun l3_juego() = shot("L3_juego", playingGame(3))
-
-    @Test fun l3_calor() = shot("L3_calor", model(base.copy(telemetry = rest.copy(gpuTemp = 84)), 3))
-    @Test fun l3_bateria() = shot("L3_bateria", model(base, 3).copy(battery = 8, charging = false))
-    @Test fun l3_escuchando() = shot("L3_escuchando", model(base, 3).copy(state = AssistantState.LISTENING, pulse = 2))
-    @Test fun l3_hablando() = shot("L3_hablando", model(base, 3).copy(state = AssistantState.SPEAKING, pulse = 3))
 
     private fun wave(): () -> Float {
         var n = 0
         return { n++; (0.5f + 0.5f * kotlin.math.sin(n * 0.7f) * kotlin.math.sin(n * 0.23f)).coerceIn(0f, 1f) }
     }
 
-    @Test fun l4_reposo() = shot("L4_reposo", model(base, 4), afterMs = 8_000)
-    @Test fun l4_musica() = shot("L4_musica", music(4).copy(musicLevel = wave()), afterMs = 8_000)
-    @Test fun l4_juego() = shot("L4_juego", playingGame(4), afterMs = 8_000)
-    @Test fun l4_escuchando() = shot("L4_escuchando", model(base, 4).copy(state = AssistantState.LISTENING, pulse = 2), afterMs = 8_000)
-    @Test fun l4_calor() = shot("L4_calor", model(base.copy(telemetry = rest.copy(gpuTemp = 84, cpu = 93)), 4), afterMs = 8_000)
-
-    @Test fun l5_reposo() = shot("L5_reposo", model(base, 5), afterMs = 1_500)
-    @Test fun l5_musica() = shot("L5_musica", music(5).copy(musicLevel = wave()), afterMs = 1_500)
-    @Test fun l5_juego() = shot("L5_juego", playingGame(5), afterMs = 1_500)
-    @Test fun l5_escuchando() = shot("L5_escuchando", model(base, 5).copy(state = AssistantState.LISTENING, pulse = 2), afterMs = 1_500)
-    @Test fun l5_calor() = shot("L5_calor", model(base.copy(telemetry = rest.copy(gpuTemp = 84, cpu = 93, gpuUtil = 90)), 5), afterMs = 1_500)
-
-    @Test fun l6_reposo() = shot("L6_reposo", model(base, 6), afterMs = 1_500)
-    @Test fun l6_musica() = shot("L6_musica", music(6).copy(musicLevel = wave()), afterMs = 1_500)
-    @Test fun l6_juego() = shot("L6_juego", playingGame(6), afterMs = 1_500)
-    @Test fun l6_escuchando() = shot("L6_escuchando", model(base, 6).copy(state = AssistantState.LISTENING, pulse = 2), afterMs = 1_500)
-    @Test fun l6_calor() = shot("L6_calor", model(base.copy(telemetry = rest.copy(gpuTemp = 84, cpu = 93, gpuUtil = 90)), 6), afterMs = 1_500)
-
-    @Test fun l7_reposo() = shot("L7_reposo", model(base, 7), afterMs = 1_500)
-    @Test fun l7_musica() = shot("L7_musica", music(7).copy(musicLevel = wave()), afterMs = 1_500)
-    @Test fun l7_juego() = shot("L7_juego", playingGame(7), afterMs = 1_500)
-    @Test fun l7_escuchando() = shot("L7_escuchando", model(base, 7).copy(state = AssistantState.LISTENING, pulse = 2), afterMs = 1_500)
-    @Test fun l7_calor() = shot("L7_calor", model(base.copy(telemetry = rest.copy(gpuTemp = 84, cpu = 93, gpuUtil = 90)), 7), afterMs = 1_500)
-
-    @Test fun l8_reposo() = shot("L8_reposo", model(base, 8), afterMs = 1_500)
-    @Test fun l8_musica() = shot("L8_musica", music(8).copy(musicLevel = wave()), afterMs = 1_500)
-    @Test fun l8_juego() = shot("L8_juego", playingGame(8), afterMs = 1_500)
-    @Test fun l8_calor() = shot("L8_calor", model(base.copy(telemetry = rest.copy(gpuTemp = 84, cpu = 93, gpuUtil = 90)), 8), afterMs = 1_500)
-
-    // ── el diseño nuevo (layout 10): noche (21:48) y día (14:05) ──
+    // ── Vega 2: noche (21:48) y día (14:05) ──
     private fun day(m: ScreenModel) = m.copy(clock = "14:05")
     private val hotTel get() = rest.copy(gpuTemp = 84, cpu = 93, gpuUtil = 90)
 
-    @Test fun n_reposo() = shot("N_reposo", model(base, 10), afterMs = 2_000)
-    @Test fun n_musica() = shot("N_musica", music(10).copy(musicLevel = wave()), afterMs = 2_000)
-    @Test fun n_juego() = shot("N_juego", playingGame(10), afterMs = 2_000)
-    @Test fun n_escuchando() = shot("N_escuchando", model(base, 10).copy(state = AssistantState.LISTENING, pulse = 2), afterMs = 2_000)
-    @Test fun n_calor() = shot("N_calor", model(base.copy(telemetry = hotTel), 10), afterMs = 2_000)
-    @Test fun d_reposo() = shot("D_reposo", day(model(base, 10)), afterMs = 2_000)
-    @Test fun d_musica() = shot("D_musica", day(music(10)).copy(musicLevel = wave()), afterMs = 2_000)
-    @Test fun d_juego() = shot("D_juego", day(playingGame(10)), afterMs = 2_000)
-    @Test fun d_escuchando() = shot("D_escuchando", day(model(base, 10)).copy(state = AssistantState.LISTENING, pulse = 2), afterMs = 2_000)
-    @Test fun d_pensando() = shot("D_pensando", day(model(base, 10)).copy(state = AssistantState.THINKING), afterMs = 2_000)
-    @Test fun d_hablando() = shot("D_hablando", day(model(base, 10)).copy(state = AssistantState.SPEAKING, pulse = 3), afterMs = 400)
-    @Test fun d_camara_apagada() = shot("D_camara_apagada", day(model(base.copy(camera = com.asistente.personal.state.CameraInfo(true, false, "front")), 10)), afterMs = 2_000)
-    @Test fun d_camara_encendida() = shot("D_camara_encendida", day(model(base.copy(camera = com.asistente.personal.state.CameraInfo(true, true, "front")), 10)), afterMs = 2_000)
-    @Test fun n_camara_encendida() = shot("N_camara_encendida", model(base.copy(camera = com.asistente.personal.state.CameraInfo(true, true, "front")), 10), afterMs = 2_000)
-    @Test fun n_reconectando() = shot("N_reconectando", model(base.copy(link = com.asistente.personal.net.LinkStatus.RECONNECTING, retryInMs = 4_000, telemetry = null), 10), afterMs = 2_000)
-    @Test fun d_reconectando() = shot("D_reconectando", day(model(base.copy(link = com.asistente.personal.net.LinkStatus.RECONNECTING, retryInMs = 4_000, telemetry = null), 10)), afterMs = 2_000)
-    @Test fun n_sin_permiso() = shot("N_sin_permiso", model(base.copy(link = com.asistente.personal.net.LinkStatus.DENIED, telemetry = null), 10), afterMs = 2_000)
-    @Test fun d_calor() = shot("D_calor", day(model(base.copy(telemetry = hotTel), 10)), afterMs = 2_000)
-    @Test fun d_bateria() = shot("D_bateria", day(model(base, 10)).copy(battery = 8, charging = false), afterMs = 2_000)
+    @Test fun n_reposo() = shot("N_reposo", model(base), afterMs = 2_000)
+    @Test fun n_musica() = shot("N_musica", music().copy(musicLevel = wave()), afterMs = 2_000)
+    @Test fun n_juego() = shot("N_juego", playingGame(), afterMs = 2_000)
+    @Test fun n_escuchando() = shot("N_escuchando", model(base).copy(state = AssistantState.LISTENING, pulse = 2), afterMs = 2_000)
+    @Test fun n_calor() = shot("N_calor", model(base.copy(telemetry = hotTel)), afterMs = 2_000)
+    @Test fun d_reposo() = shot("D_reposo", day(model(base)), afterMs = 2_000)
+    @Test fun d_musica() = shot("D_musica", day(music()).copy(musicLevel = wave()), afterMs = 2_000)
+    @Test fun d_juego() = shot("D_juego", day(playingGame()), afterMs = 2_000)
+    @Test fun d_escuchando() = shot("D_escuchando", day(model(base)).copy(state = AssistantState.LISTENING, pulse = 2), afterMs = 2_000)
+    @Test fun d_pensando() = shot("D_pensando", day(model(base)).copy(state = AssistantState.THINKING), afterMs = 2_000)
+    @Test fun d_hablando() = shot("D_hablando", day(model(base)).copy(state = AssistantState.SPEAKING, pulse = 3), afterMs = 400)
+    @Test fun d_camara_apagada() = shot("D_camara_apagada", day(model(base.copy(camera = com.asistente.personal.state.CameraInfo(true, false, "front")))), afterMs = 2_000)
+    @Test fun d_camara_encendida() = shot("D_camara_encendida", day(model(base.copy(camera = com.asistente.personal.state.CameraInfo(true, true, "front")))), afterMs = 2_000)
+    @Test fun n_camara_encendida() = shot("N_camara_encendida", model(base.copy(camera = com.asistente.personal.state.CameraInfo(true, true, "front"))), afterMs = 2_000)
+    @Test fun n_reconectando() = shot("N_reconectando", model(base.copy(link = com.asistente.personal.net.LinkStatus.RECONNECTING, retryInMs = 4_000, telemetry = null)), afterMs = 2_000)
+    @Test fun d_reconectando() = shot("D_reconectando", day(model(base.copy(link = com.asistente.personal.net.LinkStatus.RECONNECTING, retryInMs = 4_000, telemetry = null))), afterMs = 2_000)
+    @Test fun n_sin_permiso() = shot("N_sin_permiso", model(base.copy(link = com.asistente.personal.net.LinkStatus.DENIED, telemetry = null)), afterMs = 2_000)
+    @Test fun d_calor() = shot("D_calor", day(model(base.copy(telemetry = hotTel))), afterMs = 2_000)
+    @Test fun d_bateria() = shot("D_bateria", day(model(base)).copy(battery = 8, charging = false), afterMs = 2_000)
 
     // ── la página «Juegos» (sin ninguno abierto): tus últimos juegos ──
     private val recents = listOf(
@@ -203,9 +153,9 @@ class LayoutShotTest {
         compose.onRoot().captureRoboImage("build/capturas/$name.png")
     }
 
-    @Test fun n_juegos() = shotTap("N_juegos", withRecents(model(base, 10)), "Juegos")
-    @Test fun d_juegos() = shotTap("D_juegos", withRecents(day(model(base, 10))), "Juegos")
-    @Test fun d_sin_juegos() = shotTap("D_sin_juegos", day(model(base, 10)), "Juegos")
+    @Test fun n_juegos() = shotTap("N_juegos", withRecents(model(base)), "Juegos")
+    @Test fun d_juegos() = shotTap("D_juegos", withRecents(day(model(base))), "Juegos")
+    @Test fun d_sin_juegos() = shotTap("D_sin_juegos", day(model(base)), "Juegos")
 
     // ── lo que faltaba traer: avisos del PC, «Actualizar» y la carga de la IA del teléfono ──
     private val notes = listOf(
@@ -215,14 +165,14 @@ class LayoutShotTest {
     )
     private fun withNotes(m: ScreenModel) = m.copy(ui = m.ui.copy(pcNotes = notes, freshNotes = setOf(1L), notesKnown = true), wallMs = 1_000_000L)
 
-    @Test fun d_notas() = shot("D_notas", withNotes(day(model(base, 10))), afterMs = 2_000)
-    @Test fun n_notas() = shot("N_notas", withNotes(model(base, 10)), afterMs = 2_000)
-    @Test fun d_actualizar() = shot("D_actualizar", day(model(base, 10)).copy(updateAvailable = true), afterMs = 2_000)
-    @Test fun d_ia_carga() = shot("D_ia_carga", day(model(base, 10)).copy(brainOnPhone = true, brainLabel = "Bajando IA 45 %"), afterMs = 2_000)
-    @Test fun d_ia_fallo() = shot("D_ia_fallo", day(model(base, 10)).copy(brainOnPhone = true, brainLabel = "IA: error"), afterMs = 2_000)
+    @Test fun d_notas() = shot("D_notas", withNotes(day(model(base))), afterMs = 2_000)
+    @Test fun n_notas() = shot("N_notas", withNotes(model(base)), afterMs = 2_000)
+    @Test fun d_actualizar() = shot("D_actualizar", day(model(base)).copy(updateAvailable = true), afterMs = 2_000)
+    @Test fun d_ia_carga() = shot("D_ia_carga", day(model(base)).copy(brainOnPhone = true, brainLabel = "Bajando IA 45 %"), afterMs = 2_000)
+    @Test fun d_ia_fallo() = shot("D_ia_fallo", day(model(base)).copy(brainOnPhone = true, brainLabel = "IA: error"), afterMs = 2_000)
     @Test fun d_confirmar() = shot(
         "D_confirmar",
-        day(model(base.copy(pending = com.asistente.personal.state.PendingConfirm("apagar", "n1", "Voy a apagar el PC.", 15)), 10)),
+        day(model(base.copy(pending = com.asistente.personal.state.PendingConfirm("apagar", "n1", "Voy a apagar el PC.", 15)))),
         afterMs = 2_000,
     )
 }

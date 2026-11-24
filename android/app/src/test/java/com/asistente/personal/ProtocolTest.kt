@@ -122,11 +122,13 @@ class ProtocolTest {
         assertEquals(com.asistente.personal.net.ServerEvent.PhoneControl("sleep"), com.asistente.personal.net.Protocol.parse("""{"type":"phone_control","command":"sleep"}"""))
         assertEquals(com.asistente.personal.net.ServerEvent.Sleep, com.asistente.personal.net.Protocol.parse("""{"type":"sleep"}"""))
         val sent = org.json.JSONObject(
-            com.asistente.personal.net.Protocol.phoneState(true, false, true, 91, true, false, "SOFT", "WARM", 428883),
+            com.asistente.personal.net.Protocol.phoneState(true, false, true, 91, true, "SOFT", 428883),
         )
         assertEquals("phone_state", sent.getString("type"))
         assertEquals("phone", sent.getString("brain"))
         assertEquals("soft", sent.getString("touch"))
         assertEquals(91, sent.getInt("battery"))
+        // Los estilos viejos («Cristal») y el color de la cara de LED ya no existen: no se mandan.
+        org.junit.Assert.assertFalse(sent.has("glass") || sent.has("face"))
     }
 }

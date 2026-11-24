@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import com.asistente.personal.ui.led.Glance
 import com.asistente.personal.ui.led.Mood
-import com.asistente.personal.ui.led.framePacingMs
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.abs

@@ -81,7 +81,7 @@ class TableroTest {
         ui = UiState(link = link, assistant = "Vega", state = AssistantState.IDLE, tasks = tasks),
         clock = "19:30", date = "miércoles 11 nov", state = AssistantState.IDLE, listening = true, micOn = true,
         battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f,
-        nowMs = 1_000, appVersion = 430000, layout = 10, wallMs = now * 1000,
+        nowMs = 1_000, appVersion = 430000, wallMs = now * 1000,
     ).copy(clockMs = { 1_000 })
 
     private fun open(m: ScreenModel, a: ScreenActions = ScreenActions(), p: Pal = DayPal, onClose: () -> Unit = {}) {

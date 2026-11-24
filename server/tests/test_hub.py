@@ -1,13 +1,16 @@
 import asyncio
 from datetime import datetime, timedelta
 
+import pytest
+from pydantic import ValidationError
+
 from server.core.hub import Hub
 from server.device.media import NowPlaying
 from server.device.notifications import PcNotification
 from server.memory.personal import PersonalMemory, Reminder
 from server.memory.store import ConversationStore
 from server.skills.status import PcSample
-from server.ws.protocol import MediaEvent, NotificationsEvent, TelemetryEvent
+from server.ws.protocol import MediaEvent, NotificationsEvent, TelemetryEvent, client_message
 
 NOW = datetime(2026, 10, 22, 15, 0, 0)
 
@@ -249,6 +252,19 @@ def test_desktop_sees_the_phone_and_controls_it() -> None:
     assert desktop.events[-1] == PhoneControlEvent(command="wake") and phone.events == [
         PhoneControlEvent(command="sleep")
     ]
+
+
+def test_old_phones_still_report_their_state_and_old_styles_are_gone() -> None:
+    # Una app vieja manda aún «glass» y «face»: se ignoran, el resto del estado llega.
+    old = client_message.validate_python(
+        {"type": "phone_state", "brain": "phone", "battery": 80, "glass": True, "face": "WARM"}
+    )
+    assert old.type == "phone_state" and old.brain == "phone" and old.battery == 80
+    assert "glass" not in old.model_dump() and "face" not in old.model_dump()
+    # Las órdenes de los estilos viejos ya no existen.
+    for command in ("glass_on", "glass_off", "terminal_on", "orb_on", "wave_next"):
+        with pytest.raises(ValidationError):
+            client_message.validate_python({"type": "phone_control", "command": command})
 
 
 def test_desktop_is_told_when_the_phone_leaves() -> None:

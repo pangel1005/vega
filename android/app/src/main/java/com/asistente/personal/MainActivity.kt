@@ -178,7 +178,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sleepChanged: (Boolean) -> Unit) {
     val ui = c.ui
-    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val clock by produceState("" to "") {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault())
         val day = SimpleDateFormat("EEEE d MMM", Locale.forLanguageTag("es"))
@@ -204,7 +203,6 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             nextVoice = c::nextVoice,
             confirmExpired = c::confirmExpired,
             noticeExpired = c::noticeExpired,
-            nextFaceColor = c::nextFaceColor,
             sleepChanged = sleepChanged,
             mediaControl = c::mediaControl,
             mediaSeek = c::mediaSeek,
@@ -224,10 +222,7 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             streakOut = c::streakOut,
             dismissNote = c::dismissNote,
             nextTouchFeel = c::nextTouchFeel,
-            nextWaveStyle = c::nextWaveStyle,
             toggleMusicFlat = c::toggleMusicFlat,
-            toggleGlass = c::toggleGlass,
-            nextStyle = c::nextStyle,
             retryBrain = c::retryBrain,
             sleep = c::sleep,
             wake = c::wake,
@@ -245,7 +240,6 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             charging = c.charging,
             usbPlugged = c.usbPlugged,
             wallpaperThumbs = c.wallpaperThumbs,
-            layout = 10, // el diseño nuevo (ui2): mosaicos de color de día, ojos de luz de noche, cara dibujada con curvas
             updateAvailable = c.updateAvailable,
             hasToken = c.hasToken,
             // La boca sigue: la voz de Vega al hablar, tu voz al escucharte, o las palabras al escribir.
@@ -262,7 +256,6 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             nowMs = SystemClock.elapsedRealtime(),
             appVersion = BuildConfig.VERSION_CODE,
             icons = c.icons,
-            faceColor = c.faceColor,
             mediaArt = c.mediaArt,
             mediaAccent = c.mediaAccent,
             gameArt = c.gameArt,
@@ -275,18 +268,10 @@ private fun AssistantScreen(c: AssistantController, openAndroid: () -> Unit, sle
             noteIcons = c.noteIcons,
             localTimerEndsAt = c.localTimerEndsAt,
             touchFeel = c.touchFeel,
-            glass = c.glass,
-            terminal = c.terminal,
-            orb = c.orb,
             localNext = c.localNext,
             musicLevel = c::musicLevel,
-            musicSignal = c::musicSignal,
             musicSpectrum = c::musicSpectrum,
-            waveStyle = c.waveStyle,
             musicFlat = c.musicFlat,
-            ears = c::earsStats,
-            phoneRam = { com.asistente.personal.ui.phoneMemoryUsed(appContext) },
-            phoneTemp = { com.asistente.personal.ui.phoneTemperature(appContext) },
             sleeping = c.sleeping,
         ),
         actions,

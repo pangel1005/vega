@@ -61,7 +61,6 @@ import com.asistente.personal.net.StreakInfo
 import com.asistente.personal.ui.ScreenActions
 import com.asistente.personal.ui.ScreenModel
 import com.asistente.personal.ui.Text
-import com.asistente.personal.ui.instantPress
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.Instant

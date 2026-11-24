@@ -1,7 +1,6 @@
 package com.asistente.personal.ui2
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -23,9 +22,6 @@ import androidx.compose.ui.unit.Dp
 internal fun Icon2(name: String, color: Color, size: Dp, modifier: Modifier = Modifier) {
     Canvas(modifier.size(size)) { icon2(name, color) }
 }
-
-@Composable
-internal fun IconBox(name: String, color: Color, size: Dp) = Box(Modifier.size(size)) { Icon2(name, color, size) }
 
 internal fun DrawScope.icon2(name: String, c: Color) {
     val u = size.width / 24f

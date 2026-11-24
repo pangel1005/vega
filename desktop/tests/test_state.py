@@ -64,7 +64,6 @@ def test_phone_state_and_disconnect() -> None:
             "brain": "phone",
             "battery": 80,
             "charging": True,
-            "glass": True,
         },
         {"type": "telemetry", "cpu": 20, "ram_used": 10.0, "ram_total": 32.0, "upcoming": []},
         {"type": "media", "active": True, "title": "Canción", "artist": "Alguien"},
@@ -73,7 +72,7 @@ def test_phone_state_and_disconnect() -> None:
             "items": [{"id": 1, "app": "WhatsApp", "title": "Ana", "body": "hola", "at": 1.0, "icon": ""}],
         },
     )
-    assert s.phone.brain == "phone" and s.phone.battery == 80 and s.phone.glass and len(s.notifications) == 1
+    assert s.phone.brain == "phone" and s.phone.battery == 80 and len(s.notifications) == 1
     assert s.media is not None and s.media["title"] == "Canción"
     feed(s, {"type": "media", "active": False})
     assert s.media is None

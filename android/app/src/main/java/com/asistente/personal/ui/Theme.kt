@@ -16,69 +16,20 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import com.asistente.personal.R
 
 /**
- * Estilo «Vega · noche»: negro, tarjetas oscuras con esquinas redondeadas, la luz cálida
- * de la cara de LED y un único color propio (coral). Los demás colores solo aparecen
- * cuando significan algo: rojo = cuidado, verde = hecho, ámbar = pensando.
+ * Los colores con significado que comparten las piezas de `ui` (rojo = cuidado, verde = hecho,
+ * ámbar = aviso, coral = Vega). Vega 2 tiene su propia paleta (ui2/Theme2.kt).
  */
 object Vega {
-    val Bg = Color(0xFF000000)
-    val Card = Color(0xFF0E0E0F)
-    val CardHi = Color(0xFF17171A) // tecla pulsada, tarjeta resaltada
-    val Line = Color(0xFF1F1F22)
-
     val Ink = Color(0xFFF5F2ED)
     val Ink2 = Color(0xFF9A968F)
-    val Ink3 = Color(0xFF7A766F) // era #55524E (2,5:1 sobre las tarjetas); así llega a ~4,6:1
+    val Ink3 = Color(0xFF7A766F)
 
-    val Light = Color(0xFFFFF1DE) // luz de la cara en reposo: blanco cálido
     val Coral = Color(0xFFFF6A3D)
     val Amber = Color(0xFFFFB547)
     val Mint = Color(0xFF6CF0A8)
     val Red = Color(0xFFFF4D4D)
-    val Sky = Color(0xFF7FD8FF)
-
-    /** Números y titulares: tipografía de puntos (como la cara). */
-    val Dots = FontFamily(Font(R.font.doto_black, FontWeight.Black))
-
-    /** La fuente de la terminal del estilo «Nostromo» (VT323, licencia OFL). */
-    val Terminal = FontFamily(Font(R.font.vt323, FontWeight.Normal))
-    val Sans = FontFamily(
-        Font(R.font.space_grotesk_regular, FontWeight.Normal),
-        Font(R.font.space_grotesk_medium, FontWeight.Medium),
-        Font(R.font.space_grotesk_bold, FontWeight.Bold),
-    )
-
-    val label = TextStyle(fontFamily = Sans, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.4.sp, color = Ink2)
-    val body = TextStyle(fontFamily = Sans, fontSize = 16.sp, lineHeight = 20.sp, color = Ink)
-}
-
-/**
- * Color de la cara en reposo y al hablar (lo elige el usuario en «Más»). Los demás estados
- * conservan su color, porque significan algo: coral = te escucho, rojo = cuidado…
- */
-enum class FaceColor(val label: String, val color: Color) {
-    WARM("Cálido", Vega.Light),
-    CORAL("Coral", Vega.Coral),
-    SKY("Cielo", Vega.Sky),
-    MINT("Menta", Vega.Mint),
-    VIOLET("Violeta", Color(0xFFB79BFF)),
-    PINK("Rosa", Color(0xFFFF8CC6)),
-    RAINBOW("Arcoíris", Vega.Light), // el color real lo pone el pincel de arcoíris
-    ;
-
-    fun next(): FaceColor = entries[(ordinal + 1) % entries.size]
-
-    companion object {
-        fun from(name: String?): FaceColor = entries.firstOrNull { it.name == name } ?: WARM
-    }
 }
 
 /**
@@ -99,15 +50,6 @@ enum class TouchFeel(val label: String, val haptic: Int?) {
 
         fun from(name: String?): TouchFeel = entries.firstOrNull { it.name == name } ?: SOFT
     }
-}
-
-/** Color de cada botón según config/actions.toml (más suaves que antes: es un acento, no un fondo). */
-fun deckColor(name: String): Color = when (name) {
-    "red" -> Vega.Red
-    "amber" -> Vega.Amber
-    "green" -> Vega.Mint
-    "teal" -> Vega.Sky
-    else -> Vega.Coral
 }
 
 /**

@@ -127,7 +127,6 @@ internal fun DeckSheet2(m: ScreenModel, a: ScreenActions, p: Pal, secondsLeft: I
                 Spacer(Modifier.weight(1f))
                 ui.voices.firstOrNull { it.id == ui.voice }?.label?.let { SettingRow("Voz", it, p, p.sky, a.nextVoice) }
                 SettingRow("Toque", m.touchFeel.label, p, p.ink, a.nextTouchFeel)
-                SettingRow("Onda", m.waveStyle.label, p, p.sky, a.nextWaveStyle)
                 SettingRow("Android", "Abrir ajustes", p, p.ink2, a.openAndroid)
             }
         }

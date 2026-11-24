@@ -195,7 +195,7 @@ sealed interface ServerEvent {
     data class MusicSpectrum(val bands: List<Float>) : ServerEvent
     /** Las notificaciones del PC, de la más nueva a la más vieja. */
     data class Notifications(val items: List<PcNote>) : ServerEvent
-    /** Una orden de la app del PC: sleep, wake, brain_pc, brain_phone, glass_on, glass_off, terminal_on, terminal_off, orb_on, orb_off, wave_next, mic_on, mic_off. */
+    /** Una orden de la app del PC: sleep, wake, brain_pc, brain_phone, mic_on, mic_off. */
     data class PhoneControl(val command: String) : ServerEvent
     /** Las casillas de la pantalla de Vega en Android Auto (vacía: usa las de serie). */
     data class CarLayout(val title: String, val items: List<com.asistente.personal.car.CarItem>) : ServerEvent
@@ -411,10 +411,10 @@ object Protocol {
     /** El estado del teléfono para la app del PC (ver `phone_state` en server/ws/protocol.py). */
     fun phoneState(
         brainOnPhone: Boolean, sleeping: Boolean, mic: Boolean, battery: Int, charging: Boolean,
-        glass: Boolean, touch: String, face: String, version: Int,
+        touch: String, version: Int,
     ): String = JSONObject().put("type", "phone_state").put("brain", if (brainOnPhone) "phone" else "pc")
         .put("sleeping", sleeping).put("mic", mic).put("battery", battery).put("charging", charging)
-        .put("glass", glass).put("touch", touch.lowercase()).put("face", face).put("version", version).toString()
+        .put("touch", touch.lowercase()).put("version", version).toString()
     fun sleepMode(on: Boolean): String = JSONObject().put("type", "sleep").put("on", on).toString()
     /** Una frase de voz (PCM16 a 16 kHz, en base64) para que el PC la transcriba. */
     fun hear(id: Int, pcm: ByteArray): String = JSONObject().put("type", "hear").put("id", id)

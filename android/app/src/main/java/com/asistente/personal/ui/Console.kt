@@ -2,9 +2,6 @@ package com.asistente.personal.ui
 
 import java.util.Locale
 
-/** «23,6»: decimales con coma, como se leen en español. */
-fun gb(v: Double): String = String.format(Locale.forLanguageTag("es"), "%.1f", v)
-
 /** «04:59», «1:02:00»: lo que falta para un aviso. */
 fun countdown(seconds: Long): String {
     val s = seconds.coerceAtLeast(0)

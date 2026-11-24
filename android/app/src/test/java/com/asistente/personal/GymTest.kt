@@ -61,7 +61,7 @@ class GymTest {
         ui = UiState(link = link, assistant = "Vega", state = AssistantState.IDLE, streak = s),
         clock = "19:30", date = "jueves 12 nov", state = AssistantState.IDLE, listening = true, micOn = true,
         battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f,
-        nowMs = 1_000, appVersion = 430000, layout = 10, wallMs = wall,
+        nowMs = 1_000, appVersion = 430000, wallMs = wall,
     ).copy(clockMs = { 1_000 })
 
     private fun open(m: ScreenModel, a: ScreenActions = ScreenActions(), onClose: () -> Unit = {}) {

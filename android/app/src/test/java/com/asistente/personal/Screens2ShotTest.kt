@@ -125,7 +125,7 @@ class Screens2ShotTest {
 
     private fun model(ui: UiState, night: Boolean) = ScreenModel(
         ui = ui, clock = if (night) "21:48" else "14:05", date = "jueves 22 oct", state = AssistantState.IDLE, listening = true, micOn = true,
-        battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f, nowMs = 1_000, appVersion = 430000, layout = 10,
+        battery = 91, charging = false, updateAvailable = false, hasToken = true, pulse = 0, pulseAmount = 0.9f, nowMs = 1_000, appVersion = 430000,
     )
 
     private fun shot(name: String, night: Boolean, afterMs: Long = 1_500, content: @Composable (Pal) -> Unit) {

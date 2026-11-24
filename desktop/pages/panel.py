@@ -238,9 +238,9 @@ class PanelPage(QWidget):
         self.sleep_btn = pill("Dormir")
         self.brain_btn = pill("IA: PC")
         self.mic_btn = pill("Micro")
-        self.glass_btn = pill("Cristal")
-        for i, b in enumerate((self.sleep_btn, self.brain_btn, self.mic_btn, self.glass_btn)):
-            grid.addWidget(b, i // 2, i % 2)
+        grid.addWidget(self.sleep_btn, 0, 0)
+        grid.addWidget(self.brain_btn, 0, 1)
+        grid.addWidget(self.mic_btn, 1, 0, 1, 2)
         card.body.addLayout(grid)
         self.sleep_btn.clicked.connect(
             lambda: self.ctx.phone_control("wake" if self.ctx.state.phone.sleeping else "sleep")
@@ -252,9 +252,6 @@ class PanelPage(QWidget):
         )
         self.mic_btn.clicked.connect(
             lambda: self.ctx.phone_control("mic_off" if self.ctx.state.phone.mic else "mic_on")
-        )
-        self.glass_btn.clicked.connect(
-            lambda: self.ctx.phone_control("glass_off" if self.ctx.state.phone.glass else "glass_on")
         )
         return card
 
@@ -446,11 +443,9 @@ class PanelPage(QWidget):
         self.sleep_btn.setText("Despertar" if ph.sleeping else "Dormir")
         self.brain_btn.setText("IA: teléfono" if ph.brain == "phone" else "IA: PC")
         self.mic_btn.setText("Micro: sí" if ph.mic else "Micro: no")
-        self.glass_btn.setText("Cristal" if ph.glass else "Noche")
         style(self.brain_btn, on=ph.brain == "phone")
         style(self.mic_btn, on=ph.mic)
-        style(self.glass_btn, on=ph.glass)
-        for b in (self.sleep_btn, self.brain_btn, self.mic_btn, self.glass_btn):
+        for b in (self.sleep_btn, self.brain_btn, self.mic_btn):
             b.setEnabled(online)
 
     def _refresh_pc(self) -> None:

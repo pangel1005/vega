@@ -1,15 +1,10 @@
 package com.asistente.personal
 
-import androidx.compose.ui.graphics.Color
 import com.asistente.personal.net.Protocol
 import com.asistente.personal.net.ServerEvent
 import com.asistente.personal.ui.SPECTRUM_BANDS
-import com.asistente.personal.ui.SPECTRUM_SEGMENTS
 import com.asistente.personal.ui.SpectrumState
-import com.asistente.personal.ui.segmentColor
-import com.asistente.personal.ui.segmentFill
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -103,23 +98,10 @@ class SpectrumTest {
         assertEquals(0f, s.level[3], 1e-6f)
     }
 
-    @Test fun `los segmentos de abajo son del color de la cancion y las puntas rojas`() {
-        val accent = Color(0xFF29D3FF)
-        val total = SPECTRUM_SEGMENTS
-        assertEquals(accent, segmentColor(0, total, accent))
-        assertEquals(accent, segmentColor(total / 2 - 1, total, accent))
-        assertNotEquals(accent, segmentColor(total - 4, total, accent)) // la zona clara
-        assertEquals(Color(0xFFFF5A3A), segmentColor(total - 1, total, accent)) // la punta
-        assertEquals(accent, segmentColor(0, 1, accent)) // un solo segmento no rompe
-    }
-
-    @Test fun `un segmento esta lleno, vacio o a medias segun el nivel`() {
-        val total = 10
-        assertEquals(1f, segmentFill(0.5f, 2, total), 1e-6f) // 0,5 × 10 = 5 segmentos llenos
-        assertEquals(0f, segmentFill(0.5f, 5, total), 1e-6f)
-        assertEquals(0.5f, segmentFill(0.35f, 3, total), 1e-5f) // el último, a la mitad
-        assertEquals(0f, segmentFill(0f, 0, total), 0f)
-        assertEquals(1f, segmentFill(5f, 9, total), 0f) // se recorta a 1
+    @Test fun `el volumen del PC llega como evento y se recorta a 0 y 1`() {
+        assertEquals(ServerEvent.MusicLevel(0.42f), Protocol.parse("""{"type":"music_level","level":0.42}"""))
+        assertEquals(ServerEvent.MusicLevel(1f), Protocol.parse("""{"type":"music_level","level":7}"""))
+        assertEquals(ServerEvent.MusicLevel(0f), Protocol.parse("""{"type":"music_level"}"""))
     }
 
     @Test fun `el espectro llega del servidor como lista de bandas y se recorta`() {

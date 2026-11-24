@@ -111,9 +111,7 @@ LIVE = (
         "mic": True,
         "battery": 91,
         "charging": True,
-        "glass": False,
         "touch": "soft",
-        "face": "WARM",
         "version": 428887,
     },
     {
@@ -193,11 +191,11 @@ def test_buttons_control_the_phone(window: tuple[MainWindow, FakeClient]) -> Non
     panel = win.pages.widget(0)
     panel.sleep_btn.click()  # type: ignore[attr-defined]
     panel.brain_btn.click()  # type: ignore[attr-defined]
-    panel.glass_btn.click()  # type: ignore[attr-defined]
+    panel.mic_btn.click()  # type: ignore[attr-defined]
     assert [m["command"] for m in client.sent if m["type"] == "phone_control"] == [
         "sleep",
         "brain_pc",
-        "glass_on",
+        "mic_off",
     ]
     feed(client, {"type": "phone_state", "online": True, "sleeping": True})
     assert panel.sleep_btn.text() == "Despertar"  # type: ignore[attr-defined]

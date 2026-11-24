@@ -41,10 +41,9 @@ Cliente → servidor:
     {"type": "say", "text": "..."}       (IA en el teléfono) el PC lo dice con su voz (Kokoro en
                                          el procesador): suena más natural que la del teléfono
     {"type": "phone_state", "brain": "pc|phone", "sleeping": false, "mic": true, "battery": 91,
-     "charging": true, "glass": false, "touch": "soft", "face": "WARM", "version": 428883}
+     "charging": true, "touch": "soft", "version": 428883}
                                          (teléfono) su estado, para que lo vea la app del PC
-    {"type": "phone_control", "command": "sleep|wake|brain_pc|brain_phone|glass_on|glass_off|
-                                          terminal_on|terminal_off|orb_on|orb_off|wave_next|mic_on|mic_off"}
+    {"type": "phone_control", "command": "sleep|wake|brain_pc|brain_phone|mic_on|mic_off"}
                                          (app del PC) manda una orden al teléfono
     {"type": "reload_actions"}           vuelve a leer config/actions.toml y reparte los botones
     {"type": "reload_car"}               (app del PC) vuelve a leer config/car.toml y la reparte
@@ -305,15 +304,17 @@ class Say(_Msg):
 class PhoneState(_Msg):
     """Estado del teléfono, para que la app del PC lo vea."""
 
+    # Las versiones viejas de la app mandaban además «glass» y «face» (el estilo «Cristal» y el color de la
+    # cara de LED, que ya no existen): se ignoran en vez de rechazar el mensaje entero.
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
     type: Literal["phone_state"] = "phone_state"
     brain: Literal["pc", "phone"] = "pc"
     sleeping: bool = False
     mic: bool = False
     battery: int = -1
     charging: bool = False
-    glass: bool = False
     touch: str = "soft"
-    face: str = ""
     version: int = 0
 
 
@@ -322,13 +323,6 @@ PhoneCommandName = Literal[
     "wake",
     "brain_pc",
     "brain_phone",
-    "glass_on",
-    "glass_off",
-    "terminal_on",
-    "terminal_off",
-    "orb_on",
-    "orb_off",
-    "wave_next",
     "mic_on",
     "mic_off",
 ]

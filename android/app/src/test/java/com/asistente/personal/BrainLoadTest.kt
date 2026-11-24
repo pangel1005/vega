@@ -1,12 +1,7 @@
 package com.asistente.personal
 
-import com.asistente.personal.state.Message
-import com.asistente.personal.state.Role
 import com.asistente.personal.ui.BrainLoad
-import com.asistente.personal.ui.LED_BAR_DOTS
 import com.asistente.personal.ui.brainLoad
-import com.asistente.personal.ui.ledBarLit
-import com.asistente.personal.ui.ledBarRuns
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -30,24 +25,5 @@ class BrainLoadTest {
         assertEquals(BrainLoad.None, brainLoad("IA: tel\u00e9fono"))
         assertEquals(BrainLoad.None, brainLoad("IA: PC"))
         assertEquals(BrainLoad.None, brainLoad(""))
-    }
-
-    @Test fun `la barra enciende los puntos de la fraccion y nunca se pasa`() {
-        assertEquals(0, ledBarLit(0f))
-        assertEquals(LED_BAR_DOTS / 2, ledBarLit(0.5f))
-        assertEquals(LED_BAR_DOTS, ledBarLit(1f))
-        assertEquals(LED_BAR_DOTS, ledBarLit(7f))
-        assertEquals(0, ledBarLit(-1f))
-    }
-
-    @Test fun `la luz que corre es una ventana de seis puntos que da la vuelta`() {
-        for (step in 0 until 100) {
-            val lit = (0 until LED_BAR_DOTS).count { ledBarRuns(it, step) }
-            assertTrue("paso $step: $lit", lit in 0..6)
-        }
-        assertTrue(ledBarRuns(0, 0)) // empieza por la izquierda
-        assertFalse(ledBarRuns(20, 0))
-        assertTrue(ledBarRuns(20, 22)) // y avanza hacia la derecha
-        assertEquals(6, (0 until LED_BAR_DOTS).count { ledBarRuns(it, 20) }) // en medio, la ventana entera
     }
 }
