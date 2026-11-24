@@ -238,16 +238,23 @@ def register_ws(
         # así el bucle de lectura sigue atendiendo lo urgente (un botón, «Cancelar apagado») mientras Vega
         # contesta. Medido: «Cancelar apagado», pedido a los 0,3 s, se ejecutaba a los 3,1 s.
         slow: asyncio.Queue[Callable[[], Awaitable[None]]] = asyncio.Queue()
+        # Las órdenes que el teléfono ya entendió («recuérdame…», «apunta…») van en su propia cola: detrás de
+        # una charla con el modelo o de una voz larga esperaban más de 4 s, el teléfono se cansaba y guardaba
+        # el recordatorio en su memoria (el PC no se enteraba). Son rápidas: así contestan al momento.
+        commands: asyncio.Queue[Callable[[], Awaitable[None]]] = asyncio.Queue()
 
-        async def slow_worker() -> None:
+        async def run_queue(queue: asyncio.Queue[Callable[[], Awaitable[None]]]) -> None:
             while True:
-                job = await slow.get()
+                job = await queue.get()
                 try:
                     await job()
                 except Exception:  # un fallo no debe parar la cola ni cerrar la conexión
                     log.exception("Falló una orden lenta")
                     with contextlib.suppress(Exception):
                         await emit(ErrorEvent(message="No pude hacer eso; mira los registros."))
+
+        async def slow_worker() -> None:
+            await run_queue(slow)
 
         async def hear(msg: Hear) -> None:
             """Transcribe una frase que cortó el teléfono. Nunca se guarda ni se escribe en los registros."""
@@ -267,6 +274,7 @@ def register_ws(
             await emit(HeardEvent(id=msg.id, text=result.text))
 
         worker = asyncio.create_task(slow_worker())
+        command_worker = asyncio.create_task(run_queue(commands))
         try:
             if desktop and hub is not None:
                 await hub.send_phone_state(orchestrator)
@@ -313,7 +321,7 @@ def register_ws(
                     elif isinstance(msg, PlaybackDone):
                         await orchestrator.playback_done()
                     elif isinstance(msg, PhoneCommand):
-                        slow.put_nowait(partial(orchestrator.phone_command, msg.text))
+                        commands.put_nowait(partial(orchestrator.phone_command, msg.text))
                     elif isinstance(msg, DeskCommand) and desk is not None and role == "phone":
                         if msg.action in (
                             "get",
@@ -384,6 +392,7 @@ def register_ws(
             log.info("Cliente desconectado")
         finally:
             worker.cancel()
+            command_worker.cancel()
             if hub is not None:
                 gone = hub.remove(orchestrator)
                 if gone is not None:

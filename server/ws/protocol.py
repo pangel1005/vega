@@ -660,6 +660,7 @@ class PhoneReplyEvent(_Msg):
     type: Literal["phone_reply"] = "phone_reply"
     handled: bool
     text: str = ""
+    sleep: bool = False  # después de decirlo, el teléfono se duerme («buenas noches» → «no» a apagar)
 
 
 class CameraStateEvent(_Msg):

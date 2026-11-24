@@ -228,12 +228,14 @@ def test_phone_brain_uses_pc_buttons_and_skills_but_never_the_model() -> None:
             "type": "phone_reply",
             "handled": True,
             "text": "Volumen +: hecho.",
+            "sleep": False,
         }
         assert phone(ws, "apunta comprar pan")["text"] == "Apuntado: comprar pan."
         assert phone(ws, "¿cuál es la capital de Francia?") == {
             "type": "phone_reply",
             "handled": False,
             "text": "",
+            "sleep": False,
         }
     assert ex.ran == ["volumen-mas"] and model.calls == []
 

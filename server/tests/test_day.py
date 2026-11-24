@@ -191,3 +191,20 @@ def test_without_the_power_button_good_night_just_sleeps() -> None:
     asyncio.run(orch.handle_command("buenas noches", spoken=True))
     assert "Apago" not in said(events)[-1] and slept(events)
     assert orch.last_ask == ("apagar", "¿Apago la PC?")  # Telegram pone sus botones con esto
+
+
+def test_good_night_on_the_phone_brain_sleeps_after_no() -> None:
+    """IA en el teléfono: el «no» a «¿Apago la PC?» contesta «Que descanses» y pide dormir al teléfono."""
+    router, *_ = world(NIGHT)
+    ex = FakeExecutor()
+    orch, events = orchestrator(router, ex)
+
+    async def go() -> None:
+        await orch.phone_command("buenas noches")
+        await orch.phone_command("no")
+
+    asyncio.run(go())
+    replies = [e for e in events if type(e).__name__ == "PhoneReplyEvent"]
+    assert replies[0].text.endswith("¿Apago la PC? Di sí o no.") and not replies[0].sleep
+    assert replies[1].text == "Vale. Que descanses." and replies[1].sleep
+    assert ex.ran == []

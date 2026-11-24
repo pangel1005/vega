@@ -40,6 +40,9 @@ const val PEEK_SAMPLES = 16_000 * 11 / 5
  * El trabajo pesado (Whisper y Piper) va en un hilo propio, de una frase en una: si llega
  * otra mientras piensa, se descarta (casi siempre es ruido o su propio eco).
  */
+/** Lo que contesta el PC a una orden que entendió el teléfono; `sleep`: dormirse después de decirlo. */
+data class PcAnswer(val text: String, val sleep: Boolean = false)
+
 class LocalAssistant(
     private val name: String,
     private val skills: Skills,
@@ -55,7 +58,7 @@ class LocalAssistant(
      * (sin modelo ni gráfica). Devuelve lo que hay que decir, o null si no es cosa del PC o no
      * hay PC. Así la memoria, las notas y los recordatorios viven en un solo sitio.
      */
-    private val pc: (String) -> String? = { null },
+    private val pc: (String) -> PcAnswer? = { null },
     /**
      * Con el PC conectado, le pide que diga el texto con su voz (Kokoro, más natural). Devuelve
      * true si ya empezó a sonar; false si hay que hablar con la voz del teléfono (Piper).
@@ -255,7 +258,7 @@ class LocalAssistant(
         } catch (_: Exception) {
             null
         }
-        val answer = fromPc ?: skills.handle(command)
+        val answer = fromPc?.text ?: skills.handle(command)
         log("respuesta: ${if (fromPc != null) "del PC" else if (answer != null) "del teléfono" else "ninguna"}")
         if (answer == null && !asked) {
             // En los segundos de seguimiento (sin «Vega») se oye de todo: la tele, gente hablando.
@@ -266,7 +269,10 @@ class LocalAssistant(
         }
         events(ServerEvent.Transcript(text, seconds, elapsed))
         when {
-            answer != null -> reply(answer)
+            answer != null -> {
+                reply(answer)
+                if (fromPc?.sleep == true) onSleep() // «buenas noches» → «no» a apagar: «Que descanses» y a dormir
+            }
             talker != null -> talk(command)
             else -> reply(Skills.UNKNOWN)
         }

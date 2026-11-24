@@ -309,7 +309,9 @@ class Orchestrator:
             if answer is not None:
                 action_id, self._voice_ask = self._voice_ask[0], None
                 if not answer:
-                    await self._emit(PhoneReplyEvent(handled=True, text="Vale, no hago nada."))
+                    sleep, self._ask_sleep = self._ask_sleep, False
+                    say = "Vale. Que descanses." if sleep else "Vale, no hago nada."
+                    await self._emit(PhoneReplyEvent(handled=True, text=say, sleep=sleep))
                     return
                 outcome = await asyncio.to_thread(self._actions.request, action_id, "voz")
                 pending = await self._handle_outcome(outcome, action_id)
@@ -328,7 +330,8 @@ class Orchestrator:
                     conversation,
                     [ChatMessage("user", text), ChatMessage("assistant", reply.text)],
                 )
-                await self._emit(PhoneReplyEvent(handled=True, text=self._ask_from(reply)[0]))
+                said, sleep = self._ask_from(reply)
+                await self._emit(PhoneReplyEvent(handled=True, text=said, sleep=sleep))
                 return
         action = self._actions.match(text) if self._actions else None
         if action is None and self._actions is not None:

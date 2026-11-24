@@ -272,7 +272,7 @@ def test_phone_command_not_sure_asks_and_no_cancels() -> None:
         login(ws)
         phone(ws, "sube volumen")
         reply = phone(ws, "no")
-    assert reply == {"type": "phone_reply", "handled": True, "text": "Vale, no hago nada."}
+    assert reply == {"type": "phone_reply", "handled": True, "text": "Vale, no hago nada.", "sleep": False}
     assert ex.ran == []
 
 

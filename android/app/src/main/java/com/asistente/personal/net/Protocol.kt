@@ -202,7 +202,8 @@ sealed interface ServerEvent {
     /** «Vega, duérmete»: el teléfono pasa a dormir. */
     data object Sleep : ServerEvent
     /** Respuesta del PC a una orden que entendió el teléfono (IA en el teléfono). */
-    data class PhoneReply(val handled: Boolean, val text: String) : ServerEvent
+    /** `sleep`: después de decirlo, el teléfono se duerme («buenas noches» y luego «no» a apagar el PC). */
+    data class PhoneReply(val handled: Boolean, val text: String, val sleep: Boolean = false) : ServerEvent
     /** La cámara del teléfono como cámara de Windows: si se puede (scrcpy y OBS instalados), si está encendida y cuál. */
     data class CameraState(val available: Boolean, val on: Boolean, val facing: String) : ServerEvent
     /** El estado de la «Mesa»: volumen por programa y fondos de pantalla. */
@@ -338,7 +339,7 @@ object Protocol {
             }
             "sleep" -> ServerEvent.Sleep
             "phone_control" -> ServerEvent.PhoneControl(o.getString("command"))
-            "phone_reply" -> ServerEvent.PhoneReply(o.getBoolean("handled"), o.optString("text"))
+            "phone_reply" -> ServerEvent.PhoneReply(o.getBoolean("handled"), o.optString("text"), o.optBoolean("sleep"))
             "camera_state" -> ServerEvent.CameraState(o.optBoolean("available"), o.optBoolean("on"), o.optString("facing", "front"))
             "desk_state" -> {
                 val apps = o.optJSONArray("apps")

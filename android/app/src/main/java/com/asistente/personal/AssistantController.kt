@@ -464,14 +464,14 @@ class AssistantController(context: Context) {
      * Pasa al PC una orden que ya entendió el teléfono (sus habilidades y botones, sin modelo).
      * Se llama desde el hilo de la IA local y espera la respuesta como mucho 4 s.
      */
-    private fun askPc(text: String): String? {
+    private fun askPc(text: String): com.asistente.personal.local.PcAnswer? {
         if (ui.link != LinkStatus.OPEN) return null
         val answer = java.util.concurrent.CompletableFuture<ServerEvent.PhoneReply>()
         pcAnswer = answer
         try {
             if (!socket.send(Protocol.phoneCommand(text))) return null
             val reply = answer.get(4, java.util.concurrent.TimeUnit.SECONDS)
-            return if (reply.handled) reply.text.ifEmpty { "Hecho." } else null
+            return if (reply.handled) com.asistente.personal.local.PcAnswer(reply.text.ifEmpty { "Hecho." }, reply.sleep) else null
         } catch (_: Exception) {
             return null
         } finally {

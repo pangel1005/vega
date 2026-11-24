@@ -38,6 +38,7 @@ class LocalAssistantTest {
     private inner class Rig(
         heard: List<String>,
         private val pcAnswers: Map<String, String> = emptyMap(),
+        private val sleepAfter: Map<String, Boolean> = emptyMap(),
         pcSpeaks: Boolean = false,
         talker: com.asistente.personal.local.Talker? = null,
         ears: com.asistente.personal.local.Ears? = null,
@@ -70,7 +71,7 @@ class LocalAssistantTest {
             // sin hilo: la prueba ve el resultado al momento (o, con `queued`, cuando ella lo decide)
             runner = { if (queued) jobs.addLast(it) else it.run() },
             log = { logs += it },
-            pc = { askedPc += it; pcAnswers[it] },
+            pc = { askedPc += it; pcAnswers[it]?.let { a -> com.asistente.personal.local.PcAnswer(a, sleepAfter[it] == true) } },
             pcVoice = { if (pcSpeaks) pcSaid += it; pcSpeaks },
             talker = talker,
             gate = gate,
@@ -270,6 +271,18 @@ class LocalAssistantTest {
         rig.phrase()
         assertEquals(listOf("Una montaña que echa lava."), rig.said)
         assertEquals(1, rig.chimes)
+    }
+
+    @Test fun siElPcLoPideSeDuermeTrasDecirlo() {
+        // «buenas noches» → «¿Apago la PC?» → «no»: el PC contesta «Que descanses» y pide dormir.
+        val rig = Rig(
+            listOf("Vega, no"),
+            pcAnswers = mapOf("no" to "Vale. Que descanses."),
+            sleepAfter = mapOf("no" to true),
+        )
+        rig.phrase()
+        assertEquals("Vale. Que descanses.", rig.said.joinToString(" ")) // lo dice frase a frase
+        assertEquals(1, rig.slept)
     }
 
     @Test fun duermete() {
