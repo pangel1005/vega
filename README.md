@@ -1,277 +1,276 @@
-# Vega — asistente de voz 100 % local que revive teléfonos viejos
+# Vega — a 100 % local voice assistant that gives old phones a second life
 
-*English: [README.en.md](README.en.md)*
+**English** · [Español](README.es.md)
 
-Vega es un asistente al que le hablas («Vega, …») y que a la vez es una **botonera** para tu PC (apagar,
-música, abrir juegos, volumen por programa…), como una mezcla de Alexa y Stream Deck.
+Vega is an assistant you talk to ("Vega, …") that is also a **button deck** for your PC (shut down, music, launch
+games, per-app volume…), something between Alexa and a Stream Deck.
 
-- **El cerebro está en tu PC.** Entiende la voz, piensa la respuesta y habla con modelos de IA que corren en tu
-  propio equipo: sin suscripciones y sin nube.
-- **El cuerpo es un teléfono Android viejo** conectado por **cable USB**: pone la cara de Vega, el micrófono, el
-  altavoz, la pantalla y las teclas.
-- **La idea: revivir aparatos viejos.** El teléfono que tienes en un cajón y un PC normal bastan; no hay que
-  comprar un altavoz inteligente ni nada nuevo. Y es ligera con la tarjeta gráfica: se aparta sola cuando juegas.
+- **The brain is your PC.** It understands your voice, thinks of an answer and speaks with AI models that run on
+  your own computer: no subscriptions, no cloud.
+- **The body is an old Android phone** plugged in over **USB**: it gives Vega her face, microphone, speaker,
+  screen and keys.
+- **The goal: revive old devices.** The phone in your drawer plus an ordinary PC is all you need — no smart speaker
+  or new hardware to buy. And it's light on the graphics card: it steps aside by itself while you play.
 
-**Instalar:** `powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1` (ver [Instalación](#instalación-windows)).
+**Install:** `powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1` (see [Install](#install-windows)).
 
-> **Proyecto personal en evolución.** Funciona y se usa a diario, pero espera fallos. Está pensada primero en
-> español. El nombre «Vega» se cambia en `config/assistant.toml` (o en la app de escritorio).
+> **A personal project, still evolving.** It works and is used every day, but expect rough edges. It's
+> **Spanish-first**: voice commands, the phone app and most docs are in Spanish today (English is on the roadmap).
+> The name "Vega" can be changed in `config/assistant.toml` (or in the desktop app).
 
-| De día | De noche |
+| Day | Night |
 |---|---|
-| ![Vega de día](docs/capturas/inicio-dia.png) | ![Vega de noche](docs/capturas/inicio-noche.png) |
+| ![Vega by day](docs/capturas/inicio-dia.png) | ![Vega at night](docs/capturas/inicio-noche.png) |
 
-## Qué hace
+## What it does
 
-| Le dices «Vega, …» | Hace |
+Commands are in Spanish; the English column explains them.
+
+| You say "Vega, …" | What it does |
 |---|---|
-| «buenos días» · «¿qué tengo hoy?» | Resumen del día: recordatorios, entregas de la universidad, tu racha del gimnasio y el tiempo |
-| «buenas noches» · «me voy a dormir» | Pausa la música, te dice lo de mañana y la racha, y pregunta si apaga el PC |
-| «recuérdame llamar a mamá en 20 minutos / a las 6 / mañana a las 8» | Recordatorio en voz alta (y por Telegram si el teléfono no está) |
-| «pon un temporizador de 5 minutos» · «qué recordatorios tengo» | Temporizadores y recordatorios, con cuenta atrás en pantalla |
-| «recuerda que me gusta el café sin azúcar» · «qué sabes de mí» | Memoria sobre ti; la usa también al conversar |
-| «apunta comprar leche» · «lee mis notas» | Notas |
-| «¿qué tareas tengo?» · «ya entregué el ensayo» | **Moodle:** tus entregas, con aviso 1 hora antes de que venzan |
-| «fui al gimnasio» · «¿cómo va mi racha?» | **La llama del gimnasio:** racha de días, que se ve en la cara de Vega |
-| «pon un fondo de anime» · «baja Discord» · «Spotify al 30» | Fondos de Wallpaper Engine y volumen por programa |
-| «abre Fortnite» · «lanza Counter-Strike» | Abre tus juegos de Steam y Epic |
-| «apaga el PC» · «sube el volumen» · «abre Spotify» | Botones del panel (con confirmación para lo peligroso) |
-| «¿qué tiempo hace?» · «¿va a llover mañana?» | El tiempo (opcional, con tu ciudad) |
-| «cómo está el PC» · «léeme el último mensaje» | Procesador, gráfica, memoria y batería; avisos del PC (WhatsApp, Discord…) |
-| cualquier otra cosa | Conversación con el modelo de lenguaje |
+| «buenos días» · «¿qué tengo hoy?» ("good morning", "what do I have today?") | Daily briefing: reminders, university deadlines, your gym streak and the weather |
+| «buenas noches» ("good night") | Pauses the music, tells you what's on tomorrow and your streak, and asks whether to shut down the PC |
+| «recuérdame llamar a mamá en 20 minutos / a las 6» ("remind me to call mom in 20 minutes / at 6") | Spoken reminder (and on Telegram if the phone isn't connected) |
+| «pon un temporizador de 5 minutos» ("set a 5-minute timer") | Timers and reminders, with a countdown on screen |
+| «recuerda que me gusta el café sin azúcar» ("remember that I like coffee without sugar") | Memory about you, also used in conversation |
+| «apunta comprar leche» ("note: buy milk") | Notes |
+| «¿qué tareas tengo?» · «ya entregué el ensayo» ("what assignments do I have?", "I handed in the essay") | **Moodle:** your deadlines, with an alert 1 hour before they're due |
+| «fui al gimnasio» · «¿cómo va mi racha?» ("I went to the gym", "how's my streak?") | **The gym flame:** a streak of days, shown on Vega's face |
+| «pon un fondo de anime» · «baja Discord» ("set an anime wallpaper", "turn Discord down") | Wallpaper Engine wallpapers and per-app volume |
+| «abre Fortnite» ("open Fortnite") | Launches your Steam and Epic games |
+| «apaga el PC» · «sube el volumen» ("shut down the PC", "volume up") | Panel buttons (dangerous ones ask for confirmation) |
+| «¿qué tiempo hace?» ("what's the weather?") | Weather (optional, for your city) |
+| «cómo está el PC» · «léeme el último mensaje» ("how's the PC?", "read me the last message") | CPU, GPU, memory and phone battery; PC notifications (WhatsApp, Discord…) |
+| anything else | A conversation with the language model |
 
-Después de responderte, **sigue escuchando unos segundos sin que repitas «Vega»**.
+After answering, **it keeps listening for a few seconds without you having to say "Vega" again**.
 
-**Además, sin que se lo pidas:**
-- **Lo que suena en el PC** (Spotify, el navegador…): carátula, controles y **letra sincronizada**.
-- **El juego que tienes abierto**, con tus horas y, en algunos juegos, la partida en vivo (League of Legends,
-  Rocket League, Counter-Strike 2, Forza Horizon…).
-- **Los avisos del PC** en el teléfono, agrupados por app.
-- **La cámara del teléfono como webcam** de Windows (Discord, el navegador…), con un botón.
-- **Telegram (opcional):** escríbele desde fuera de casa, recibe sus avisos y apaga el PC con botones de
-  confirmación.
+**And without being asked:**
+- **What's playing on the PC** (Spotify, the browser…): cover art, controls and **synced lyrics**.
+- **The game you have open**, with your playtime and, for some games, the live match (League of Legends, Rocket
+  League, Counter-Strike 2, Forza Horizon…).
+- **PC notifications** on the phone, grouped by app.
+- **The phone's camera as a Windows webcam** (Discord, the browser…), with one button.
+- **Telegram (optional):** message Vega from anywhere, get her reminders, and shut down the PC with confirmation
+  buttons.
 
-## El teléfono: Vega 2
+## The phone: Vega 2
 
-La app del teléfono (Kotlin + Jetpack Compose) es la cara y el cuerpo de Vega:
+The phone app (Kotlin + Jetpack Compose) is Vega's face and body:
 
-- **De día y de noche:** papel y tinta de 7 a 20 h; tinta y luz el resto (o fijo, si lo eliges).
-- **Una cara dibujada con curvas** que mira, parpadea y cambia con su ánimo: se agranda al escuchar, entorna un
-  ojo al pensar, abre la boca al hablar. Los datos también se le ven: **suda** si la gráfica se calienta, baja
-  los párpados con poca batería y lleva un **visor** mientras juegas.
-- **Mosaicos grandes:** la cara, la hora, el estado del PC con su gráfica y un mosaico «Ahora» que va pasando por
-  lo que importa (un aviso, Moodle, el PC, tus juegos, la música, la partida).
-- **Teclas con relieve** con el icono real de cada programa, que actúan al tocar.
-- **Pantallas propias:** Música (con letra), Juego, Tablero de Moodle, Avisos, Mesa (fondos y volumen por
-  programa) y **Vega Fit**, la pantalla de la racha del gimnasio.
-- **Se actualiza sola desde el PC** y puede ser la pantalla de inicio del teléfono.
+- **Day and night:** paper and ink from 7 am to 8 pm, ink and light the rest of the time (or fixed, if you prefer).
+- **A face drawn with curves** that looks around, blinks and changes with her mood: it grows when listening,
+  squints while thinking and opens its mouth when talking. You can also see data on it: she **sweats** when the
+  GPU runs hot, her eyelids droop when the battery is low, and she wears a **visor** while you play.
+- **Big tiles:** the face, the clock, PC status with a live graph, and a "Now" tile that cycles through what
+  matters (a notification, Moodle, the PC, your games, the music, the match).
+- **Raised keys** with each program's real icon, that act on touch.
+- **Dedicated screens:** Music (with lyrics), Game, Moodle board, Notifications, Desk (wallpapers and per-app
+  volume) and **Vega Fit**, the gym streak screen.
+- **Updates itself from the PC** and can be the phone's home screen.
 
-| Escuchando | Música | Juego en curso |
+| Listening | Music | Live game |
 |---|---|---|
-| ![Escuchando](docs/capturas/escuchando.png) | ![Música](docs/capturas/musica.png) | ![Juego](docs/capturas/juego.png) |
+| ![Listening](docs/capturas/escuchando.png) | ![Music](docs/capturas/musica.png) | ![Game](docs/capturas/juego.png) |
 
-| Vega Fit | Tablero de Moodle | Avisos del PC |
+| Vega Fit | Moodle board | PC notifications |
 |---|---|---|
-| ![Vega Fit](docs/capturas/vega-fit.png) | ![Tablero de Moodle](docs/capturas/moodle.png) | ![Avisos](docs/capturas/avisos.png) |
+| ![Vega Fit](docs/capturas/vega-fit.png) | ![Moodle board](docs/capturas/moodle.png) | ![Notifications](docs/capturas/avisos.png) |
 
-## La app de escritorio
+## The desktop app
 
-Una app nativa de Windows con el mismo diseño: la cara de Vega, el PC, el teléfono, lo que suena, los avisos y
-las teclas. Desde ella cambias los ajustes y los botones, controlas el teléfono y arrancas o paras Vega. Vive en
-la bandeja del sistema. Ver [docs/escritorio.md](docs/escritorio.md).
+A native Windows app with the same design: Vega's face, the PC, the phone, what's playing, notifications and keys.
+From it you change settings and buttons, control the phone, and start or stop Vega. It lives in the system tray.
 
-| De día | De noche |
+| Day | Night |
 |---|---|
-| ![Escritorio de día](docs/capturas/escritorio-dia.png) | ![Escritorio de noche](docs/capturas/escritorio-noche.png) |
+| ![Desktop app by day](docs/capturas/escritorio-dia.png) | ![Desktop app at night](docs/capturas/escritorio-noche.png) |
 
-## Cómo funciona
+## How it works
 
 ```
- Teléfono Android viejo (app nativa)      cable USB          PC con Windows
+ Old Android phone (native app)          USB cable           Windows PC
  ┌─────────────────────────────┐        (adb reverse)    ┌───────────────────────────────────┐
- │ cara dibujada (Vega 2)      │ ◄──────────────────────► │ servidor Python (127.0.0.1:8000)   │
- │ micrófono continuo 16 kHz   │   WebSocket: eventos     │  ├─ oye: Whisper                   │
- │ altavoz (voz de Vega)       │   JSON + audio PCM       │  ├─ piensa: Qwen 3.5 4B (Ollama)   │
- │ mosaicos, teclas, pantallas │                          │  ├─ habla: Kokoro / Piper          │
- └─────────────────────────────┘                          │  ├─ habilidades sin IA             │
-                                                          │  ├─ botones y control de Windows   │
-              Telegram (opcional) ◄────────────────────── │  └─ memoria (SQLite)               │
+ │ drawn face (Vega 2)         │ ◄──────────────────────► │ Python server (127.0.0.1:8000)     │
+ │ always-on mic, 16 kHz       │   WebSocket: JSON        │  ├─ hears: Whisper                 │
+ │ speaker (Vega's voice)      │   events + PCM audio     │  ├─ thinks: Qwen 3.5 4B (Ollama)   │
+ │ tiles, keys, screens        │                          │  ├─ speaks: Kokoro / Piper         │
+ └─────────────────────────────┘                          │  ├─ skills without AI              │
+                                                          │  ├─ Windows buttons and control    │
+             Telegram (optional) ◄─────────────────────── │  └─ memory (SQLite)                │
                                                           └───────────────────────────────────┘
 ```
 
-1. El teléfono manda el micrófono al PC todo el rato. El PC detecta cuándo empieza y acaba una frase y la pasa a
-   texto.
-2. Si la frase empieza por «Vega» (o acabas de hablar con ella), la atiende:
-   - primero las **habilidades** (recordatorios, notas, Moodle, el gimnasio, el PC…): rápidas, fiables y sin
-     usar la gráfica;
-   - después, las **frases de los botones** («apaga el PC»), también por significado;
-   - lo demás va al **modelo de lenguaje**.
-3. La respuesta se convierte en voz frase a frase y suena en el teléfono mientras se sigue generando.
+1. The phone streams its microphone to the PC all the time. The PC detects when a sentence starts and ends and
+   transcribes it.
+2. If the sentence starts with "Vega" (or you just talked to her), she handles it:
+   - first the **skills** (reminders, notes, Moodle, the gym, the PC…): fast, reliable and they don't use the GPU;
+   - then the **button phrases** ("shut down the PC"), also matched by meaning;
+   - everything else goes to the **language model**.
+3. The answer is turned into speech sentence by sentence and plays on the phone while the rest is still being
+   generated.
 
-## Modelos de IA
+## AI models
 
-Todo es local y gratuito. Medido en el PC del autor (RTX 4060 Ti de 8 GB, Ryzen 7 5700X, 32 GB de RAM).
+Everything is local and free. Measured on the author's PC (RTX 4060 Ti 8 GB, Ryzen 7 5700X, 32 GB RAM).
 
-| Para qué | Modelo | Dónde corre |
+| For | Model | Where it runs |
 |---|---|---|
-| Entender la voz | **Whisper** ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)) `small`, con Silero VAD | Gráfica (~0,2–0,3 s por frase); con un juego abierto, `base` en el procesador |
-| Pensar la respuesta | **Qwen 3.5 4B** con [Ollama](https://ollama.com) | Sin juego, casi todo en la gráfica (respuesta en ~0,7 s); con un juego abierto, se aparta a ~700 MB de vídeo |
-| Hablar | **Kokoro 82M** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)), voces con acento latino | Procesador, 3–4 veces más rápido que el tiempo real |
-| Hablar (alternativa) | **Piper** | Procesador, muy rápido pero más robótico |
+| Understanding speech | **Whisper** ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)) `small`, with Silero VAD | GPU (~0.2–0.3 s per sentence); while a game is open, `base` on the CPU |
+| Thinking of the answer | **Qwen 3.5 4B** via [Ollama](https://ollama.com) | No game: mostly on the GPU (~0.7 s answers); while a game is open, it shrinks to ~700 MB of VRAM |
+| Speaking | **Kokoro 82M** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)), Latin American Spanish voices | CPU, 3–4× faster than real time |
+| Speaking (alternative) | **Piper** | CPU, very fast but more robotic |
 
-**Vega sigue a tu PC:** cuando abres un juego, el modelo y la voz a texto pasan al procesador para no quitarle
-nada al juego, y vuelven a la gráfica 20 s después de cerrarlo. **Sin tarjeta NVIDIA** también funciona: todo va
-en el procesador, más despacio.
+**Vega follows your PC:** when you open a game, the model and speech-to-text move to the CPU so the game keeps the
+GPU, and they move back 20 s after you close it. **Without an NVIDIA card** it still works: everything runs on the
+CPU, just slower.
 
-## Instalación (Windows)
+## Install (Windows)
 
-**Qué necesitas**
-- Windows 10 u 11, unos 6 GB libres y 8 GB de RAM (mejor 16).
-- Una tarjeta gráfica NVIDIA ayuda, pero **no hace falta**.
-- Un **teléfono Android viejo** (Android 8 o más nuevo, de 64 bits) y su cable USB.
+**What you need**
+- Windows 10 or 11, ~6 GB of free disk space and 8 GB of RAM (16 recommended).
+- An NVIDIA graphics card helps but is **not required**.
+- An **old Android phone** (Android 8 or newer, 64-bit) and its USB cable.
 
-**1. Descarga Vega**
+**1. Get Vega**
 
 ```powershell
 git clone https://github.com/pangel1005/vega-asistente.git
 cd vega-asistente
 ```
 
-(o *Code → Download ZIP* en GitHub y descomprímelo).
+(or *Code → Download ZIP* on GitHub and unzip it).
 
-**2. Ejecuta el instalador**
+**2. Run the installer**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\instalar.ps1
 ```
 
-Instala lo que falte con winget (uv, Ollama y adb) y las dependencias de Python. Crea tus ajustes según tu tarjeta
-gráfica, baja el modelo de lenguaje (~3 GB) y las voces (~350 MB), y te pregunta si Vega arranca sola con Windows.
-Se puede repetir cuando quieras: lo que ya está hecho se salta.
+It installs whatever is missing with winget (uv, Ollama and adb) plus the Python dependencies, creates your
+settings based on your graphics card, downloads the language model (~3 GB) and the voices (~350 MB), and asks
+whether Vega should start with Windows. It's safe to run again: finished steps are skipped.
 
-**3. Instala la app en el teléfono**
+**3. Install the phone app**
 
-1. En el teléfono, activa las *Opciones de desarrollador* (toca 7 veces «Número de compilación») y dentro la
-   **Depuración USB**. En Xiaomi activa también **Instalar vía USB**.
-2. Conéctalo por USB y acepta el aviso de su pantalla.
-3. Ejecuta `scripts\android-install.ps1` (el instalador también te lo ofrece). Compila la app e instálala. Hace
-   falta Java 17+ y el SDK de Android: lo más fácil es instalar Android Studio (`winget install
-   Google.AndroidStudio`) y abrirlo una vez. El script los encuentra solo.
-   - Aún no hay un APK ya hecho para descargar: está en el plan.
-   - En algunos Xiaomi sin SIM no se puede instalar por cable: ejecuta el script con `-BuildOnly`, copia el APK de
-     `android\app\build\outputs\apk\release\` al teléfono e instálalo desde el gestor de archivos.
+1. On the phone, enable *Developer options* (tap "Build number" 7 times) and, inside, **USB debugging**. On
+   Xiaomi also enable **Install via USB**.
+2. Plug it in over USB and accept the prompt on its screen.
+3. Run `scripts\android-install.ps1` (the installer also offers it). It builds and installs the app. It needs
+   Java 17+ and the Android SDK — the easiest way is to install Android Studio (`winget install
+   Google.AndroidStudio`) and open it once; the script finds them by itself.
+   - There's no prebuilt APK to download yet: it's on the roadmap.
+   - Some Xiaomi phones without a SIM refuse installs over USB: run the script with `-BuildOnly`, copy the APK from
+     `android\app\build\outputs\apk\release\` to the phone and install it from the file manager.
 
-**4. Úsala**
+**4. Use it**
 
-Arranca Vega (`scripts\start.ps1`, o sola si lo elegiste) y conecta el teléfono: el servidor lo enlaza y abre la
-app solo. Di «Vega, ¿qué hora es?».
+Start Vega (`scripts\start.ps1`, or automatically if you chose so) and plug in the phone: the server links it and
+opens the app by itself. Say "Vega, ¿qué hora es?" ("what time is it?").
 
-**Opcional**
-- App de escritorio: `scripts\escritorio.ps1`.
+**Optional**
+- Desktop app: `scripts\escritorio.ps1`.
 - Telegram: `uv run python -m server.tools.telegram_setup` · Moodle: `uv run python -m server.tools.moodle_setup`
-  ([docs/telegram.md](docs/telegram.md), [docs/moodle.md](docs/moodle.md)).
-- Cámara del teléfono como webcam: `winget install Genymobile.scrcpy OBSProject.OBSStudio` y `[camera] enabled =
-  true`.
-- `scripts\android-debloat.ps1` quita publicidad de HyperOS (reversible con `-Restore`).
+  ([docs/telegram.md](docs/telegram.md), [docs/moodle.md](docs/moodle.md), in Spanish).
+- Phone camera as a webcam: `winget install Genymobile.scrcpy OBSProject.OBSStudio` and `[camera] enabled = true`.
+- `scripts\android-debloat.ps1` removes HyperOS ads (reversible with `-Restore`).
 
-**Si algo falla**
+**Troubleshooting**
 
-| Problema | Solución |
+| Problem | Fix |
 |---|---|
-| «No encuentro Java» / «No encuentro el SDK de Android» | Instala Android Studio, ábrelo una vez y repite `scripts\android-install.ps1` |
-| El teléfono no aparece | Cable de datos (no solo de carga), Depuración USB activada y acepta el aviso de la pantalla |
-| «El teléfono rechazó la instalación» | Xiaomi: activa «Instalar vía USB». Si Vega ya estaba instalada desde otro PC, desinstálala antes |
-| Vega no habla, solo escribe | Faltan las voces: repite `scripts\instalar.ps1` |
-| Responde muy lento | Sin tarjeta NVIDIA es normal (2–5 s más). Cierra programas pesados o prueba un modelo más pequeño en `config/assistant.toml` |
-| Algo raro | Mira `logs/server.log` |
+| "No encuentro Java" / "No encuentro el SDK de Android" (Java / Android SDK not found) | Install Android Studio, open it once and run `scripts\android-install.ps1` again |
+| The phone isn't detected | Use a data cable (not charge-only), enable USB debugging and accept the prompt on the phone |
+| "El teléfono rechazó la instalación" (the phone refused the install) | Xiaomi: enable *Install via USB*. If Vega was installed from another PC, uninstall it first |
+| Vega only writes, doesn't speak | The voices are missing: run `scripts\instalar.ps1` again |
+| Answers are very slow | Normal without an NVIDIA card (2–5 s more). Close heavy programs or try a smaller model in `config/assistant.toml` |
+| Something else | Check `logs/server.log` |
 
-## Uso diario
+## Daily use
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -Hidden   # arrancar
-powershell -ExecutionPolicy Bypass -File scripts\stop.ps1            # parar y liberar la gráfica
-powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1       # arrancar con Windows (-Remove para quitarlo)
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1 -Hidden   # start
+powershell -ExecutionPolicy Bypass -File scripts\stop.ps1            # stop and free the GPU
+powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1       # start with Windows (-Remove to undo)
 ```
 
-El arranque con Windows es una tarea programada «Vega (asistente)». Otra, «Vega (vigilante)», mira cada 5
-minutos si Vega responde y, si se colgó, la reinicia. Los registros están en `logs/`.
+Starting with Windows is a scheduled task called "Vega (asistente)". Another one, "Vega (vigilante)", checks every
+5 minutes that Vega answers and restarts her if she hung. Logs are in `logs/`.
 
-## Configuración
+## Configuration
 
-| Archivo | Qué se cambia |
+| File | What you change |
 |---|---|
-| `config/assistant.toml` | Nombre, modelo, instrucciones, voz, Whisper, Telegram, Moodle, cámara… Es tuyo (fuera de git): nace de `config/assistant.example.toml` |
-| `config/actions.toml` | Botones: qué hacen, cuáles van en la fila principal, frases de voz y cuáles piden confirmación. Los de programas que no tienes no aparecen |
-| `config/car.toml` | Casillas de la pantalla de Vega en Android Auto ([docs/coche.md](docs/coche.md)) |
+| `config/assistant.toml` | Name, model, instructions, voice, Whisper, Telegram, Moodle, camera… It's yours (not in git): created from `config/assistant.example.toml` |
+| `config/actions.toml` | Buttons: what they do, which go on the main row, voice phrases and which ask for confirmation. Buttons for programs you don't have are hidden |
+| `config/car.toml` | Tiles of Vega's Android Auto screen ([docs/coche.md](docs/coche.md)) |
 
-## Seguridad y privacidad
+## Security and privacy
 
-- **Botones:** solo existe lo que está en `config/actions.toml`, y el servidor lo comprueba siempre.
-- **Confirmación:** apagar, reiniciar y suspender piden un segundo toque o que digas «sí». Por Telegram, botones
-  de confirmación y 60 s para cancelar.
-- **Registro:** todo lo que se ejecuta queda en `logs/audit.log`.
-- **Solo tu PC:** el servidor solo escucha en `127.0.0.1` y pide un token (`config/token.txt`, fuera de git).
-- **Internet, solo para lo que activas:** letras de canciones ([lrclib.net](https://lrclib.net)), datos de los
-  juegos de Steam, el tiempo, Moodle y Telegram. Cada uno se apaga en `config/assistant.toml`. Lo que le dices a
-  Vega en voz alta no sale de tu PC.
+- **Buttons:** only what's listed in `config/actions.toml` exists, and the server always checks it.
+- **Confirmation:** shutdown, restart and sleep need a second tap or a spoken "sí". On Telegram, confirmation
+  buttons and 60 s to cancel.
+- **Audit log:** everything that runs is recorded in `logs/audit.log`.
+- **Your PC only:** the server listens only on `127.0.0.1` and requires a token (`config/token.txt`, not in git).
+- **Internet, only for what you turn on:** song lyrics ([lrclib.net](https://lrclib.net)), Steam game info, the
+  weather, Moodle and Telegram. Each one can be turned off in `config/assistant.toml`. What you say to Vega out
+  loud never leaves your PC.
 
-## Estructura del proyecto
+## Project layout
 
 ```
 .
-├── server/              Cerebro (Python 3.12, FastAPI)
-│   ├── core/            Orquestador (oír → habilidades/botones/modelo → voz), ajustes, avisos, Telegram
-│   ├── speech/          Whisper, Kokoro/Piper, detector de frases y de «Vega»
-│   ├── llm/             Cliente de Ollama
-│   ├── skills/          Habilidades sin IA: memoria, recordatorios, notas, Moodle, gimnasio, escritorio…
-│   ├── device/          USB, música, juegos, avisos de Windows, cámara, fondos, volumen por programa
-│   ├── memory/          SQLite: historial, datos sobre ti, notas, recordatorios, entregas, gimnasio
-│   ├── tools/           Botones de Windows, instalador, asistentes de Telegram y Moodle
-│   ├── ws/              Protocolo y ruta WebSocket
-│   └── tests/           Pruebas (pytest)
-├── android/             App del teléfono (Kotlin + Jetpack Compose)
+├── server/              Brain (Python 3.12, FastAPI)
+│   ├── core/            Orchestrator (hear → skills/buttons/model → speech), settings, alerts, Telegram
+│   ├── speech/          Whisper, Kokoro/Piper, sentence and "Vega" detection
+│   ├── llm/             Ollama client
+│   ├── skills/          Skills without AI: memory, reminders, notes, Moodle, gym, desk…
+│   ├── device/          USB, music, games, Windows notifications, camera, wallpapers, per-app volume
+│   ├── memory/          SQLite: history, facts about you, notes, reminders, deadlines, gym
+│   ├── tools/           Windows buttons, installer, Telegram and Moodle setup
+│   ├── ws/              WebSocket protocol and route
+│   └── tests/           Tests (pytest)
+├── android/             Phone app (Kotlin + Jetpack Compose)
 │   └── app/src/main/java/com/asistente/personal/
-│       ├── ui2/         Vega 2: tema día/noche, cara, mosaicos, pantallas
-│       ├── ui/          Pantalla principal y piezas compartidas
-│       ├── local/       IA del teléfono (sin PC): Whisper, Piper, habilidades
+│       ├── ui2/         Vega 2: day/night theme, face, tiles, screens
+│       ├── ui/          Main screen and shared pieces
+│       ├── local/       On-phone AI (no PC): Whisper, Piper, skills
 │       ├── car/         Android Auto
 │       └── net/, audio/, state/
-├── desktop/             App de escritorio (PySide6)
-├── config/              Ajustes de serie, botones, coche y escena de OBS
-├── scripts/             Instalar, arrancar, parar, arranque automático, instalar la app
-├── tools/               Herramientas de desarrollo y medición
-└── docs/                Documentación, hoja de ruta, investigación y capturas
+├── desktop/             Desktop app (PySide6)
+├── config/              Default settings, buttons, car and OBS scene
+├── scripts/             Install, start, stop, autostart, install the app
+├── tools/               Development and benchmarking tools
+└── docs/                Docs, roadmap, research and screenshots
 ```
 
-## Hacia dónde va
+## Where it's going
 
-[docs/hoja-de-ruta.md](docs/hoja-de-ruta.md) tiene el plan: un APK listo para descargar, mejor detección de
-«Vega», conversación más natural, complementos y Wi-Fi. En
-[docs/investigacion/proyectos-similares.md](docs/investigacion/proyectos-similares.md) está la comparación con
-proyectos parecidos (Home Assistant, xiaozhi, GLaDOS…).
+[docs/hoja-de-ruta.md](docs/hoja-de-ruta.md) (in Spanish) has the plan: a ready-to-download APK, better "Vega"
+detection, more natural conversation, plugins and Wi-Fi. [docs/investigacion/proyectos-similares.md](docs/investigacion/proyectos-similares.md)
+compares Vega with similar projects (Home Assistant, xiaozhi, GLaDOS…).
 
-## Desarrollo
+## Development
 
 ```powershell
-uv run pytest; uv run ruff check server; uv run mypy          # servidor
-uv run --group desktop pytest desktop/tests                     # app de escritorio
-cd android; .\gradlew.bat testDebugUnitTest assembleRelease     # app del teléfono (JDK 21)
+uv run pytest; uv run ruff check server; uv run mypy          # server
+uv run --group desktop pytest desktop/tests                     # desktop app
+cd android; .\gradlew.bat testDebugUnitTest assembleRelease     # phone app (JDK 21)
 ```
 
-Las pruebas de las dos apps **dibujan capturas de pantalla** (Roborazzi en Android, Qt sin pantalla en el
-escritorio) para revisar el diseño sin instalar nada. Cómo ha evolucionado el proyecto:
-[docs/evolucion.md](docs/evolucion.md).
+Both apps' tests **render screenshots** (Roborazzi on Android, headless Qt on the desktop) so the design can be
+reviewed without installing anything.
 
-## ¿Lo probaste? Cuéntame
+## Tried it? Tell me
 
-Vega es nueva y quiero saber cómo funciona en otros PC y teléfonos, sobre todo en los viejos. Si la pruebas,
-aunque te atasques a medio camino:
+Vega is new and I want to know how it works on other PCs and phones, especially old ones. If you try it — even if
+you get stuck halfway:
 
-- [🙋 Probé Vega](https://github.com/pangel1005/vega-asistente/issues/new?template=probe-vega.yml): cómo te fue, en qué PC y teléfono.
-- [🐞 Algo falla](https://github.com/pangel1005/vega-asistente/issues/new?template=fallo.yml) · [💡 Una idea](https://github.com/pangel1005/vega-asistente/issues/new?template=idea.yml)
+- [🙋 I tried Vega](https://github.com/pangel1005/vega-asistente/issues/new?template=probe-vega.yml): how it went, on which PC and phone.
+- [🐞 Bug](https://github.com/pangel1005/vega-asistente/issues/new?template=fallo.yml) · [💡 Idea](https://github.com/pangel1005/vega-asistente/issues/new?template=idea.yml)
 
-Y si te gusta, una ⭐ en GitHub ayuda a que más gente la encuentre.
+If you like it, a ⭐ on GitHub helps other people find it.
 
-## Licencia
+## License
 
-MIT: ver [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
