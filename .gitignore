@@ -6,10 +6,6 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 
-# Node
-node_modules/
-web/dist/
-
 # Datos locales (historial, registros, voces y modelos descargados)
 data/
 logs/

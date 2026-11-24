@@ -70,15 +70,14 @@ from server.speech.whisper import WhisperSTT
 from server.tools.actions import ActionRunner
 from server.tools.app_icons import AppIcons
 from server.web import (
-    UI_DIST,
     register_app_icons,
     register_game_art,
     register_gsi,
+    register_home,
     register_lyrics,
     register_media_art,
     register_notification_icons,
     register_phone_models,
-    register_ui,
     register_wallpaper_art,
 )
 from server.ws.protocol import DoneEvent, ErrorEvent, ServerEvent
@@ -121,7 +120,6 @@ def create_app(
     llm_probe: LlmProbe | None = None,
     chat_model: ChatModel | None = None,
     store: ConversationStore | None = None,
-    ui_dist: Path = UI_DIST,
     stt: SpeechToText | None = None,
     actions: ActionRunner | None = None,
     tts: TextToSpeech | None = None,
@@ -400,7 +398,7 @@ def create_app(
                 settings, model, history, token, stt, tts, actions, skills, memory, semantic, placement
             ),
         )
-    register_ui(app, token, ui_dist)
+    register_home(app)
     if app_icons is not None:
         register_app_icons(app, app_icons)
     register_media_art(app, hub.media_art)

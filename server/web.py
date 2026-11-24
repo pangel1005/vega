@@ -1,9 +1,12 @@
-"""Entrega la interfaz compilada (`web/dist`) con el token metido en la página."""
+"""Rutas HTTP que usan las apps: la página de inicio, las actualizaciones de la app del teléfono, los modelos
+de la IA del teléfono, iconos, carátulas y letras.
+
+(Hasta el 24-11-2026 había aquí una interfaz web de chat, `web/`, sustituida por la app de escritorio.)
+"""
 
 from __future__ import annotations
 
 import asyncio
-import html
 import json
 import logging
 import re
@@ -12,7 +15,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
-from fastapi.staticfiles import StaticFiles
 
 from server.core.config import ROOT
 from server.device.lyrics import NOT_FOUND, LyricsFinder
@@ -20,40 +22,23 @@ from server.tools.app_icons import AppIcons
 
 log = logging.getLogger(__name__)
 
-UI_DIST = ROOT / "web" / "dist"
 # Versión optimizada (release) de la app: la que se instala y actualiza en el teléfono.
 APK_DIR = ROOT / "android" / "app" / "build" / "outputs" / "apk" / "release"
-TOKEN_PLACEHOLDER = "__ASSISTANT_TOKEN__"
 # Modelos de la IA del teléfono (Whisper base y la voz Piper): la app los baja una vez.
 PHONE_MODELS = ROOT / "data" / "telefono"
-# Archivos sueltos de web/public que se sirven en la raíz.
-ROOT_FILES = ("manifest.webmanifest", "icon.svg")
 
-MISSING_UI = """<!doctype html><meta charset="utf-8"><title>Interfaz sin compilar</title>
-<body style="background:#060606;color:#f3ede4;font-family:sans-serif;padding:2em">
-<h1 style="color:#ff7a18">La interfaz todavía no está compilada</h1>
-<p>Ejecuta <code>npm run build</code> dentro de la carpeta <code>ui</code> y recarga.</p>"""
+HOME = """<!doctype html><meta charset="utf-8"><title>Vega</title>
+<body style="background:#EEE8DB;color:#211D17;font-family:'Segoe UI',sans-serif;padding:2em">
+<h1>Vega está en marcha</h1>
+<p>Usa la app del teléfono o la de escritorio (<code>scripts\\escritorio.ps1</code>).</p>"""
 
 
-def register_ui(app: FastAPI, token: str, dist: Path = UI_DIST) -> None:
-    index = dist / "index.html"
+def register_home(app: FastAPI) -> None:
+    """Página sencilla en la raíz (para ver en el navegador que Vega responde) y las actualizaciones."""
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def home() -> HTMLResponse:
-        if not index.exists():
-            return HTMLResponse(MISSING_UI, status_code=503)
-        page = index.read_text(encoding="utf-8").replace(TOKEN_PLACEHOLDER, html.escape(token, quote=True))
-        # Sin caché: la página lleva el token y siempre debe salir del servidor.
-        return HTMLResponse(page, headers={"Cache-Control": "no-store"})
-
-    assets = dist / "assets"
-    if assets.is_dir():
-        app.mount("/assets", StaticFiles(directory=assets), name="assets")
-    else:
-        log.warning("No encuentro %s: ejecuta `npm run build` en web/", assets)
-
-    for name in ROOT_FILES:
-        _serve_file(app, dist / name, f"/{name}")
+        return HTMLResponse(HOME)
 
     register_app_updates(app)
 
@@ -204,9 +189,3 @@ def register_app_icons(app: FastAPI, icons: AppIcons) -> None:
         if data is None:
             return Response(status_code=404)
         return Response(data, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
-
-
-def _serve_file(app: FastAPI, path: Path, route: str) -> None:
-    @app.get(route, include_in_schema=False)
-    async def file() -> Response:
-        return FileResponse(path) if path.exists() else Response(status_code=404)

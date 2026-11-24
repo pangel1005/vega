@@ -14,7 +14,7 @@ TOKEN = "x" * 32
 OK = LlmStatus(True, "ok")
 
 
-def client_with(status: LlmStatus = OK, ui_dist: Path | None = None) -> TestClient:
+def client_with(status: LlmStatus = OK) -> TestClient:
     async def probe() -> LlmStatus:
         return status
 
@@ -23,7 +23,6 @@ def client_with(status: LlmStatus = OK, ui_dist: Path | None = None) -> TestClie
         token=TOKEN,
         llm_probe=probe,
         store=ConversationStore(":memory:"),
-        ui_dist=ui_dist or Path("no-existe"),
     )
     return TestClient(app, base_url="http://127.0.0.1:8000")
 
@@ -48,25 +47,9 @@ def test_rejects_foreign_host_header() -> None:
     assert resp.status_code == 400
 
 
-def test_page_gets_token_injected(tmp_path: Path) -> None:
-    (tmp_path / "assets").mkdir()
-    (tmp_path / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
-    (tmp_path / "index.html").write_text(
-        '<meta name="assistant-token" content="__ASSISTANT_TOKEN__">', encoding="utf-8"
-    )
-    client = client_with(ui_dist=tmp_path)
-
-    resp = client.get("/")
-    assert resp.status_code == 200
-    assert f'content="{TOKEN}"' in resp.text
-    assert resp.headers["cache-control"] == "no-store"
-    assert client.get("/assets/app.js").text == "console.log(1)"
-
-
-def test_missing_ui_explains_how_to_build() -> None:
+def test_home_page_says_vega_is_running() -> None:
     resp = client_with().get("/")
-    assert resp.status_code == 503
-    assert "npm run build" in resp.text
+    assert resp.status_code == 200 and "Vega está en marcha" in resp.text
 
 
 def test_app_update_endpoints(tmp_path: Path) -> None:
