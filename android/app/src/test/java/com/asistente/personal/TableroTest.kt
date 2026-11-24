@@ -63,13 +63,13 @@ class TableroTest {
     private fun at(days: Long, h: Int, m: Int = 0) = ZonedDateTime.of(2026, 11, 11, h, m, 0, 0, zone).plusDays(days).toEpochSecond()
 
     private val tasks = listOf(
-        TaskItem("a", "Ensayo Unidad 1 (2 puntos)", "MAT-101-01", at(0, 18)),
-        TaskItem("b", "Práctica 1 (3 puntos)", "MAT-101-01", at(0, 9)),
-        TaskItem("c", "UD 2. Act 1. Informe sobre las funciones administrativas", "ADM-201-01", at(0, 23, 0)),
-        TaskItem("d", "Fundamentos de Internet Society", "RED-301-01", at(1, 0)),
-        TaskItem("e", "Pruebín Unidad 1", "MAT-101-01", at(7, 18, 45)),
-        TaskItem("f", "Cloud Computing – Huawei", "RED-301-01", at(14, 0)),
-        TaskItem("g", "Sprint 1 (20 puntos)", "SOF-301-01", at(34, 23, 59)),
+        TaskItem("a", "Ensayo Unidad 1 (2 puntos)", "Cálculo I", at(0, 18)),
+        TaskItem("b", "Práctica 1 (3 puntos)", "Cálculo I", at(0, 9)),
+        TaskItem("c", "UD 2. Act 1. Informe sobre las funciones administrativas", "Administración", at(0, 23, 0)),
+        TaskItem("d", "Fundamentos de Internet Society", "Redes", at(1, 0)),
+        TaskItem("e", "Pruebín Unidad 1", "Cálculo I", at(7, 18, 45)),
+        TaskItem("f", "Cloud Computing – Huawei", "Redes", at(14, 0)),
+        TaskItem("g", "Sprint 1 (20 puntos)", "Ingeniería de software", at(34, 23, 59)),
     )
 
     @Before fun reset() {
@@ -141,10 +141,10 @@ class TableroTest {
 
     @Test fun theEventIsParsedAndMessagesAreWellFormed() {
         val e = Protocol.parse(
-            """{"type":"tasks","items":[{"uid":"1@m","title":"Ensayo","course":"MAT-101-01","due":1794434400.0},
+            """{"type":"tasks","items":[{"uid":"1@m","title":"Ensayo","course":"Cálculo I","due":1794434400.0},
             {"uid":"2@m","title":"Sin curso","due":1794434460.5}]}""",
         ) as ServerEvent.Tasks
-        assertEquals(TaskItem("1@m", "Ensayo", "MAT-101-01", 1794434400), e.items[0])
+        assertEquals(TaskItem("1@m", "Ensayo", "Cálculo I", 1794434400), e.items[0])
         assertEquals("", e.items[1].course)
         assertEquals(0, (Protocol.parse("""{"type":"tasks","items":[]}""") as ServerEvent.Tasks).items.size)
         val d = JSONObject(Protocol.tasks("done", "1@m"))
