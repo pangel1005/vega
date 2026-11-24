@@ -135,8 +135,8 @@ CPU, just slower.
 **1. Get Vega**
 
 ```powershell
-git clone https://github.com/pangel1005/vega-asistente.git
-cd vega-asistente
+git clone https://github.com/pangel1005/vega.git
+cd vega
 ```
 
 (or *Code → Download ZIP* on GitHub and unzip it).
@@ -266,8 +266,8 @@ reviewed without installing anything.
 Vega is new and I want to know how it works on other PCs and phones, especially old ones. If you try it — even if
 you get stuck halfway:
 
-- [🙋 I tried Vega](https://github.com/pangel1005/vega-asistente/issues/new?template=probe-vega.yml): how it went, on which PC and phone.
-- [🐞 Bug](https://github.com/pangel1005/vega-asistente/issues/new?template=fallo.yml) · [💡 Idea](https://github.com/pangel1005/vega-asistente/issues/new?template=idea.yml)
+- [🙋 I tried Vega](https://github.com/pangel1005/vega/issues/new?template=probe-vega.yml): how it went, on which PC and phone.
+- [🐞 Bug](https://github.com/pangel1005/vega/issues/new?template=fallo.yml) · [💡 Idea](https://github.com/pangel1005/vega/issues/new?template=idea.yml)
 
 If you like it, a ⭐ on GitHub helps other people find it.
 

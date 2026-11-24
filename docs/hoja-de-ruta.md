@@ -2,7 +2,7 @@
 
 Hacia dónde va Vega ahora que es pública. La idea de fondo no cambia: **revivir aparatos viejos** (el teléfono del
 cajón y un PC normal) con un asistente de voz 100 % local. El plan detallado de funciones para el uso diario sigue
-en [plan-de-mejoras.md](plan-de-mejoras.md). ¿Ideas? [Abre una](https://github.com/pangel1005/vega-asistente/issues/new?template=idea.yml)
+en [plan-de-mejoras.md](plan-de-mejoras.md). ¿Ideas? [Abre una](https://github.com/pangel1005/vega/issues/new?template=idea.yml)
 o escribe en *Discussions*.
 
 ## 1. Que cualquiera pueda probarla (lo primero)
@@ -47,9 +47,9 @@ o escribe en *Discussions*.
 
 ## 4. Comunidad
 
-- Formularios en GitHub: [🙋 Probé Vega](https://github.com/pangel1005/vega-asistente/issues/new?template=probe-vega.yml),
-  [🐞 Algo falla](https://github.com/pangel1005/vega-asistente/issues/new?template=fallo.yml) y
-  [💡 Idea](https://github.com/pangel1005/vega-asistente/issues/new?template=idea.yml). *Discussions* para charlar.
+- Formularios en GitHub: [🙋 Probé Vega](https://github.com/pangel1005/vega/issues/new?template=probe-vega.yml),
+  [🐞 Algo falla](https://github.com/pangel1005/vega/issues/new?template=fallo.yml) y
+  [💡 Idea](https://github.com/pangel1005/vega/issues/new?template=idea.yml). *Discussions* para charlar.
 - Un grupo de Telegram de testers para avisar de cada versión.
 - Dónde enseñarla: la universidad, r/LocalLLaMA, r/selfhosted, r/Android, comunidades de programación en español
   y vídeos cortos («convertí mi teléfono viejo en un asistente de IA»).

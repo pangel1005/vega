@@ -24,7 +24,7 @@ from server.core.http import async_client
 log = logging.getLogger(__name__)
 
 API = "https://lrclib.net/api"
-USER_AGENT = "Vega asistente personal (https://github.com/pangel1005/vega-asistente)"
+USER_AGENT = "Vega asistente personal (https://github.com/pangel1005/vega)"
 _TIMEOUT = httpx.Timeout(8.0)
 _LRC = re.compile(r"^\[(\d+):(\d+(?:\.\d+)?)\]\s?(.*)$")
 

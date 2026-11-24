@@ -133,8 +133,8 @@ en el procesador, más despacio.
 **1. Descarga Vega**
 
 ```powershell
-git clone https://github.com/pangel1005/vega-asistente.git
-cd vega-asistente
+git clone https://github.com/pangel1005/vega.git
+cd vega
 ```
 
 (o *Code → Download ZIP* en GitHub y descomprímelo).
@@ -267,8 +267,8 @@ escritorio) para revisar el diseño sin instalar nada. Cómo ha evolucionado el 
 Vega es nueva y quiero saber cómo funciona en otros PC y teléfonos, sobre todo en los viejos. Si la pruebas,
 aunque te atasques a medio camino:
 
-- [🙋 Probé Vega](https://github.com/pangel1005/vega-asistente/issues/new?template=probe-vega.yml): cómo te fue, en qué PC y teléfono.
-- [🐞 Algo falla](https://github.com/pangel1005/vega-asistente/issues/new?template=fallo.yml) · [💡 Una idea](https://github.com/pangel1005/vega-asistente/issues/new?template=idea.yml)
+- [🙋 Probé Vega](https://github.com/pangel1005/vega/issues/new?template=probe-vega.yml): cómo te fue, en qué PC y teléfono.
+- [🐞 Algo falla](https://github.com/pangel1005/vega/issues/new?template=fallo.yml) · [💡 Una idea](https://github.com/pangel1005/vega/issues/new?template=idea.yml)
 
 Y si te gusta, una ⭐ en GitHub ayuda a que más gente la encuentre.
 
