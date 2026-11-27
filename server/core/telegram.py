@@ -192,7 +192,10 @@ class TelegramBridge:
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         power: Callable[[str], str] | None = None,
         before_off: Text | None = None,
+        on_power: Callable[[bool], Awaitable[None]] | None = None,
     ) -> None:
+        # Al programar el apagado (True) o cancelarlo (False): el teléfono de Vega se duerme o se despierta.
+        self._on_power = on_power
         self._power = power  # None: apagar desde Telegram no está permitido
         self._before_off = before_off  # avisos antes de apagar (un juego abierto…)
         self._offers: dict[str, float] = {}  # código de cada «¿Apago la PC?» → hasta cuándo vale
@@ -342,7 +345,16 @@ class TelegramBridge:
         except PowerError as exc:
             return str(exc)
         _audit("cancelada")
+        await self._notify_power(False)
         return "✋ " + message
+
+    async def _notify_power(self, off: bool) -> None:
+        if self._on_power is None:
+            return
+        try:
+            await self._on_power(off)
+        except Exception:  # el apagado no debe fallar por el teléfono
+            log.warning("Telegram: no pude avisar al teléfono del apagado", exc_info=True)
 
     async def _press(self, query: dict[str, Any]) -> None:
         """Un botón pulsado. Solo cuentan los de las cuentas autorizadas, en su chat privado."""
@@ -377,6 +389,7 @@ class TelegramBridge:
                     text = "🔌 " + await asyncio.to_thread(self._power, "shutdown")
                     buttons = [[{"text": "✋ Cancelar apagado", "callback_data": "abort"}]]
                     _audit("ejecutada", f"en {OFF_DELAY_S} s")
+                    await self._notify_power(True)
                 except PowerError as exc:
                     text = str(exc)
                     _audit("falló", text)

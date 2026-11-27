@@ -760,3 +760,28 @@ def test_windows_power_runs_shutdown_with_a_delay() -> None:
         tg.windows_power("cancel", run=lambda cmd, **_: Done(1116))
     with pytest.raises(tg.PowerError):
         tg.windows_power("restart", run=run_ok)
+
+
+def test_shutting_down_puts_the_phone_to_sleep_and_cancel_wakes_it() -> None:
+    api, power = FakeApi(), Power()
+    calls: list[bool] = []
+
+    async def on_power(off: bool) -> None:
+        calls.append(off)
+
+    bridge = TelegramBridge(
+        api,  # type: ignore[arg-type]
+        frozenset({OWNER}),
+        Box().answer,
+        lambda: _text("ESTADO"),
+        lambda: _text("PENDIENTE"),
+        clock=lambda: NOW + 5,
+        power=power,
+        on_power=on_power,
+    )
+    run(bridge.handle(message("/apagar")))
+    assert calls == []  # preguntar no duerme a nadie
+    run(bridge.handle(press(f"off:{offered_code(api)}")))
+    assert calls == [True]
+    run(bridge.handle(message("/cancelar")))
+    assert calls == [True, False]

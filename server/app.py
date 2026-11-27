@@ -316,6 +316,8 @@ def create_app(
                 # Solo si el botón «Apagar PC» existe en config/actions.toml (si lo quitas, Telegram tampoco).
                 power=windows_power if actions is not None and actions.get("apagar") is not None else None,
                 before_off=before_off,
+                # Con /apagar el teléfono de Vega se duerme (y se despierta si se cancela el apagado).
+                on_power=lambda off: hub.control_phone("sleep" if off else "wake"),
             )
 
     @asynccontextmanager
